@@ -6,10 +6,17 @@ import hashlib # Para el hash de la contraseña
 # Importar las funciones desde nuestro módulo de utilidades para Firestore
 from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore, delete_document_firestore, get_next_id
 
-# --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
-st.set_page_config(layout="wide")
+# --- CONFIGURACIÓN BÁSICA DE LA PÁGINA (MOVIDO AL PRINCIPIO) ---
+# Configura el nombre de la página y el logo
+st.set_page_config(
+    page_title="ImperYo",  # El nombre que quieres para tu app en la pestaña del navegador/icono
+    page_icon="https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1", # Tu logo de Dropbox
+    layout="wide"
+)
 
-# --- HEADER CON LOGO Y TÍTULO ---
+# --- HEADER CON LOGO Y TÍTULO (Mantenido para el título dentro de la app) ---
+# Nota: El logo de la pestaña/icono de la app se establece con st.set_page_config arriba.
+# Este st.image es para mostrar el logo dentro del contenido de la página si lo deseas.
 col_logo, col_title = st.columns([0.1, 0.9]) # Ajusta la proporción según sea necesario
 with col_logo:
     # Tu logo de Dropbox con dl=1 para acceso directo
@@ -509,49 +516,111 @@ if check_password():
                 with col_confirm2:
                     if st.button("Cancelar Eliminación", key="cancel_delete_button"):
                         st.info("Eliminación cancelada.")
-                        st.rerun() # Actualizar para limpiar el mensaje de confirmación
-            elif delete_id is not None and delete_id > 0: # Solo mostrar este mensaje si se introdujo un número pero no se encontró
-                st.info(f"No se encontró ningún pedido con el ID **{delete_id}** para eliminar.")
-            else: # Esto cubre el estado inicial vacío o si el usuario borra la entrada
-                st.info("Por favor, introduce un ID de pedido para buscar y eliminar.")
-
+                        st.rerun() # Recargar para limpiar la advertencia y el botón de confirmación
+            elif delete_id is not None and delete_id > 0: # Solo mostrar si se intentó buscar un ID que no existe
+                st.info(f"No se encontró ningún pedido con el ID {delete_id} para eliminar.")
 
     elif page == "Gestión de Gastos":
         st.header("Gestión de Gastos")
-        st.info("Formulario de Gestión de Gastos aún no implementado.")
+        st.write("Aquí puedes gestionar tus gastos.")
+        # Ejemplo: Mostrar el DataFrame de gastos
+        st.subheader("Gastos Registrados")
+        st.dataframe(df_gastos)
 
-    # --- PÁGINA: RESUMEN DE ESTADOS DE PEDIDOS ---
+        # --- Formulario para añadir nuevo gasto ---
+        st.subheader("Añadir Nuevo Gasto")
+        with st.form("form_nuevo_gasto", clear_on_submit=True):
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
+                gasto_fecha = st.date_input("Fecha del Gasto", key="gasto_fecha")
+                gasto_concepto = st.text_input("Concepto", key="gasto_concepto")
+            with col_g2:
+                gasto_importe = st.number_input("Importe", min_value=0.0, format="%.2f", key="gasto_importe")
+                gasto_tipo = st.selectbox("Tipo de Gasto", options=["", "Fijo", "Variable"], key="gasto_tipo") # Opciones de ejemplo
+            
+            submitted_gasto = st.form_submit_button("Guardar Gasto")
+
+            if submitted_gasto:
+                # Generar un nuevo ID para el gasto
+                next_gasto_id = get_next_id(df_gastos, 'ID') # Asumiendo columna 'ID' para gastos también
+                
+                new_gasto_record = {
+                    'ID': next_gasto_id,
+                    'Fecha': gasto_fecha,
+                    'Concepto': gasto_concepto,
+                    'Importe': gasto_importe,
+                    'Tipo': gasto_tipo if gasto_tipo != "" else None
+                }
+                new_gasto_df_row = pd.DataFrame([new_gasto_record])
+                
+                st.session_state.data['df_gastos'] = pd.concat([df_gastos, new_gasto_df_row], ignore_index=True)
+                
+                if save_dataframe_firestore(st.session_state.data['df_gastos'], 'gastos'):
+                    st.success(f"Gasto {next_gasto_id} guardado con éxito!")
+                    st.rerun()
+                else:
+                    st.error("Error al guardar el gasto.")
+
+        # --- Sección para eliminar gastos ---
+        st.subheader("Eliminar Gasto")
+        delete_gasto_id = st.number_input("ID del Gasto a Eliminar:", min_value=1, value=None, key="delete_gasto_id_input")
+
+        gasto_a_eliminar = pd.DataFrame()
+        if delete_gasto_id is not None and delete_gasto_id > 0:
+            gasto_a_eliminar = df_gastos[df_gastos['ID'] == delete_gasto_id]
+
+        if not gasto_a_eliminar.empty:
+            st.warning(f"¿Estás seguro de que quieres eliminar el gasto con ID **{delete_gasto_id}**?")
+            st.dataframe(gasto_a_eliminar)
+
+            col_g_confirm1, col_g_confirm2 = st.columns(2)
+            with col_g_confirm1:
+                if st.button("Confirmar Eliminación Gasto", key="confirm_delete_gasto_button"):
+                    doc_id_to_delete_gasto = gasto_a_eliminar['id_documento_firestore'].iloc[0]
+                    if delete_document_firestore('gastos', doc_id_to_delete_gasto):
+                        st.success(f"Gasto {delete_gasto_id} eliminado con éxito de Firestore.")
+                        st.rerun()
+                    else:
+                        st.error("Error al eliminar el gasto de Firestore.")
+            with col_g_confirm2:
+                if st.button("Cancelar Eliminación Gasto", key="cancel_delete_gasto_button"):
+                    st.info("Eliminación de gasto cancelada.")
+                    st.rerun()
+        elif delete_gasto_id is not None and delete_gasto_id > 0:
+            st.info(f"No se encontró ningún gasto con el ID {delete_gasto_id} para eliminar.")
+
     elif page == "Resumen de Estados de Pedidos":
         st.header("Resumen de Estados de Pedidos")
-        st.write("Aquí puedes ver un resumen de tus pedidos por estado y listar los detalles de cada categoría.")
-        st.write("---")
-
-        # Calcular DataFrames para cada estado (siempre se calculan para tenerlos disponibles)
-        trabajos_empezados_df = df_pedidos[df_pedidos['Inicio Trabajo'] == True] if 'Inicio Trabajo' in df_pedidos.columns else pd.DataFrame()
-        trabajos_terminados_df = df_pedidos[df_pedidos['Trabajo Terminado'] == True] if 'Trabajo Terminado' in df_pedidos.columns else pd.DataFrame()
-        pedidos_pendientes_df = df_pedidos[df_pedidos['Pendiente'] == True] if 'Pendiente' in df_pedidos.columns else pd.DataFrame()
         
-        pedidos_sin_estado_especifico_df = pd.DataFrame()
-        if 'Inicio Trabajo' in df_pedidos.columns and 'Trabajo Terminado' in df_pedidos.columns and 'Pendiente' in df_pedidos.columns:
-            pedidos_sin_estado_especifico_df = df_pedidos[
+        # Filtrar el DataFrame basado en la selección del radio button
+        filtered_df = pd.DataFrame() # Inicializar como DataFrame vacío
+        
+        if st.session_state.current_summary_view == "Todos los Pedidos":
+            filtered_df = df_pedidos
+            st.subheader("Todos los Pedidos")
+        elif st.session_state.current_summary_view == "Trabajos Empezados":
+            filtered_df = df_pedidos[df_pedidos['Inicio Trabajo'] == True]
+            st.subheader("Pedidos con 'Inicio Trabajo'")
+        elif st.session_state.current_summary_view == "Trabajos Terminados":
+            filtered_df = df_pedidos[df_pedidos['Trabajo Terminado'] == True]
+            st.subheader("Pedidos con 'Trabajo Terminado'")
+        elif st.session_state.current_summary_view == "Pedidos Pendientes":
+            filtered_df = df_pedidos[df_pedidos['Pendiente'] == True]
+            st.subheader("Pedidos con 'Pendiente'")
+        elif st.session_state.current_summary_view == "Pedidos sin estado específico":
+            # Un pedido "sin estado específico" podría ser uno que no tiene ningún checkbox de estado marcado
+            # O puedes definirlo como los que no tienen 'Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente'
+            # Para este ejemplo, consideraremos los que NO tienen 'Inicio Trabajo' ni 'Trabajo Terminado' ni 'Pendiente'
+            filtered_df = df_pedidos[
                 (df_pedidos['Inicio Trabajo'] == False) &
                 (df_pedidos['Trabajo Terminado'] == False) &
                 (df_pedidos['Pendiente'] == False)
             ]
+            st.subheader("Pedidos sin Estado Específico (No Empezados, Terminados o Pendientes)")
 
-        # --- Mostrar la lista de pedidos según la selección del sub-menú (controlado por st.session_state.current_summary_view) ---
-        if st.session_state.current_summary_view == "Todos los Pedidos":
-            st.subheader("Todos los Pedidos")
-            st.dataframe(df_pedidos.style.apply(highlight_pedidos_rows, axis=1))
-        elif st.session_state.current_summary_view == "Trabajos Empezados":
-            st.subheader("Trabajos Empezados")
-            st.dataframe(trabajos_empezados_df.style.apply(highlight_pedidos_rows, axis=1))
-        elif st.session_state.current_summary_view == "Trabajos Terminados":
-            st.subheader("Trabajos Terminados")
-            st.dataframe(trabajos_terminados_df.style.apply(highlight_pedidos_rows, axis=1))
-        elif st.session_state.current_summary_view == "Pedidos Pendientes":
-            st.subheader("Pedidos Pendientes")
-            st.dataframe(pedidos_pendientes_df.style.apply(highlight_pedidos_rows, axis=1))
-        elif st.session_state.current_summary_view == "Pedidos sin estado específico":
-            st.subheader("Pedidos sin estado específico")
-            st.dataframe(pedidos_sin_estado_especifico_df.style.apply(highlight_pedidos_rows, axis=1))
+        if not filtered_df.empty:
+            # Aplicar la función de estilo al DataFrame filtrado
+            st.dataframe(filtered_df.style.apply(highlight_pedidos_rows, axis=1))
+        else:
+            st.info(f"No hay pedidos en la categoría: {st.session_state.current_summary_view}")
+
