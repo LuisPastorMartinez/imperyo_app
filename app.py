@@ -67,9 +67,9 @@ with col_title:
     st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
 # --- FIN HEADER ---
 
-# --- MENSAJES CONDICIONALES PARA DEMOSTRACIÓN ---
-st.markdown("<p class='pc-only'>Estás viendo la versión para PC.</p>", unsafe_allow_html=True)
-st.markdown("<p class='mobile-only'>¡Hola! Estás viendo la versión para móvil.</p>", unsafe_allow_html=True)
+# --- MENSAJES CONDICIONALES PARA DEMOSTRACIÓN (PUEDES QUITAR ESTO DESPUÉS DE PROBAR) ---
+# st.markdown("<p class='pc-only'>Estás viendo la versión para PC.</p>", unsafe_allow_html=True)
+# st.markdown("<p class='mobile-only'>¡Hola! Estás viendo la versión para móvil.</p>", unsafe_allow_html=True)
 # --- FIN MENSAJES CONDICIONALES ---
 
 
@@ -186,14 +186,14 @@ if check_password():
     # --- NAVEGACIÓN DE LA APLICACIÓN (BARRA LATERAL) ---
     st.sidebar.title("Navegación")
     # Usar un radio button para simular la selección de "páginas" o secciones
-    page = st.sidebar.radio("Ir a:", ["Inicio", "Gestión de Pedidos", "Gestión de Gastos", "Resumen de Estados de Pedidos", "Ver Todas las Hojas"], key="main_page_radio")
+    page = st.sidebar.radio("Ir a:", ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos"], key="main_page_radio")
 
     # Inicializar estado de sesión para la vista de resumen si no está presente
     if 'current_summary_view' not in st.session_state:
         st.session_state.current_summary_view = "Todos los Pedidos" # Vista por defecto para el resumen
 
     # Sub-menú condicional para "Resumen de Pedidos por Estado" usando expander
-    if page == "Resumen de Estados de Pedidos":
+    if page == "Resumen": # Cambiado de "Resumen de Estados de Pedidos"
         with st.sidebar.expander("Seleccionar Vista de Resumen", expanded=True): # Expandido por defecto cuando en esta página
             selected_summary_view_in_expander = st.radio(
                 "Ver por categoría:",
@@ -209,15 +209,15 @@ if check_password():
 
     if page == "Inicio":
         st.header("Bienvenido a Imperyo Sport")
-        st.write("Usa la barra lateral para navegar entre las diferentes secciones de la aplicación.")
+        # st.write("Usa la barra lateral para navegar entre las diferentes secciones de la aplicación.") # ELIMINADO
         st.write("---")
         st.subheader("Estado General de Pedidos")
         # Ejemplo: Mostrar un resumen rápido (ej. número total de pedidos)
         st.info(f"Total de Pedidos Registrados: **{len(df_pedidos)}**")
-        st.write("Para un resumen detallado por estado, ve a 'Resumen de Estados de Pedidos' en el menú lateral y selecciona una categoría.")
+        # st.write("Para un resumen detallado por estado, ve a 'Resumen de Estados de Pedidos' en el menú lateral y selecciona una categoría.") # ELIMINADO
 
 
-    elif page == "Ver Todas las Hojas":
+    elif page == "Ver Datos": # Cambiado de "Ver Todas las Hojas"
         st.header("Datos Cargados de Firestore") # Texto actualizado
         st.subheader("Colección 'pedidos'")
         # Aplicar la función de estilo al DataFrame 'Pedidos'
@@ -231,7 +231,7 @@ if check_password():
         st.subheader("Colección 'trabajos'")
         st.dataframe(df_trabajos)
 
-    elif page == "Gestión de Pedidos":
+    elif page == "Pedidos": # Cambiado de "Gestión de Pedidos"
         st.header("Gestión de Pedidos")
 
         # --- Pestañas para acciones (Guardar, Buscar, Modificar, Eliminar) ---
@@ -371,32 +371,29 @@ if check_password():
                         st.error("Error al guardar el pedido.")
 
         with tab_buscar:
-            st.subheader("Buscar Pedido Existente")
-            search_id = st.number_input("Introduce el ID del pedido a buscar:", min_value=1, value=1, key="search_id_input_tab")
+            st.subheader("Buscar Pedido") # Título más conciso
+            search_id = st.number_input("Introduce el ID del pedido:", min_value=1, value=1, key="search_id_input_tab")
             if st.button("Buscar", key="search_button_tab"):
-                # Filtrar el DataFrame 'pedidos' para encontrar el pedido coincidente
                 found_pedido = df_pedidos[df_pedidos['ID'] == search_id]
                 if not found_pedido.empty:
                     st.success(f"Pedido {search_id} encontrado:")
-                    # Aplicar estilo al pedido encontrado también
                     st.dataframe(found_pedido.style.apply(highlight_pedidos_rows, axis=1))
-                    # En una implementación completa, cargarías estos detalles en campos editables
                 else:
                     st.warning(f"No se encontró ningún pedido con el ID {search_id}.")
 
         with tab_modificar:
-            st.subheader("Modificar Pedido Existente")
+            st.subheader("Modificar Pedido") # Título más conciso
 
             # Campo de entrada para el ID a buscar
             modify_search_id = st.number_input("Introduce el ID del pedido a modificar:", min_value=1, value=st.session_state.get('last_searched_modify_id', 1), key="modify_search_id_input")
             
             # Botón para buscar el pedido
-            if st.button("Buscar Pedido para Modificar", key="modify_search_button"):
+            if st.button("Buscar para Modificar", key="modify_search_button"): # Texto del botón más conciso
                 found_pedido_row = df_pedidos[df_pedidos['ID'] == modify_search_id]
                 if not found_pedido_row.empty:
                     st.session_state.modifying_pedido = found_pedido_row.iloc[0].to_dict() # Almacenar como diccionario para fácil acceso
                     st.session_state.last_searched_modify_id = modify_search_id # Almacenar para persistencia
-                    st.success(f"Pedido {modify_search_id} encontrado. Puedes modificarlo a continuación.")
+                    st.success(f"Pedido {modify_search_id} encontrado. Modifica a continuación.") # Mensaje más conciso
                 else:
                     st.session_state.modifying_pedido = None
                     st.session_state.last_searched_modify_id = modify_search_id
@@ -405,7 +402,7 @@ if check_password():
             # Mostrar el formulario solo si se selecciona un pedido para modificar
             if st.session_state.get('modifying_pedido'):
                 current_pedido = st.session_state.modifying_pedido
-                st.write(f"Modificando Pedido ID: **{current_pedido['ID']}**")
+                st.write(f"Modificando Pedido ID: **{current_pedido['ID']}**") # Mantener este mensaje claro
 
                 with st.form("form_modificar_pedido", clear_on_submit=False): # No limpiar al enviar para modificación
                     col1_mod, col2_mod = st.columns(2)
@@ -533,7 +530,7 @@ if check_password():
 
         with tab_eliminar:
             st.subheader("Eliminar Pedido")
-            st.write("Introduce el ID del pedido que deseas eliminar.")
+            st.write("Introduce el ID del pedido a eliminar:") # Mensaje más conciso
 
             # ID del Pedido a Eliminar: Ahora se inicializa vacío
             delete_id = st.number_input("ID del Pedido a Eliminar:", min_value=1, value=None, key="delete_id_input")
@@ -545,7 +542,7 @@ if check_password():
                 pedido_a_eliminar = df_pedidos[df_pedidos['ID'] == delete_id]
 
             if not pedido_a_eliminar.empty:
-                st.warning(f"¿Estás seguro de que quieres eliminar el pedido con ID **{delete_id}**?")
+                st.warning(f"¿Seguro que quieres eliminar el pedido con ID **{delete_id}**?") # Mensaje más conciso
                 st.dataframe(pedido_a_eliminar.style.apply(highlight_pedidos_rows, axis=1)) # Mostrar el pedido a eliminar
 
                 col_confirm1, col_confirm2 = st.columns(2)
@@ -568,23 +565,23 @@ if check_password():
             elif delete_id is not None and delete_id > 0:
                 st.info(f"No se encontró ningún pedido con el ID {delete_id} para eliminar.")
 
-    elif page == "Gestión de Gastos":
+    elif page == "Gastos": # Cambiado de "Gestión de Gastos"
         st.header("Gestión de Gastos")
-        st.write("Aquí puedes gestionar tus gastos.")
+        st.write("Aquí puedes gestionar tus gastos.") # Mantenido este mensaje corto
         # Ejemplo: Mostrar el DataFrame de gastos
         st.subheader("Gastos Registrados")
         st.dataframe(df_gastos)
 
         # --- Formulario para añadir nuevo gasto ---
-        st.subheader("Añadir Nuevo Gasto")
+        st.subheader("Añadir Gasto") # Título más conciso
         with st.form("form_nuevo_gasto", clear_on_submit=True):
             col_g1, col_g2 = st.columns(2)
             with col_g1:
-                gasto_fecha = st.date_input("Fecha del Gasto", key="gasto_fecha")
+                gasto_fecha = st.date_input("Fecha Gasto", key="gasto_fecha") # Texto más conciso
                 gasto_concepto = st.text_input("Concepto", key="gasto_concepto")
             with col_g2:
                 gasto_importe = st.number_input("Importe", min_value=0.0, format="%.2f", key="gasto_importe")
-                gasto_tipo = st.selectbox("Tipo de Gasto", options=["", "Fijo", "Variable"], key="gasto_tipo") # Opciones de ejemplo
+                gasto_tipo = st.selectbox("Tipo Gasto", options=["", "Fijo", "Variable"], key="gasto_tipo") # Texto más conciso
             
             submitted_gasto = st.form_submit_button("Guardar Gasto")
 
@@ -618,7 +615,7 @@ if check_password():
             gasto_a_eliminar = df_gastos[df_gastos['ID'] == delete_gasto_id]
 
         if not gasto_a_eliminar.empty:
-            st.warning(f"¿Estás seguro de que quieres eliminar el gasto con ID **{delete_gasto_id}**?")
+            st.warning(f"¿Seguro que quieres eliminar el gasto con ID **{delete_gasto_id}**?") # Mensaje más conciso
             st.dataframe(gasto_a_eliminar)
 
             col_g_confirm1, col_g_confirm2 = st.columns(2)
@@ -635,10 +632,10 @@ if check_password():
                     st.info("Eliminación de gasto cancelada.")
                     st.rerun()
         elif delete_gasto_id is not None and delete_gasto_id > 0:
-            st.info(f"No se encontró ningún gasto con el ID {delete_id} para eliminar.")
+            st.info(f"No se encontró ningún gasto con el ID {delete_gasto_id} para eliminar.")
 
-    elif page == "Resumen de Estados de Pedidos":
-        st.header("Resumen de Estados de Pedidos")
+    elif page == "Resumen": # Cambiado de "Resumen de Estados de Pedidos"
+        st.header("Resumen de Pedidos") # Título más conciso
         
         # Filtrar el DataFrame basado en la selección del radio button
         filtered_df = pd.DataFrame() # Inicializar como DataFrame vacío
@@ -664,7 +661,7 @@ if check_password():
                 (df_pedidos['Trabajo Terminado'] == False) &
                 (df_pedidos['Pendiente'] == False)
             ]
-            st.subheader("Pedidos sin Estado Específico (No Empezados, Terminados o Pendientes)")
+            st.subheader("Pedidos sin Estado Específico") # Título más conciso
 
         if not filtered_df.empty:
             # Aplicar la función de estilo al DataFrame filtrado
