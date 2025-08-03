@@ -6,7 +6,7 @@ import hashlib # Para el hash de la contraseña
 # Importar las funciones desde nuestro módulo de utilidades para Firestore
 from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore, delete_document_firestore, get_next_id
 
-# --- CONFIGURACIÓN BÁSICA DE LA PÁGINA (MOVIDO AL PRINCIPIO) ---
+# --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 # Configura el nombre de la página y el logo
 st.set_page_config(
     page_title="ImperYo",  # El nombre que quieres para tu app en la pestaña del navegador/icono
@@ -14,9 +14,51 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- HEADER CON LOGO Y TÍTULO (Mantenido para el título dentro de la app) ---
-# Nota: El logo de la pestaña/icono de la app se establece con st.set_page_config arriba.
-# Este st.image es para mostrar el logo dentro del contenido de la página si lo deseas.
+# --- CSS PERSONALIZADO PARA RESPONSIVIDAD ---
+# Usamos st.markdown con unsafe_allow_html=True para inyectar estilos CSS
+st.markdown("""
+<style>
+/* Estilos por defecto para pantallas grandes (PC) */
+.stImage > img {
+    max-width: 100px; /* Tamaño del logo en PC */
+    height: auto;
+}
+h1 {
+    font-size: 3em; /* Tamaño del título principal en PC */
+}
+h2 {
+    font-size: 2.5em; /* Tamaño de los headers en PC */
+}
+/* Clases para mostrar/ocultar contenido */
+.mobile-only {
+    display: none; /* Oculto por defecto en PC */
+}
+.pc-only {
+    display: block; /* Visible por defecto en PC */
+}
+
+/* Media Query para pantallas más pequeñas (móviles y tablets pequeñas) */
+@media (max-width: 768px) { /* Se aplica cuando el ancho de la pantalla es 768px o menos */
+    .stImage > img {
+        max-width: 60px; /* Logo más pequeño en móvil */
+    }
+    h1 {
+        font-size: 2em; /* Título principal más pequeño en móvil */
+    }
+    h2 {
+        font-size: 1.5em; /* Headers más pequeños en móvil */
+    }
+    .mobile-only {
+        display: block; /* Visible en móvil */
+    }
+    .pc-only {
+        display: none; /* Oculto en móvil */
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# --- HEADER CON LOGO Y TÍTULO ---
 col_logo, col_title = st.columns([0.1, 0.9]) # Ajusta la proporción según sea necesario
 with col_logo:
     # Tu logo de Dropbox con dl=1 para acceso directo
@@ -24,6 +66,12 @@ with col_logo:
 with col_title:
     st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
 # --- FIN HEADER ---
+
+# --- MENSAJES CONDICIONALES PARA DEMOSTRACIÓN ---
+st.markdown("<p class='pc-only'>Estás viendo la versión para PC.</p>", unsafe_allow_html=True)
+st.markdown("<p class='mobile-only'>¡Hola! Estás viendo la versión para móvil.</p>", unsafe_allow_html=True)
+# --- FIN MENSAJES CONDICIONALES ---
+
 
 # --- FUNCIÓN DE COLOREADO DE FILAS ---
 # Esta función aplica colores de fondo a las filas según el estado del pedido
@@ -517,7 +565,7 @@ if check_password():
                     if st.button("Cancelar Eliminación", key="cancel_delete_button"):
                         st.info("Eliminación cancelada.")
                         st.rerun() # Recargar para limpiar la advertencia y el botón de confirmación
-            elif delete_id is not None and delete_id > 0: # Solo mostrar si se intentó buscar un ID que no existe
+            elif delete_id is not None and delete_id > 0:
                 st.info(f"No se encontró ningún pedido con el ID {delete_id} para eliminar.")
 
     elif page == "Gestión de Gastos":
@@ -587,7 +635,7 @@ if check_password():
                     st.info("Eliminación de gasto cancelada.")
                     st.rerun()
         elif delete_gasto_id is not None and delete_gasto_id > 0:
-            st.info(f"No se encontró ningún gasto con el ID {delete_gasto_id} para eliminar.")
+            st.info(f"No se encontró ningún gasto con el ID {delete_id} para eliminar.")
 
     elif page == "Resumen de Estados de Pedidos":
         st.header("Resumen de Estados de Pedidos")
@@ -623,4 +671,3 @@ if check_password():
             st.dataframe(filtered_df.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info(f"No hay pedidos en la categoría: {st.session_state.current_summary_view}")
-
