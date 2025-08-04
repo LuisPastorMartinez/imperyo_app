@@ -155,15 +155,36 @@ if check_password():
     if 'data_loaded' not in st.session_state:
         st.session_state.data = load_dataframes_firestore() # Usar la función de carga de Firestore
         
-        # --- NUEVA MEJORA: Limpiar valores "None" string en todo el DataFrame de pedidos al cargar ---
-        # Esto asegura que cualquier cadena "None" o NaN se convierta a cadena vacía para la UI.
+        # --- NUEVA MEJORA: Estandarizar nombres de columna y limpiar valores "None" string en df_pedidos ---
         if st.session_state.data is not None and 'df_pedidos' in st.session_state.data:
             df_pedidos_temp = st.session_state.data['df_pedidos']
-            # Columnas de texto que podrían contener "None" o NaN
+            
+            # Diccionario de mapeo para estandarizar nombres de columnas
+            # Las claves son los nombres "incorrectos" o alternativos que pueden venir de Firestore/Excel
+            # Los valores son los nombres "correctos" y estandarizados que el resto del código espera
+            column_rename_map = {
+                'Telefono ': 'Teléfono', # Corregir espacio al final
+                'Obserbaciones': 'Observaciones', # Corregir 'b' por 'v'
+                'Fecha Entreda': 'Fecha Entrada', # Corregir 'Entreda' por 'Entrada'
+                'Fecha salida': 'Fecha Salida', # Corregir minúscula 's'
+                'Precio factura': 'Precio Factura', # Corregir minúscula 'f'
+                'Pago Inicial': 'Adelanto', # Mapear 'Pago Inicial' a 'Adelanto'
+                'Descripcion del Articulo': 'Breve Descripción' # Mapear 'Descripcion del Articulo' a 'Breve Descripción'
+            }
+
+            # Renombrar columnas en el DataFrame si existen
+            df_pedidos_temp.rename(columns=column_rename_map, inplace=True)
+
+            # Columnas de texto que podrían contener "None" o NaN después del renombramiento
+            # Usamos los nombres de columna estandarizados aquí
             text_cols_to_clean = [
                 'Cliente', 'Teléfono', 'Club', 'Breve Descripción', 'Observaciones',
-                'Producto', 'Talla', 'Tela', 'Tipo de pago', 'Adelanto' # Incluir también estas si pueden ser texto/número y mostrar "None"
+                'Producto', 'Talla', 'Tela', 'Tipo de pago'
             ]
+            # Columnas numéricas que podrían contener NaN o "None" string y necesitan ser float/None
+            numeric_cols_to_clean = ['Adelanto', 'Precio', 'Precio Factura']
+
+
             for col in text_cols_to_clean:
                 if col in df_pedidos_temp.columns:
                     # Convertir a string para aplicar regex de forma segura
@@ -172,6 +193,16 @@ if check_password():
                     df_pedidos_temp[col] = df_pedidos_temp[col].replace(r'^\s*(?i:none|nan|nat|null)\s*$', '', regex=True)
                     # Convertir cualquier valor NaN/None de Pandas restante a cadena vacía
                     df_pedidos_temp[col] = df_pedidos_temp[col].fillna('')
+            
+            # Limpiar y convertir columnas numéricas
+            for col in numeric_cols_to_clean:
+                if col in df_pedidos_temp.columns:
+                    # Convertir a numérico, forzando errores a NaN
+                    df_pedidos_temp[col] = pd.to_numeric(df_pedidos_temp[col], errors='coerce')
+                    # Rellenar NaN con None para que Firestore lo maneje como null
+                    df_pedidos_temp[col] = df_pedidos_temp[col].where(pd.notna(df_pedidos_temp[col]), None)
+
+
             st.session_state.data['df_pedidos'] = df_pedidos_temp
         
         st.session_state.data_loaded = True
@@ -448,8 +479,8 @@ if check_password():
                 st.write(f"Modificando Pedido ID: **{current_pedido['ID']}**") # Mantener este mensaje claro
 
                 # --- DEBUGGING: Imprimir el contenido de current_pedido ---
-                st.write("DEBUG: Contenido del pedido actual para modificación:")
-                st.json(current_pedido) # Muestra el diccionario completo
+                # st.write("DEBUG: Contenido del pedido actual para modificación:")
+                # st.json(current_pedido) # Muestra el diccionario completo
                 # --- FIN DEBUGGING ---
 
                 with st.form("form_modificar_pedido", clear_on_submit=False): # No limpiar al enviar para modificación
@@ -465,6 +496,7 @@ if check_password():
                         producto_mod = st.selectbox("Producto", options=producto_options, index=current_producto_idx, key="mod_producto")
                         
                         # --- CORRECCIÓN APLICADA AQUÍ: Usar get_display_value para todos los campos de texto ---
+                        # Usar .get() con un valor por defecto para evitar KeyError si la columna no existe en el diccionario
                         cliente_mod = st.text_input("Cliente", value=get_display_value(current_pedido.get('Cliente')), key="mod_cliente")
                         telefono_mod = st.text_input("Teléfono", value=get_display_value(current_pedido.get('Teléfono')), key="mod_telefono")
                         club_mod = st.text_input("Club", value=get_display_value(current_pedido.get('Club')), key="mod_club")
