@@ -170,7 +170,8 @@ if check_password():
                 'Fecha salida': 'Fecha Salida', # Corregir minúscula 's'
                 'Precio factura': 'Precio Factura', # Corregir minúscula 'f'
                 'Pago Inicial': 'Adelanto', # Mapear 'Pago Inicial' a 'Adelanto'
-                'Descripcion del Articulo': 'Breve Descripción' # Mapear 'Descripcion del Articulo' a 'Breve Descripción'
+                'Descripcion del Articulo': 'Breve Descripción', # Mapear 'Descripcion del Articulo' a 'Breve Descripción'
+                'Empezado': 'Inicio Trabajo' # AÑADIDO: Mapear 'Empezado' a 'Inicio Trabajo'
             }
 
             # Renombrar columnas en el DataFrame si existen
