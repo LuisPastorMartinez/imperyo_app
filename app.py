@@ -154,6 +154,26 @@ if check_password():
     # en cada interacción de widget.
     if 'data_loaded' not in st.session_state:
         st.session_state.data = load_dataframes_firestore() # Usar la función de carga de Firestore
+        
+        # --- NUEVA MEJORA: Limpiar valores "None" string en todo el DataFrame de pedidos al cargar ---
+        # Esto asegura que cualquier cadena "None" o NaN se convierta a cadena vacía para la UI.
+        if st.session_state.data is not None and 'df_pedidos' in st.session_state.data:
+            df_pedidos_temp = st.session_state.data['df_pedidos']
+            # Columnas de texto que podrían contener "None" o NaN
+            text_cols_to_clean = [
+                'Cliente', 'Teléfono', 'Club', 'Breve Descripción', 'Observaciones',
+                'Producto', 'Talla', 'Tela', 'Tipo de pago', 'Adelanto' # Incluir también estas si pueden ser texto/número y mostrar "None"
+            ]
+            for col in text_cols_to_clean:
+                if col in df_pedidos_temp.columns:
+                    # Convertir a string para aplicar regex de forma segura
+                    df_pedidos_temp[col] = df_pedidos_temp[col].astype(str)
+                    # Reemplazar la cadena "None" (insensible a mayúsculas/minúsculas) y "nan", "NaT", "null" con cadena vacía
+                    df_pedidos_temp[col] = df_pedidos_temp[col].replace(r'^\s*(?i:none|nan|nat|null)\s*$', '', regex=True)
+                    # Convertir cualquier valor NaN/None de Pandas restante a cadena vacía
+                    df_pedidos_temp[col] = df_pedidos_temp[col].fillna('')
+            st.session_state.data['df_pedidos'] = df_pedidos_temp
+        
         st.session_state.data_loaded = True
 
     # Si la carga de datos falló (ej. conexión a Firestore o error de colección), detener la aplicación
@@ -412,11 +432,13 @@ if check_password():
                     st.warning(f"No se encontró ningún pedido con el ID {modify_search_id}.")
             
             # --- Función auxiliar para obtener el valor a mostrar en los campos de texto ---
+            # Esta función ahora es más robusta para manejar "None" como string, NaN, y None.
             def get_display_value(value):
-                if pd.isna(value): # Si es None o NaN
+                if pd.isna(value): # Si es None o NaN de Pandas
                     return ""
                 s_value = str(value).strip() # Convierte a string y elimina espacios
-                if s_value.lower() == 'none': # Si es la cadena literal "None" (insensible a mayúsculas/minúsculas)
+                # Comprueba si la cadena resultante es "none" (insensible a mayúsculas/minúsculas)
+                if s_value.lower() == 'none':
                     return ""
                 return s_value
 
@@ -437,10 +459,10 @@ if check_password():
                         current_producto_idx = producto_options.index(current_producto_val) if current_producto_val in producto_options else 0
                         producto_mod = st.selectbox("Producto", options=producto_options, index=current_producto_idx, key="mod_producto")
                         
-                        # --- CORRECCIÓN APLICADA AQUÍ ---
-                        cliente_mod = st.text_input("Cliente", value=get_display_value(current_pedido['Cliente']), key="mod_cliente")
-                        telefono_mod = st.text_input("Teléfono", value=get_display_value(current_pedido['Teléfono']), key="mod_telefono")
-                        club_mod = st.text_input("Club", value=get_display_value(current_pedido['Club']), key="mod_club")
+                        # --- CORRECCIÓN APLICADA AQUÍ: Usar get_display_value para todos los campos de texto ---
+                        cliente_mod = st.text_input("Cliente", value=get_display_value(current_pedido.get('Cliente')), key="mod_cliente")
+                        telefono_mod = st.text_input("Teléfono", value=get_display_value(current_pedido.get('Teléfono')), key="mod_telefono")
+                        club_mod = st.text_input("Club", value=get_display_value(current_pedido.get('Club')), key="mod_club")
                         
                         talla_options = [""] + df_listas['Talla'].dropna().unique().tolist() # Añadir cadena vacía
                         current_talla_val = current_pedido['Talla'] if pd.notna(current_pedido['Talla']) else ""
@@ -452,7 +474,7 @@ if check_password():
                         current_tela_idx = tela_options.index(current_tela_val) if current_tela_val in tela_options else 0
                         tela_mod = st.selectbox("Tela", options=tela_options, index=current_tela_idx, key="mod_tela")
                         
-                        breve_descripcion_mod = st.text_area("Breve Descripción", value=get_display_value(current_pedido['Breve Descripción']), key="mod_breve_descripcion")
+                        breve_descripcion_mod = st.text_area("Breve Descripción", value=get_display_value(current_pedido.get('Breve Descripción')), key="mod_breve_descripcion")
 
                     with col2_mod:
                         # Fecha Entrada
@@ -477,11 +499,11 @@ if check_password():
                         current_tipo_pago_idx = tipo_pago_options.index(current_tipo_pago_val) if current_tipo_pago_val in tipo_pago_options else 0
                         tipo_pago_mod = st.selectbox("Tipo de Pago", options=tipo_pago_options, index=current_tipo_pago_idx, key="mod_tipo_pago")
                         
-                        # --- CORRECCIÓN APLICADA AQUÍ ---
-                        adelanto_mod_str = st.text_input("Adelanto (opcional)", value=get_display_value(current_pedido['Adelanto']), key="mod_adelanto_str")
+                        # --- CORRECCIÓN APLICADA AQUÍ: Usar get_display_value ---
+                        adelanto_mod_str = st.text_input("Adelanto (opcional)", value=get_display_value(current_pedido.get('Adelanto')), key="mod_adelanto_str")
 
-                        # --- CORRECCIÓN APLICADA AQUÍ ---
-                        observaciones_mod = st.text_area("Observaciones", value=get_display_value(current_pedido['Observaciones']), key="mod_observaciones")
+                        # --- CORRECCIÓN APLICADA AQUÍ: Usar get_display_value ---
+                        observaciones_mod = st.text_area("Observaciones", value=get_display_value(current_pedido.get('Observaciones')), key="mod_observaciones")
 
                     st.write("---") # Separador visual antes de los checkboxes
 
