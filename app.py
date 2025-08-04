@@ -186,6 +186,10 @@ if check_password():
             # Columnas que SIEMPRE deben ser tratadas como numéricas
             numeric_cols = ['Adelanto', 'Precio', 'Precio Factura']
 
+            # Columnas que SIEMPRE deben ser tratadas como booleanas
+            boolean_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
+
+
             # Limpiar y convertir columnas de texto
             for col in string_cols:
                 if col in df_pedidos_temp.columns:
@@ -199,15 +203,8 @@ if check_password():
             # Limpiar y convertir columnas numéricas
             for col in numeric_cols:
                 if col in df_pedidos_temp.columns:
-                    # Asegurarse de que la columna sea una Serie, incluso si es un valor único o está vacía
-                    series_to_process = df_pedidos_temp[col]
-                    if not isinstance(series_to_process, pd.Series):
-                        # Si por alguna razón no es una Serie (ej. un escalar de un df de una fila),
-                        # convertirla explícitamente a una Serie.
-                        series_to_process = pd.Series([series_to_process])
-                    
                     # Convertir a string primero para manejar tipos mixtos y cadenas "None"
-                    series_to_process = series_to_process.astype(str)
+                    series_to_process = df_pedidos_temp[col].astype(str)
                     
                     # Reemplazar cadenas vacías o "None" string con np.nan antes de la conversión numérica
                     series_to_process = series_to_process.replace(r'^\s*(?i:none|nan|nat|null|)\s*$', np.nan, regex=True)
@@ -218,6 +215,14 @@ if check_password():
                     # Rellenar NaN con None para que Firestore lo maneje como null
                     df_pedidos_temp[col] = converted_numeric_series.where(pd.notna(converted_numeric_series), None)
 
+            # Limpiar y convertir columnas booleanas
+            for col in boolean_cols:
+                if col in df_pedidos_temp.columns:
+                    # Convertir a string para manejar valores como None, NaN, 0, 1, "True", "False"
+                    df_pedidos_temp[col] = df_pedidos_temp[col].astype(str).str.strip().str.lower()
+                    # Mapear valores a True/False
+                    # Cualquier cosa que no sea 'true' o '1' (después de limpiar y convertir a minúsculas) será False
+                    df_pedidos_temp[col] = df_pedidos_temp[col].apply(lambda x: True if x == 'true' or x == '1' else False)
 
             st.session_state.data['df_pedidos'] = df_pedidos_temp
         
@@ -743,4 +748,21 @@ if check_password():
             st.dataframe(filtered_df_display.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info("No hay pedidos en esta categoría.")
+```
 
+**Cambio Clave Realizado:**
+
+* **Conversión de Columnas Booleanas:** En la sección de carga de datos (`if 'data_loaded' not in st.session_state:`), he añadido un nuevo bucle para las columnas booleanas (`boolean_cols`). Dentro de este bucle:
+    1.  Se convierte la columna a tipo `str`, se eliminan espacios y se convierte a minúsculas (`.astype(str).str.strip().str.lower()`).
+    2.  Se aplica una función `lambda` para mapear explícitamente los valores:
+        * `'true'` o `'1'` se convierten a `True`.
+        * Cualquier otro valor (incluyendo `''`, `'false'`, `'0'`, `'none'`, `NaN`, `null`) se convierte a `False`.
+
+Esta conversión robusta asegura que las variables `empezado`, `cobrado`, `retirado`, `pendiente` y `trabajo_terminado` dentro de `highlight_pedidos_rows` sean siempre booleanos de Python, resolviendo el `ValueError`.
+
+**Pasos a Seguir:**
+
+1.  **Actualiza tu archivo `app.py`** con el código completo proporcionado en el Canvas de arriba.
+2.  **Reinicia tu aplicación Streamlit.**
+
+Ahora, la sección "Resumen" debería cargarse y mostrar los datos con el resaltado de filas correctamente aplica
