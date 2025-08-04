@@ -411,6 +411,15 @@ if check_password():
                     st.session_state.last_searched_modify_id = modify_search_id
                     st.warning(f"No se encontró ningún pedido con el ID {modify_search_id}.")
             
+            # --- Función auxiliar para obtener el valor a mostrar en los campos de texto ---
+            def get_display_value(value):
+                if pd.isna(value): # Si es None o NaN
+                    return ""
+                s_value = str(value).strip() # Convierte a string y elimina espacios
+                if s_value.lower() == 'none': # Si es la cadena literal "None" (insensible a mayúsculas/minúsculas)
+                    return ""
+                return s_value
+
             # Mostrar el formulario solo si se selecciona un pedido para modificar
             if st.session_state.get('modifying_pedido'):
                 current_pedido = st.session_state.modifying_pedido
@@ -428,10 +437,10 @@ if check_password():
                         current_producto_idx = producto_options.index(current_producto_val) if current_producto_val in producto_options else 0
                         producto_mod = st.selectbox("Producto", options=producto_options, index=current_producto_idx, key="mod_producto")
                         
-                        # --- CORRECCIÓN AQUÍ: Convertir None/NaN a cadena vacía para mostrar en text_input ---
-                        cliente_mod = st.text_input("Cliente", value=str(current_pedido['Cliente']) if pd.notna(current_pedido['Cliente']) else "", key="mod_cliente")
-                        telefono_mod = st.text_input("Teléfono", value=str(current_pedido['Teléfono']) if pd.notna(current_pedido['Teléfono']) else "", key="mod_telefono")
-                        club_mod = st.text_input("Club", value=str(current_pedido['Club']) if pd.notna(current_pedido['Club']) else "", key="mod_club")
+                        # --- CORRECCIÓN APLICADA AQUÍ ---
+                        cliente_mod = st.text_input("Cliente", value=get_display_value(current_pedido['Cliente']), key="mod_cliente")
+                        telefono_mod = st.text_input("Teléfono", value=get_display_value(current_pedido['Teléfono']), key="mod_telefono")
+                        club_mod = st.text_input("Club", value=get_display_value(current_pedido['Club']), key="mod_club")
                         
                         talla_options = [""] + df_listas['Talla'].dropna().unique().tolist() # Añadir cadena vacía
                         current_talla_val = current_pedido['Talla'] if pd.notna(current_pedido['Talla']) else ""
@@ -443,7 +452,7 @@ if check_password():
                         current_tela_idx = tela_options.index(current_tela_val) if current_tela_val in tela_options else 0
                         tela_mod = st.selectbox("Tela", options=tela_options, index=current_tela_idx, key="mod_tela")
                         
-                        breve_descripcion_mod = st.text_area("Breve Descripción", value=str(current_pedido['Breve Descripción']) if pd.notna(current_pedido['Breve Descripción']) else "", key="mod_breve_descripcion")
+                        breve_descripcion_mod = st.text_area("Breve Descripción", value=get_display_value(current_pedido['Breve Descripción']), key="mod_breve_descripcion")
 
                     with col2_mod:
                         # Fecha Entrada
@@ -468,11 +477,11 @@ if check_password():
                         current_tipo_pago_idx = tipo_pago_options.index(current_tipo_pago_val) if current_tipo_pago_val in tipo_pago_options else 0
                         tipo_pago_mod = st.selectbox("Tipo de Pago", options=tipo_pago_options, index=current_tipo_pago_idx, key="mod_tipo_pago")
                         
-                        # --- CORRECCIÓN AQUÍ: Convertir None/NaN a cadena vacía para mostrar en text_input ---
-                        adelanto_mod_str = st.text_input("Adelanto (opcional)", value=str(current_pedido['Adelanto']) if pd.notna(current_pedido['Adelanto']) else "", key="mod_adelanto_str")
+                        # --- CORRECCIÓN APLICADA AQUÍ ---
+                        adelanto_mod_str = st.text_input("Adelanto (opcional)", value=get_display_value(current_pedido['Adelanto']), key="mod_adelanto_str")
 
-                        # --- CORRECCIÓN AQUÍ: Convertir None/NaN a cadena vacía para mostrar en text_area ---
-                        observaciones_mod = st.text_area("Observaciones", value=str(current_pedido['Observaciones']) if pd.notna(current_pedido['Observaciones']) else "", key="mod_observaciones")
+                        # --- CORRECCIÓN APLICADA AQUÍ ---
+                        observaciones_mod = st.text_area("Observaciones", value=get_display_value(current_pedido['Observaciones']), key="mod_observaciones")
 
                     st.write("---") # Separador visual antes de los checkboxes
 
