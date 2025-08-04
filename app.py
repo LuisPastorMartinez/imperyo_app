@@ -76,11 +76,12 @@ def highlight_pedidos_rows(row):
 
     # Obtener valores booleanos de la fila para mayor claridad.
     # IMPORTANTE: Estos nombres de columna deben coincidir EXACTAMENTE con los encabezados de tu colección 'pedidos' en Firestore.
-    trabajo_terminado = row.get('Trabajo Terminado', False) # Usa .get() para evitar KeyError si la columna falta
-    cobrado = row.get('Cobrado', False)
-    retirado = row.get('Retirado', False)
-    pendiente = row.get('Pendiente', False)
-    empezado = row.get('Inicio Trabajo', False) # 'Inicio Trabajo' con I mayúscula
+    # Se añade bool() para asegurar que los valores sean booleanos puros de Python, evitando errores de ambigüedad de Pandas.
+    trabajo_terminado = bool(row.get('Trabajo Terminado', False))
+    cobrado = bool(row.get('Cobrado', False))
+    retirado = bool(row.get('Retirado', False))
+    pendiente = bool(row.get('Pendiente', False))
+    empezado = bool(row.get('Inicio Trabajo', False)) # 'Inicio Trabajo' con I mayúscula
 
     # Aplicar condiciones en el mismo orden que tu código VBA
     # 1. Verde: Trabajo Terminado Y Cobrado Y Retirado Y NO Pendiente
