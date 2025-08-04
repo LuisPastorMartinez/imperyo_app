@@ -3,6 +3,7 @@ import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
 import json 
+import datetime # Importamos datetime para el manejo de fechas
 
 # No es necesario importar 'json' si st.secrets ya devuelve un diccionario TOML
 
@@ -21,19 +22,21 @@ COLLECTION_NAMES = {
 # Usamos st.cache_resource para asegurarnos de que Firebase se inicialice solo una vez
 @st.cache_resource
 def initialize_firestore():
+    """
+    Inicializa la aplicación Firebase y devuelve una instancia del cliente de Firestore.
+    Las credenciales se cargan desde st.secrets.
+    """
     try:
         # Recupera las credenciales de Firebase desde st.secrets
         creds_dict = st.secrets["firestore"]
         
-        # Convierte el AttrDict a un diccionario de Python
-        # NOTA: `st.secrets` ya es un diccionario normal en versiones recientes,
-        # así que esta conversión a `dict()` podría no ser necesaria,
-        # pero es una buena práctica de seguridad.
+        # Convierte el AttrDict a un diccionario de Python.
+        # En versiones recientes de Streamlit, st.secrets ya es un diccionario normal,
+        # pero esta conversión asegura compatibilidad.
         creds_dict_puro = dict(creds_dict)
         
         # Inicializa la aplicación Firebase con las credenciales
         if not firebase_admin._apps:
-            # ¡LA CORRECCIÓN ESTÁ AQUÍ!
             # Pasa el diccionario directamente a credentials.Certificate()
             cred = credentials.Certificate(creds_dict_puro) 
             firebase_admin.initialize_app(cred)
@@ -68,17 +71,53 @@ def load_dataframes_firestore():
                 record['id_documento_firestore'] = doc.id # Guarda el ID del documento de Firestore
                 records.append(record)
             
-            # Convierte la lista de diccionarios a DataFrame
-            df = pd.DataFrame(records)
-            
-            # Asegura que las columnas booleanas se carguen correctamente
-            if key == 'pedidos':
-                # Columnas booleanas esperadas en la colección 'pedidos'
-                boolean_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
-                for col in boolean_cols:
+            # Si hay registros, crea el DataFrame
+            if records:
+                df = pd.DataFrame(records)
+                
+                # --- MEJORA: Asegura que las columnas booleanas se carguen correctamente ---
+                if key == 'pedidos':
+                    # Columnas booleanas esperadas en la colección 'pedidos'
+                    boolean_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
+                    for col in boolean_cols:
+                        if col in df.columns:
+                            # Convierte a booleano, tratando None/NaN/0/False como False, y otros como True
+                            df[col] = df[col].apply(lambda x: bool(x) if pd.notna(x) else False)
+                
+                # --- MEJORA: Convierte las columnas de fecha a datetime.date ---
+                # Esto es crucial para la compatibilidad con st.date_input en app.py
+                date_cols = []
+                if key == 'pedidos':
+                    date_cols = ['Fecha Entrada', 'Fecha Salida']
+                elif key == 'gastos':
+                    date_cols = ['Fecha'] # Asumiendo que 'gastos' tiene una columna 'Fecha'
+
+                for col in date_cols:
                     if col in df.columns:
-                        # Convierte a booleano, tratando None/NaN/0/False como False, y otros como True
-                        df[col] = df[col].apply(lambda x: bool(x) if pd.notna(x) else False)
+                        # Convertir a datetime y luego a date, manejando NaT (Not a Time)
+                        # errors='coerce' convertirá valores no válidos a NaT
+                        df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
+            else:
+                # --- MEJORA: Si la colección está vacía, crea un DataFrame vacío con las columnas esperadas ---
+                # Esto previene errores de KeyError en app.py al intentar acceder a columnas que no existen.
+                if collection_name == 'pedidos':
+                    df = pd.DataFrame(columns=[
+                        'ID', 'Producto', 'Cliente', 'Teléfono', 'Club', 'Talla', 'Tela', 
+                        'Breve Descripción', 'Fecha Entrada', 'Fecha Salida', 'Precio', 
+                        'Precio Factura', 'Tipo de pago', 'Adelanto', 'Observaciones', 
+                        'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
+                        'id_documento_firestore' # Importante incluir el ID de Firestore
+                    ])
+                elif collection_name == 'gastos':
+                    df = pd.DataFrame(columns=['ID', 'Concepto', 'Monto', 'Fecha', 'id_documento_firestore'])
+                elif collection_name == 'listas':
+                    df = pd.DataFrame(columns=['Producto', 'Talla', 'Tela', 'Tipo de pago', 'id_documento_firestore'])
+                elif collection_name == 'totales':
+                    df = pd.DataFrame(columns=['ID', 'Concepto', 'Total', 'id_documento_firestore']) # Ejemplo de columnas para 'totales'
+                elif collection_name == 'trabajos':
+                    df = pd.DataFrame(columns=['ID', 'Descripción', 'Estado', 'id_documento_firestore']) # Ejemplo de columnas para 'trabajos'
+                else:
+                    df = pd.DataFrame() # DataFrame vacío genérico si no se conoce la estructura
             
             data[f'df_{key}'] = df
         return data
@@ -100,7 +139,7 @@ def save_dataframe_firestore(df, collection_key):
     collection_name = COLLECTION_NAMES.get(collection_key)
     if not collection_name:
         st.error(f"Error: Clave de colección '{collection_key}' no reconocida para guardar.")
-    return False
+        return False # Añadido return False para salir de la función si la clave no es reconocida
 
     try:
         if collection_key == 'pedidos':
@@ -108,14 +147,19 @@ def save_dataframe_firestore(df, collection_key):
             # y usamos el 'id_documento_firestore' para actualizar o añadimos nuevos
             for index, row in df.iterrows():
                 doc_id = row.get('id_documento_firestore') # Obtiene el ID de Firestore si existe
-                record_to_save = row.drop('id_documento_firestore', errors='ignore').to_dict() # Elimina la columna temporal
+                # Crea un diccionario con los datos a guardar, excluyendo la columna temporal
+                record_to_save = row.drop('id_documento_firestore', errors='ignore').to_dict() 
 
-                # Convierte Timestamp de Pandas a datetime.date o None
+                # Convierte objetos de fecha de Python (date) a Timestamp de Firestore si es necesario.
+                # Firestore puede manejar objetos datetime.date directamente, pero esta conversión
+                # asegura que los valores None para fechas vacías se manejen correctamente.
                 for col in ['Fecha Entrada', 'Fecha Salida']:
-                    if pd.notna(record_to_save.get(col)):
-                        record_to_save[col] = record_to_save[col].to_pydatetime().date()
-                    else:
-                        record_to_save[col] = None # Almacena como None si es NaT
+                    if isinstance(record_to_save.get(col), datetime.date):
+                        # Si es un objeto date, se guarda directamente.
+                        pass 
+                    elif pd.isna(record_to_save.get(col)):
+                        record_to_save[col] = None # Almacena como None si es NaT o NaN
+                    # Si ya es None o no es un tipo de fecha, lo dejamos como está.
 
                 # Convierte booleanos de Python a booleanos nativos de Firestore
                 for col in ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']:
@@ -127,6 +171,7 @@ def save_dataframe_firestore(df, collection_key):
                     db.collection(collection_name).document(doc_id).set(record_to_save)
                 else:
                     # Si es un nuevo registro, Firestore generará un ID automáticamente
+                    # y el ID de tu DataFrame ('ID') se guardará como un campo más.
                     db.collection(collection_name).add(record_to_save)
             st.success(f"Colección '{collection_name}' actualizada en Firestore.")
         else:
@@ -141,7 +186,8 @@ def save_dataframe_firestore(df, collection_key):
             # 2. Añadir los nuevos documentos del DataFrame
             for index, row in df.iterrows():
                 record_to_save = row.to_dict()
-                # Convertir Timestamp a datetime.date si es necesario (para fechas)
+                # Convierte Timestamp de Pandas a datetime.date si es necesario (para fechas)
+                # Esto es para asegurar que las columnas de fecha se guarden correctamente.
                 for col in df.select_dtypes(include=['datetime64[ns]']).columns:
                     if pd.notna(record_to_save.get(col)):
                         record_to_save[col] = record_to_save[col].to_pydatetime().date()
