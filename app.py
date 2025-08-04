@@ -209,8 +209,8 @@ if check_password():
                     # Reemplazar cadenas vacías o "None" string con np.nan antes de la conversión numérica
                     df_pedidos_temp[col] = df_pedidos_temp[col].replace(r'^\s*(?i:none|nan|nat|null|)\s*$', np.nan, regex=True)
                     
-                    # Ahora, convertir a numérico usando .apply() para mayor robustez elemento por elemento
-                    df_pedidos_temp[col] = df_pedidos_temp[col].apply(lambda x: pd.to_numeric(x, errors='coerce'))
+                    # Ahora, convertir a numérico. errors='coerce' convertirá valores no convertibles en NaN.
+                    df_pedidos_temp[col] = pd.to_numeric(df_pedidos_temp[col], errors='coerce')
                     
                     # Rellenar NaN con None para que Firestore lo maneje como null
                     df_pedidos_temp[col] = df_pedidos_temp[col].where(pd.notna(df_pedidos_temp[col]), None)
@@ -218,11 +218,17 @@ if check_password():
             # Limpiar y convertir columnas booleanas
             for col in boolean_cols:
                 if col in df_pedidos_temp.columns:
-                    # Convertir a string para manejar valores como None, NaN, 0, 1, "True", "False"
-                    df_pedidos_temp[col] = df_pedidos_temp[col].astype(str).str.strip().str.lower()
+                    # Convertir cada elemento a string, limpiar y convertir a minúsculas.
+                    # Esto maneja casos donde el valor puede ser np.nan, None, 0, 1, etc.,
+                    # antes de intentar operaciones de string directamente.
+                    df_pedidos_temp[col] = df_pedidos_temp[col].apply(
+                        lambda x: str(x).strip().lower()
+                    )
                     # Mapear valores a True/False
                     # Cualquier cosa que no sea 'true' o '1' (después de limpiar y convertir a minúsculas) será False
-                    df_pedidos_temp[col] = df_pedidos_temp[col].apply(lambda x: True if x == 'true' or x == '1' else False)
+                    df_pedidos_temp[col] = df_pedidos_temp[col].apply(
+                        lambda x: True if x == 'true' or x == '1' else False
+                    )
 
             st.session_state.data['df_pedidos'] = df_pedidos_temp
         
