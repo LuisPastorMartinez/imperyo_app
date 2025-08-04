@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import hashlib # Para el hash de la contraseña
+import numpy as np # Importar numpy para np.nan
 
 # Importar las funciones desde nuestro módulo de utilidades para Firestore
 from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore, delete_document_firestore, get_next_id
@@ -175,17 +176,17 @@ if check_password():
             # Renombrar columnas en el DataFrame si existen
             df_pedidos_temp.rename(columns=column_rename_map, inplace=True)
 
-            # Columnas de texto que podrían contener "None" o NaN después del renombramiento
-            # Usamos los nombres de columna estandarizados aquí
-            text_cols_to_clean = [
+            # Columnas que SIEMPRE deben ser tratadas como texto
+            string_cols = [
                 'Cliente', 'Teléfono', 'Club', 'Breve Descripción', 'Observaciones',
                 'Producto', 'Talla', 'Tela', 'Tipo de pago'
             ]
-            # Columnas numéricas que podrían contener NaN o "None" string y necesitan ser float/None
-            numeric_cols_to_clean = ['Adelanto', 'Precio', 'Precio Factura']
+            
+            # Columnas que SIEMPRE deben ser tratadas como numéricas
+            numeric_cols = ['Adelanto', 'Precio', 'Precio Factura']
 
-
-            for col in text_cols_to_clean:
+            # Limpiar y convertir columnas de texto
+            for col in string_cols:
                 if col in df_pedidos_temp.columns:
                     # Convertir a string para aplicar regex de forma segura
                     df_pedidos_temp[col] = df_pedidos_temp[col].astype(str)
@@ -195,12 +196,26 @@ if check_password():
                     df_pedidos_temp[col] = df_pedidos_temp[col].fillna('')
             
             # Limpiar y convertir columnas numéricas
-            for col in numeric_cols_to_clean:
+            for col in numeric_cols:
                 if col in df_pedidos_temp.columns:
-                    # Convertir a numérico, forzando errores a NaN
-                    df_pedidos_temp[col] = pd.to_numeric(df_pedidos_temp[col], errors='coerce')
+                    # Asegurarse de que la columna sea una Serie, incluso si es un valor único o está vacía
+                    series_to_process = df_pedidos_temp[col]
+                    if not isinstance(series_to_process, pd.Series):
+                        # Si por alguna razón no es una Serie (ej. un escalar de un df de una fila),
+                        # convertirla explícitamente a una Serie.
+                        series_to_process = pd.Series([series_to_process])
+                    
+                    # Convertir a string primero para manejar tipos mixtos y cadenas "None"
+                    series_to_process = series_to_process.astype(str)
+                    
+                    # Reemplazar cadenas vacías o "None" string con np.nan antes de la conversión numérica
+                    series_to_process = series_to_process.replace(r'^\s*(?i:none|nan|nat|null|)\s*$', np.nan, regex=True)
+                    
+                    # Ahora, convertir a numérico. errors='coerce' convertirá valores no convertibles en NaN.
+                    converted_numeric_series = pd.to_numeric(series_to_process, errors='coerce')
+                    
                     # Rellenar NaN con None para que Firestore lo maneje como null
-                    df_pedidos_temp[col] = df_pedidos_temp[col].where(pd.notna(df_pedidos_temp[col]), None)
+                    df_pedidos_temp[col] = converted_numeric_series.where(pd.notna(converted_numeric_series), None)
 
 
             st.session_state.data['df_pedidos'] = df_pedidos_temp
