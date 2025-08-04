@@ -209,16 +209,15 @@ if check_password():
                     # Reemplazar cadenas vacías o "None" string con np.nan antes de la conversión numérica
                     temp_series_for_numeric = temp_series_for_numeric.replace(r'^\s*(?i:none|nan|nat|null|)\s*$', np.nan, regex=True)
                     
-                    # Convertir a lista para asegurar el tipo de entrada para pd.to_numeric
-                    # Esto es un workaround para el TypeError, ya que pd.to_numeric debería aceptar Series.
-                    # Si esto funciona, el problema es muy sutil en la interacción de Pandas/Streamlit.
-                    data_as_list = temp_series_for_numeric.tolist() # Convert Series to list
+                    # Convertir a una nueva Serie a partir de los valores para asegurar el tipo de entrada para pd.to_numeric
+                    # Esto es un workaround para el TypeError persistente, garantizando que pd.to_numeric siempre reciba una Serie.
+                    series_to_convert = pd.Series(temp_series_for_numeric.values)
                     
                     # Ahora, convertir a numérico. errors='coerce' convertirá valores no convertibles en NaN.
-                    converted_numeric_data = pd.to_numeric(data_as_list, errors='coerce')
+                    converted_numeric_series = pd.to_numeric(series_to_convert, errors='coerce')
                     
                     # Asignar de vuelta al DataFrame como una Serie, manteniendo el índice original
-                    df_pedidos_temp[col] = pd.Series(converted_numeric_data, index=df_pedidos_temp.index)
+                    df_pedidos_temp[col] = pd.Series(converted_numeric_series, index=df_pedidos_temp.index)
                     
                     # Rellenar NaN con None para que Firestore lo maneje como null
                     df_pedidos_temp[col] = df_pedidos_temp[col].where(pd.notna(df_pedidos_temp[col]), None)
