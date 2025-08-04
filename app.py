@@ -215,10 +215,11 @@ if check_password():
             # Limpiar y convertir columnas booleanas
             for col in boolean_cols:
                 if col in df_pedidos_temp.columns:
-                    # Convertir a tipo booleano de forma robusta usando .map()
-                    # Primero, convertir a string y limpiar para manejar 'None', 'nan', etc.
-                    # Luego, mapear explícitamente a True/False.
-                    df_pedidos_temp[col] = df_pedidos_temp[col].astype(str).str.strip().str.lower().map(
+                    # Convertir a string, limpiar y poner en minúsculas elemento por elemento
+                    cleaned_series = df_pedidos_temp[col].apply(lambda x: str(x).strip().lower())
+
+                    # Mapear los valores limpios a True/False
+                    df_pedidos_temp[col] = cleaned_series.map(
                         {'true': True, '1': True, 'false': False, '0': False, '': False, 'none': False, 'nan': False, 'nat': False}
                     ).fillna(False) # Asegurarse de que cualquier NaN resultante (valores no mapeados) sea False
 
