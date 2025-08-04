@@ -204,16 +204,16 @@ if check_password():
             for col in numeric_cols:
                 if col in df_pedidos_temp.columns:
                     # Convertir a string primero para manejar tipos mixtos y cadenas "None"
-                    series_to_process = df_pedidos_temp[col].astype(str)
+                    df_pedidos_temp[col] = df_pedidos_temp[col].astype(str)
                     
                     # Reemplazar cadenas vacías o "None" string con np.nan antes de la conversión numérica
-                    series_to_process = series_to_process.replace(r'^\s*(?i:none|nan|nat|null|)\s*$', np.nan, regex=True)
+                    df_pedidos_temp[col] = df_pedidos_temp[col].replace(r'^\s*(?i:none|nan|nat|null|)\s*$', np.nan, regex=True)
                     
-                    # Ahora, convertir a numérico. errors='coerce' convertirá valores no convertibles en NaN.
-                    converted_numeric_series = pd.to_numeric(series_to_process, errors='coerce')
+                    # Ahora, convertir a numérico usando .apply() para mayor robustez elemento por elemento
+                    df_pedidos_temp[col] = df_pedidos_temp[col].apply(lambda x: pd.to_numeric(x, errors='coerce'))
                     
                     # Rellenar NaN con None para que Firestore lo maneje como null
-                    df_pedidos_temp[col] = converted_numeric_series.where(pd.notna(converted_numeric_series), None)
+                    df_pedidos_temp[col] = df_pedidos_temp[col].where(pd.notna(df_pedidos_temp[col]), None)
 
             # Limpiar y convertir columnas booleanas
             for col in boolean_cols:
