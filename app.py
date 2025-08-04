@@ -748,21 +748,3 @@ if check_password():
             st.dataframe(filtered_df_display.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info("No hay pedidos en esta categoría.")
-```
-
-**Cambio Clave Realizado:**
-
-* **Conversión de Columnas Booleanas:** En la sección de carga de datos (`if 'data_loaded' not in st.session_state:`), he añadido un nuevo bucle para las columnas booleanas (`boolean_cols`). Dentro de este bucle:
-    1.  Se convierte la columna a tipo `str`, se eliminan espacios y se convierte a minúsculas (`.astype(str).str.strip().str.lower()`).
-    2.  Se aplica una función `lambda` para mapear explícitamente los valores:
-        * `'true'` o `'1'` se convierten a `True`.
-        * Cualquier otro valor (incluyendo `''`, `'false'`, `'0'`, `'none'`, `NaN`, `null`) se convierte a `False`.
-
-Esta conversión robusta asegura que las variables `empezado`, `cobrado`, `retirado`, `pendiente` y `trabajo_terminado` dentro de `highlight_pedidos_rows` sean siempre booleanos de Python, resolviendo el `ValueError`.
-
-**Pasos a Seguir:**
-
-1.  **Actualiza tu archivo `app.py`** con el código completo proporcionado en el Canvas de arriba.
-2.  **Reinicia tu aplicación Streamlit.**
-
-Ahora, la sección "Resumen" debería cargarse y mostrar los datos con el resaltado de filas correctamente aplica
