@@ -67,12 +67,6 @@ with col_title:
     st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
 # --- FIN HEADER ---
 
-# --- MENSAJES CONDICIONALES PARA DEMOSTRACIÓN (PUEDES QUITAR ESTO DESPUÉS DE PROBAR) ---
-# st.markdown("<p class='pc-only'>Estás viendo la versión para PC.</p>", unsafe_allow_html=True)
-# st.markdown("<p class='mobile-only'>¡Hola! Estás viendo la versión para móvil.</p>", unsafe_allow_html=True)
-# --- FIN MENSAJES CONDICIONALES ---
-
-
 # --- FUNCIÓN DE COLOREADO DE FILAS ---
 # Esta función aplica colores de fondo a las filas según el estado del pedido
 def highlight_pedidos_rows(row):
@@ -209,19 +203,34 @@ if check_password():
 
     if page == "Inicio":
         st.header("Bienvenido a Imperyo Sport")
-        # st.write("Usa la barra lateral para navegar entre las diferentes secciones de la aplicación.") # ELIMINADO
         st.write("---")
         st.subheader("Estado General de Pedidos")
         # Ejemplo: Mostrar un resumen rápido (ej. número total de pedidos)
         st.info(f"Total de Pedidos Registrados: **{len(df_pedidos)}**")
-        # st.write("Para un resumen detallado por estado, ve a 'Resumen de Estados de Pedidos' en el menú lateral y selecciona una categoría.") # ELIMINADO
 
 
     elif page == "Ver Datos": # Cambiado de "Ver Todas las Hojas"
         st.header("Datos Cargados de Firestore") # Texto actualizado
         st.subheader("Colección 'pedidos'")
-        # Aplicar la función de estilo al DataFrame 'Pedidos'
-        st.dataframe(df_pedidos.style.apply(highlight_pedidos_rows, axis=1))
+        
+        # --- MEJORA: Reordenar columnas para que 'ID' sea la primera ---
+        # Definir el orden deseado de las columnas
+        # Asegurarse de incluir todas las columnas que esperas, y 'id_documento_firestore' al final
+        all_pedidos_cols = [
+            'ID', 'Producto', 'Cliente', 'Teléfono', 'Club', 'Talla', 'Tela',
+            'Breve Descripción', 'Fecha Entrada', 'Fecha Salida', 'Precio',
+            'Precio Factura', 'Tipo de pago', 'Adelanto', 'Observaciones',
+            'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
+            'id_documento_firestore' # ID de Firestore, útil para depuración
+        ]
+        
+        # Filtrar las columnas que realmente existen en el DataFrame y reordenarlas
+        cols_to_display = [col for col in all_pedidos_cols if col in df_pedidos.columns]
+        df_pedidos_display = df_pedidos[cols_to_display]
+
+        # Aplicar la función de estilo al DataFrame 'Pedidos' reordenado
+        st.dataframe(df_pedidos_display.style.apply(highlight_pedidos_rows, axis=1))
+        
         st.subheader("Colección 'gastos'")
         st.dataframe(df_gastos)
         st.subheader("Colección 'totales'")
@@ -377,7 +386,10 @@ if check_password():
                 found_pedido = df_pedidos[df_pedidos['ID'] == search_id]
                 if not found_pedido.empty:
                     st.success(f"Pedido {search_id} encontrado:")
-                    st.dataframe(found_pedido.style.apply(highlight_pedidos_rows, axis=1))
+                    # --- MEJORA: Reordenar columnas para que 'ID' sea la primera ---
+                    cols_to_display = [col for col in all_pedidos_cols if col in found_pedido.columns]
+                    found_pedido_display = found_pedido[cols_to_display]
+                    st.dataframe(found_pedido_display.style.apply(highlight_pedidos_rows, axis=1))
                 else:
                     st.warning(f"No se encontró ningún pedido con el ID {search_id}.")
 
@@ -530,141 +542,118 @@ if check_password():
 
         with tab_eliminar:
             st.subheader("Eliminar Pedido")
-            st.write("Introduce el ID del pedido a eliminar:") # Mensaje más conciso
+            st.write("Introduce el ID del pedido a eliminar:")
 
-            # ID del Pedido a Eliminar: Ahora se inicializa vacío
-            delete_id = st.number_input("ID del Pedido a Eliminar:", min_value=1, value=None, key="delete_id_input")
+            # ID del Pedido a Eliminar
+            delete_id = st.number_input("ID del Pedido a Eliminar:", min_value=1, value=None, key="delete_id_input_delete_tab")
 
-            # Verificar si el pedido existe antes de ofrecer la confirmación
-            # Solo busca si se ha introducido un ID válido (no None y mayor que 0)
-            pedido_a_eliminar = pd.DataFrame() # Inicializar como DataFrame vacío
-            if delete_id is not None and delete_id > 0:
-                pedido_a_eliminar = df_pedidos[df_pedidos['ID'] == delete_id]
+            # Botón para buscar y confirmar eliminación
+            if st.button("Buscar y Eliminar", key="delete_button_tab"):
+                if delete_id is not None:
+                    # Buscar el pedido en el DataFrame
+                    found_pedido_to_delete = df_pedidos[df_pedidos['ID'] == delete_id]
 
-            if not pedido_a_eliminar.empty:
-                st.warning(f"¿Seguro que quieres eliminar el pedido con ID **{delete_id}**?") # Mensaje más conciso
-                st.dataframe(pedido_a_eliminar.style.apply(highlight_pedidos_rows, axis=1)) # Mostrar el pedido a eliminar
+                    if not found_pedido_to_delete.empty:
+                        st.warning(f"¿Estás seguro de que quieres eliminar el pedido con ID **{delete_id}**?")
+                        # --- MEJORA: Reordenar columnas para que 'ID' sea la primera ---
+                        cols_to_display = [col for col in all_pedidos_cols if col in found_pedido_to_delete.columns]
+                        found_pedido_to_delete_display = found_pedido_to_delete[cols_to_display]
+                        st.dataframe(found_pedido_to_delete_display.style.apply(highlight_pedidos_rows, axis=1))
 
-                col_confirm1, col_confirm2 = st.columns(2)
-                with col_confirm1:
-                    if st.button("Confirmar Eliminación", key="confirm_delete_button"):
-                        # Realizar la eliminación
-                        # Para Firestore, necesitamos el 'id_documento_firestore' real, no el 'ID' de tu tabla.
-                        # Primero, obtenemos el id_documento_firestore del pedido a eliminar
-                        doc_id_to_delete = pedido_a_eliminar['id_documento_firestore'].iloc[0]
-                        
-                        if delete_document_firestore('pedidos', doc_id_to_delete): # Usar la función de eliminación de Firestore
-                            st.success(f"Pedido {delete_id} eliminado con éxito de Firestore.")
-                            st.rerun() # Actualizar la aplicación para mostrar el DataFrame actualizado
-                        else:
-                            st.error("Error al eliminar el pedido de Firestore.")
-                with col_confirm2:
-                    if st.button("Cancelar Eliminación", key="cancel_delete_button"):
-                        st.info("Eliminación cancelada.")
-                        st.rerun() # Recargar para limpiar la advertencia y el botón de confirmación
-            elif delete_id is not None and delete_id > 0:
-                st.info(f"No se encontró ningún pedido con el ID {delete_id} para eliminar.")
+                        # Usar un formulario para la confirmación de eliminación
+                        with st.form("confirm_delete_form", clear_on_submit=True):
+                            confirm_delete = st.form_submit_button("Sí, Eliminar Definitivamente")
+                            cancel_delete = st.form_submit_button("Cancelar")
 
-    elif page == "Gastos": # Cambiado de "Gestión de Gastos"
-        st.header("Gestión de Gastos")
-        st.write("Aquí puedes gestionar tus gastos.") # Mantenido este mensaje corto
-        # Ejemplo: Mostrar el DataFrame de gastos
-        st.subheader("Gastos Registrados")
-        st.dataframe(df_gastos)
+                            if confirm_delete:
+                                try:
+                                    # Eliminar el documento de Firestore
+                                    # Asumimos que el 'ID' del DataFrame es el mismo que el ID del documento de Firestore
+                                    # Si el ID del documento de Firestore es diferente al campo 'ID' del DataFrame,
+                                    # necesitarías almacenar el 'id_documento_firestore' en session_state al buscarlo
+                                    # y usar ese valor aquí.
+                                    # Por simplicidad, si 'ID' del DataFrame es el ID del documento de Firestore:
+                                    doc_id_firestore_to_delete = str(delete_id) # Convierte a string para Firestore
+                                    
+                                    # Si necesitas el id_documento_firestore real para eliminar:
+                                    # doc_id_firestore_to_delete = found_pedido_to_delete['id_documento_firestore'].iloc[0]
 
-        # --- Formulario para añadir nuevo gasto ---
-        st.subheader("Añadir Gasto") # Título más conciso
-        with st.form("form_nuevo_gasto", clear_on_submit=True):
-            col_g1, col_g2 = st.columns(2)
-            with col_g1:
-                gasto_fecha = st.date_input("Fecha Gasto", key="gasto_fecha") # Texto más conciso
-                gasto_concepto = st.text_input("Concepto", key="gasto_concepto")
-            with col_g2:
-                gasto_importe = st.number_input("Importe", min_value=0.0, format="%.2f", key="gasto_importe")
-                gasto_tipo = st.selectbox("Tipo Gasto", options=["", "Fijo", "Variable"], key="gasto_tipo") # Texto más conciso
-            
-            submitted_gasto = st.form_submit_button("Guardar Gasto")
-
-            if submitted_gasto:
-                # Generar un nuevo ID para el gasto
-                next_gasto_id = get_next_id(df_gastos, 'ID') # Asumiendo columna 'ID' para gastos también
-                
-                new_gasto_record = {
-                    'ID': next_gasto_id,
-                    'Fecha': gasto_fecha,
-                    'Concepto': gasto_concepto,
-                    'Importe': gasto_importe,
-                    'Tipo': gasto_tipo if gasto_tipo != "" else None
-                }
-                new_gasto_df_row = pd.DataFrame([new_gasto_record])
-                
-                st.session_state.data['df_gastos'] = pd.concat([df_gastos, new_gasto_df_row], ignore_index=True)
-                
-                if save_dataframe_firestore(st.session_state.data['df_gastos'], 'gastos'):
-                    st.success(f"Gasto {next_gasto_id} guardado con éxito!")
-                    st.rerun()
-                else:
-                    st.error("Error al guardar el gasto.")
-
-        # --- Sección para eliminar gastos ---
-        st.subheader("Eliminar Gasto")
-        delete_gasto_id = st.number_input("ID del Gasto a Eliminar:", min_value=1, value=None, key="delete_gasto_id_input")
-
-        gasto_a_eliminar = pd.DataFrame()
-        if delete_gasto_id is not None and delete_gasto_id > 0:
-            gasto_a_eliminar = df_gastos[df_gastos['ID'] == delete_gasto_id]
-
-        if not gasto_a_eliminar.empty:
-            st.warning(f"¿Seguro que quieres eliminar el gasto con ID **{delete_gasto_id}**?") # Mensaje más conciso
-            st.dataframe(gasto_a_eliminar)
-
-            col_g_confirm1, col_g_confirm2 = st.columns(2)
-            with col_g_confirm1:
-                if st.button("Confirmar Eliminación Gasto", key="confirm_delete_gasto_button"):
-                    doc_id_to_delete_gasto = gasto_a_eliminar['id_documento_firestore'].iloc[0]
-                    if delete_document_firestore('gastos', doc_id_to_delete_gasto):
-                        st.success(f"Gasto {delete_gasto_id} eliminado con éxito de Firestore.")
-                        st.rerun()
+                                    delete_document_firestore('pedidos', doc_id_firestore_to_delete)
+                                    
+                                    # Eliminar la fila del DataFrame en session_state
+                                    st.session_state.data['df_pedidos'] = df_pedidos[df_pedidos['ID'] != delete_id].reset_index(drop=True)
+                                    
+                                    st.success(f"Pedido {delete_id} eliminado con éxito de Firestore y de la aplicación.")
+                                    st.rerun() # Recargar la aplicación para reflejar los cambios
+                                except Exception as e:
+                                    st.error(f"Error al eliminar el pedido: {e}")
+                            elif cancel_delete:
+                                st.info("Eliminación cancelada.")
+                                st.rerun() # Opcional: recargar para limpiar el mensaje de confirmación
                     else:
-                        st.error("Error al eliminar el gasto de Firestore.")
-            with col_g_confirm2:
-                if st.button("Cancelar Eliminación Gasto", key="cancel_delete_gasto_button"):
-                    st.info("Eliminación de gasto cancelada.")
-                    st.rerun()
-        elif delete_gasto_id is not None and delete_gasto_id > 0:
-            st.info(f"No se encontró ningún gasto con el ID {delete_gasto_id} para eliminar.")
+                        st.warning(f"No se encontró ningún pedido con el ID {delete_id}.")
+                else:
+                    st.warning("Por favor, introduce un ID de pedido para eliminar.")
 
-    elif page == "Resumen": # Cambiado de "Resumen de Estados de Pedidos"
-        st.header("Resumen de Pedidos") # Título más conciso
-        
-        # Filtrar el DataFrame basado en la selección del radio button
-        filtered_df = pd.DataFrame() # Inicializar como DataFrame vacío
-        
+    elif page == "Gastos":
+        st.header("Gestión de Gastos")
+        st.info("Esta sección aún no está implementada. ¡Pronto podrás gestionar tus gastos aquí!")
+        # Aquí podrías añadir un formulario similar al de pedidos para registrar gastos
+        # y mostrar el df_gastos.
+
+    elif page == "Resumen":
+        st.header("Resumen de Pedidos por Estado")
+        st.write(f"Mostrando: **{st.session_state.current_summary_view}**")
+
+        filtered_df = pd.DataFrame() # DataFrame vacío por defecto
+
         if st.session_state.current_summary_view == "Todos los Pedidos":
             filtered_df = df_pedidos
-            st.subheader("Todos los Pedidos")
+            # --- MEJORA: Ordenar por 'ID' ascendente para que los pedidos estén ordenados ---
+            if 'ID' in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(by='ID', ascending=True)
         elif st.session_state.current_summary_view == "Trabajos Empezados":
             filtered_df = df_pedidos[df_pedidos['Inicio Trabajo'] == True]
-            st.subheader("Pedidos con 'Inicio Trabajo'")
+            if 'ID' in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(by='ID', ascending=True)
         elif st.session_state.current_summary_view == "Trabajos Terminados":
             filtered_df = df_pedidos[df_pedidos['Trabajo Terminado'] == True]
-            st.subheader("Pedidos con 'Trabajo Terminado'")
+            if 'ID' in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(by='ID', ascending=True)
         elif st.session_state.current_summary_view == "Pedidos Pendientes":
             filtered_df = df_pedidos[df_pedidos['Pendiente'] == True]
-            st.subheader("Pedidos con 'Pendiente'")
+            if 'ID' in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(by='ID', ascending=True)
         elif st.session_state.current_summary_view == "Pedidos sin estado específico":
-            # Un pedido "sin estado específico" podría ser uno que no tiene ningún checkbox de estado marcado
-            # O puedes definirlo como los que no tienen 'Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente'
-            # Para este ejemplo, consideraremos los que NO tienen 'Inicio Trabajo' ni 'Trabajo Terminado' ni 'Pendiente'
+            # Filtrar por los que NO tienen ninguno de los estados principales marcados
+            # Asegúrate de que los nombres de columna coincidan exactamente
             filtered_df = df_pedidos[
                 (df_pedidos['Inicio Trabajo'] == False) &
                 (df_pedidos['Trabajo Terminado'] == False) &
+                (df_pedidos['Cobrado'] == False) &
+                (df_pedidos['Retirado'] == False) &
                 (df_pedidos['Pendiente'] == False)
             ]
-            st.subheader("Pedidos sin Estado Específico") # Título más conciso
+            if 'ID' in filtered_df.columns:
+                filtered_df = filtered_df.sort_values(by='ID', ascending=True)
+        
+        # --- MEJORA: Reordenar columnas para que 'ID' sea la primera en todas las vistas de resumen ---
+        # Definir el orden deseado de las columnas para la visualización
+        all_pedidos_cols = [
+            'ID', 'Producto', 'Cliente', 'Teléfono', 'Club', 'Talla', 'Tela',
+            'Breve Descripción', 'Fecha Entrada', 'Fecha Salida', 'Precio',
+            'Precio Factura', 'Tipo de pago', 'Adelanto', 'Observaciones',
+            'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
+            'id_documento_firestore' # ID de Firestore, útil para depuración
+        ]
+        
+        # Filtrar las columnas que realmente existen en el DataFrame y reordenarlas
+        cols_to_display_summary = [col for col in all_pedidos_cols if col in filtered_df.columns]
+        filtered_df_display = filtered_df[cols_to_display_summary]
 
-        if not filtered_df.empty:
-            # Aplicar la función de estilo al DataFrame filtrado
-            st.dataframe(filtered_df.style.apply(highlight_pedidos_rows, axis=1))
+
+        if not filtered_df_display.empty:
+            st.dataframe(filtered_df_display.style.apply(highlight_pedidos_rows, axis=1))
         else:
-            st.info(f"No hay pedidos en la categoría: {st.session_state.current_summary_view}")
+            st.info("No hay pedidos en esta categoría.")
+
