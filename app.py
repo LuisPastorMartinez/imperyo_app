@@ -447,6 +447,11 @@ if check_password():
                 current_pedido = st.session_state.modifying_pedido
                 st.write(f"Modificando Pedido ID: **{current_pedido['ID']}**") # Mantener este mensaje claro
 
+                # --- DEBUGGING: Imprimir el contenido de current_pedido ---
+                st.write("DEBUG: Contenido del pedido actual para modificación:")
+                st.json(current_pedido) # Muestra el diccionario completo
+                # --- FIN DEBUGGING ---
+
                 with st.form("form_modificar_pedido", clear_on_submit=False): # No limpiar al enviar para modificación
                     col1_mod, col2_mod = st.columns(2)
 
@@ -690,5 +695,4 @@ if check_password():
             st.dataframe(filtered_df_display.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info("No hay pedidos en esta categoría.")
-
 
