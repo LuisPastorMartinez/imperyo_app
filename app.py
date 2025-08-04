@@ -203,22 +203,12 @@ if check_password():
             # Limpiar y convertir columnas numéricas
             for col in numeric_cols:
                 if col in df_pedidos_temp.columns:
-                    # Convertir a string primero para manejar tipos mixtos y cadenas "None"
-                    temp_series_for_numeric = df_pedidos_temp[col].astype(str)
-                    
-                    # Reemplazar cadenas vacías o "None" string con np.nan antes de la conversión numérica
-                    temp_series_for_numeric = temp_series_for_numeric.replace(r'^\s*(?i:none|nan|nat|null|)\s*$', np.nan, regex=True)
-                    
-                    # Convertir a una nueva Serie a partir de los valores para asegurar el tipo de entrada para pd.to_numeric
-                    # Esto es un workaround para el TypeError persistente, garantizando que pd.to_numeric siempre reciba una Serie.
-                    series_to_convert = pd.Series(temp_series_for_numeric.values)
-                    
-                    # Ahora, convertir a numérico. errors='coerce' convertirá valores no convertibles en NaN.
-                    converted_numeric_series = pd.to_numeric(series_to_convert, errors='coerce')
-                    
-                    # Asignar de vuelta al DataFrame como una Serie, manteniendo el índice original
-                    df_pedidos_temp[col] = pd.Series(converted_numeric_series, index=df_pedidos_temp.index)
-                    
+                    # Convertir cada elemento a numérico.
+                    # Primero, asegura que el valor es una cadena, luego intenta convertirlo a float.
+                    # Si falla, se convierte a np.nan.
+                    df_pedidos_temp[col] = df_pedidos_temp[col].apply(
+                        lambda x: pd.to_numeric(str(x).strip(), errors='coerce')
+                    )
                     # Rellenar NaN con None para que Firestore lo maneje como null
                     df_pedidos_temp[col] = df_pedidos_temp[col].where(pd.notna(df_pedidos_temp[col]), None)
 
