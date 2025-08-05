@@ -155,5 +155,3 @@ if check_password():
         view_pedidos()
     elif page == "Resumen":
         view_resumen()
-🔥 Características Clave:
-Autenticación Segura:
