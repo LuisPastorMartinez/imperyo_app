@@ -167,18 +167,25 @@ if check_password():
     df_listas = st.session_state.data['df_listas']
     df_trabajos = st.session_state.data['df_trabajos']
     
-    # --- CORRECCIÓN FINAL: Combinar 'Telefono' y 'Teléfono' para evitar pérdida de datos ---
-    if 'Telefono' in df_pedidos.columns and 'Teléfono' in df_pedidos.columns:
-        # Si ambas columnas existen, fusionar los datos
-        # Llenar los valores nulos en 'Teléfono' con los valores de 'Telefono'
-        df_pedidos['Teléfono'] = df_pedidos['Teléfono'].fillna(df_pedidos['Telefono'])
-        # Eliminar la columna 'Telefono' (sin acento)
-        df_pedidos = df_pedidos.drop(columns=['Telefono'])
-        st.session_state.data['df_pedidos'] = df_pedidos # Actualizar el DataFrame en el estado de sesión
-    elif 'Telefono' in df_pedidos.columns and 'Teléfono' not in df_pedidos.columns:
-        # Si solo existe 'Telefono' (sin acento), renombrarla
-        df_pedidos = df_pedidos.rename(columns={'Telefono': 'Teléfono'})
-        st.session_state.data['df_pedidos'] = df_pedidos
+    # --- NUEVA CORRECCIÓN: Unificar columnas para mantener 'Telefono' y 'Fecha entrada' ---
+    if 'Teléfono' in df_pedidos.columns and 'Telefono' in df_pedidos.columns:
+        # Si ambas columnas existen, fusionar los datos en 'Telefono' y eliminar 'Teléfono'
+        df_pedidos['Telefono'] = df_pedidos['Telefono'].fillna(df_pedidos['Teléfono'])
+        df_pedidos = df_pedidos.drop(columns=['Teléfono'])
+    elif 'Teléfono' in df_pedidos.columns and 'Telefono' not in df_pedidos.columns:
+        # Si solo existe 'Teléfono' (con acento), renombrarla a 'Telefono' (sin acento)
+        df_pedidos = df_pedidos.rename(columns={'Teléfono': 'Telefono'})
+        
+    if 'Fecha Entrada' in df_pedidos.columns and 'Fecha entrada' in df_pedidos.columns:
+        # Si ambas columnas existen, fusionar los datos en 'Fecha entrada' y eliminar 'Fecha Entrada'
+        df_pedidos['Fecha entrada'] = df_pedidos['Fecha entrada'].fillna(df_pedidos['Fecha Entrada'])
+        df_pedidos = df_pedidos.drop(columns=['Fecha Entrada'])
+    elif 'Fecha Entrada' in df_pedidos.columns and 'Fecha entrada' not in df_pedidos.columns:
+        # Si solo existe 'Fecha Entrada' (con mayúsculas y acento), renombrarla
+        df_pedidos = df_pedidos.rename(columns={'Fecha Entrada': 'Fecha entrada'})
+
+    # Actualizar el DataFrame en el estado de sesión después de las correcciones
+    st.session_state.data['df_pedidos'] = df_pedidos
         
     # --- BOTÓN DE CERRAR SESIÓN ---
     st.sidebar.markdown("---")
@@ -233,8 +240,8 @@ if check_password():
             df_pedidos_sorted = df_pedidos.sort_values(by='ID', ascending=False)
             # Definir el nuevo orden de columnas solicitado
             new_column_order = [
-                'ID', 'Producto', 'Cliente', 'Club', 'Teléfono', 'Breve Descripción',
-                'Fecha Entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
+                'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
+                'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
                 'Tipo de pago', 'Adelanto', 'Observaciones'
             ]
             # Obtener las columnas restantes para añadirlas al final
@@ -282,7 +289,7 @@ if check_password():
                     producto = st.selectbox("Producto", options=producto_options, key="new_producto", index=0) # Por defecto a vacío
                     
                     cliente = st.text_input("Cliente", key="new_cliente")
-                    telefono = st.text_input("Teléfono", key="new_telefono")
+                    telefono = st.text_input("Telefono", key="new_telefono")
                     club = st.text_input("Club", key="new_club")
                     
                     # Obtener opciones únicas para 'Talla' del DataFrame 'Listas'
@@ -296,8 +303,8 @@ if check_password():
                     breve_descripcion = st.text_area("Breve Descripción", key="new_breve_descripcion")
 
                 with col2:
-                    # --- Fecha Entrada ---
-                    fecha_entrada = st.date_input("Fecha Entrada", key="new_fecha_entrada")
+                    # --- Fecha entrada ---
+                    fecha_entrada = st.date_input("Fecha entrada", key="new_fecha_entrada")
 
                     # --- Fecha Salida: Siempre habilitada (sin restricciones) ---
                     fecha_salida = st.date_input(
@@ -363,12 +370,12 @@ if check_password():
                         'ID': next_pedido_id,
                         'Producto': producto if producto != "" else None, # Guardar None si se selecciona cadena vacía
                         'Cliente': cliente,
-                        'Teléfono': telefono,
+                        'Telefono': telefono,
                         'Club': club,
                         'Talla': talla if talla != "" else None, # Guardar None si se selecciona cadena vacía
                         'Tela': tela if tela != "" else None, # Guardar None si se selecciona cadena vacía
                         'Breve Descripción': breve_descripcion,
-                        'Fecha Entrada': fecha_entrada,
+                        'Fecha entrada': fecha_entrada,
                         'Fecha Salida': fecha_salida, # Siempre se guarda el valor seleccionado (o None)
                         'Precio': precio,
                         'Precio Factura': precio_factura,
@@ -404,8 +411,8 @@ if check_password():
                     st.success(f"Pedido {search_id} encontrado:")
                     # Definir el nuevo orden de columnas solicitado
                     new_column_order = [
-                        'ID', 'Producto', 'Cliente', 'Club', 'Teléfono', 'Breve Descripción',
-                        'Fecha Entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
+                        'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
+                        'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
                         'Tipo de pago', 'Adelanto', 'Observaciones'
                     ]
                     # Obtener las columnas restantes para añadirlas al final
@@ -453,7 +460,7 @@ if check_password():
                         producto_mod = st.selectbox("Producto", options=producto_options, index=current_producto_idx, key="mod_producto")
                         
                         cliente_mod = st.text_input("Cliente", value=current_pedido['Cliente'], key="mod_cliente")
-                        telefono_mod = st.text_input("Teléfono", value=current_pedido['Teléfono'], key="mod_telefono")
+                        telefono_mod = st.text_input("Telefono", value=current_pedido['Telefono'], key="mod_telefono")
                         club_mod = st.text_input("Club", value=current_pedido['Club'], key="mod_club")
                         
                         talla_options = [""] + df_listas['Talla'].dropna().unique().tolist() # Añadir cadena vacía
@@ -469,10 +476,10 @@ if check_password():
                         breve_descripcion_mod = st.text_area("Breve Descripción", value=current_pedido['Breve Descripción'], key="mod_breve_descripcion")
 
                     with col2_mod:
-                        # Fecha Entrada
+                        # Fecha entrada
                         # Convertir Timestamp de pandas a datetime.date si no es NaT
-                        current_fecha_entrada = current_pedido['Fecha Entrada'].date() if pd.notna(current_pedido['Fecha Entrada']) else None
-                        fecha_entrada_mod = st.date_input("Fecha Entrada", value=current_fecha_entrada, key="mod_fecha_entrada")
+                        current_fecha_entrada = current_pedido['Fecha entrada'].date() if pd.notna(current_pedido['Fecha entrada']) else None
+                        fecha_entrada_mod = st.date_input("Fecha entrada", value=current_fecha_entrada, key="mod_fecha_entrada")
 
                         # --- Fecha Salida: Siempre habilitada (sin restricciones) ---
                         current_fecha_salida = current_pedido['Fecha Salida'].date() if pd.notna(current_pedido['Fecha Salida']) else None
@@ -537,12 +544,12 @@ if check_password():
                             'ID': current_pedido['ID'], # El ID permanece igual
                             'Producto': producto_mod if producto_mod != "" else None, # Guardar None si se selecciona cadena vacía
                             'Cliente': cliente_mod,
-                            'Teléfono': telefono_mod,
+                            'Telefono': telefono_mod,
                             'Club': club_mod,
                             'Talla': talla_mod if talla_mod != "" else None, # Guardar None si se selecciona cadena vacía
                             'Tela': tela_mod if tela_mod != "" else None, # Guardar None si se selecciona cadena vacía
                             'Breve Descripción': breve_descripcion_mod,
-                            'Fecha Entrada': fecha_entrada_mod,
+                            'Fecha entrada': fecha_entrada_mod,
                             'Fecha Salida': fecha_salida_mod,
                             'Precio': precio_mod,
                             'Precio Factura': precio_factura_mod,
@@ -581,8 +588,8 @@ if check_password():
                 st.warning(f"¿Seguro que quieres eliminar el pedido con ID **{delete_id}**?") # Mensaje más conciso
                 # Definir el nuevo orden de columnas solicitado
                 new_column_order = [
-                    'ID', 'Producto', 'Cliente', 'Club', 'Teléfono', 'Breve Descripción',
-                    'Fecha Entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
+                    'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
+                    'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
                     'Tipo de pago', 'Adelanto', 'Observaciones'
                 ]
                 # Obtener las columnas restantes para añadirlas al final
@@ -716,8 +723,8 @@ if check_password():
             filtered_df_sorted = filtered_df.sort_values(by='ID', ascending=False)
             # Definir el nuevo orden de columnas solicitado
             new_column_order = [
-                'ID', 'Producto', 'Cliente', 'Club', 'Teléfono', 'Breve Descripción',
-                'Fecha Entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
+                'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
+                'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
                 'Tipo de pago', 'Adelanto', 'Observaciones'
             ]
             # Obtener las columnas restantes para añadirlas al final
