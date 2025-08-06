@@ -67,12 +67,6 @@ with col_title:
     st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
 # --- FIN HEADER ---
 
-# --- MENSAJES CONDICIONALES PARA DEMOSTRACIÓN (PUEDES QUITAR ESTO DESPUÉS DE PROBAR) ---
-# st.markdown("<p class='pc-only'>Estás viendo la versión para PC.</p>", unsafe_allow_html=True)
-# st.markdown("<p class='mobile-only'>¡Hola! Estás viendo la versión para móvil.</p>", unsafe_allow_html=True)
-# --- FIN MENSAJES CONDICIONALES ---
-
-
 # --- FUNCIÓN DE COLOREADO DE FILAS ---
 # Esta función aplica colores de fondo a las filas según el estado del pedido
 def highlight_pedidos_rows(row):
@@ -220,8 +214,14 @@ if check_password():
     elif page == "Ver Datos": # Cambiado de "Ver Todas las Hojas"
         st.header("Datos Cargados de Firestore") # Texto actualizado
         st.subheader("Colección 'pedidos'")
-        # Aplicar la función de estilo al DataFrame 'Pedidos'
-        st.dataframe(df_pedidos.style.apply(highlight_pedidos_rows, axis=1))
+        # Aplicar la función de estilo al DataFrame 'Pedidos' con el nuevo orden
+        if not df_pedidos.empty:
+            column_order = ['ID'] + [col for col in df_pedidos.columns if col != 'ID']
+            df_pedidos_reordered = df_pedidos[column_order]
+            st.dataframe(df_pedidos_reordered.style.apply(highlight_pedidos_rows, axis=1))
+        else:
+            st.info("No hay datos en la colección 'pedidos'.")
+        
         st.subheader("Colección 'gastos'")
         st.dataframe(df_gastos)
         st.subheader("Colección 'totales'")
@@ -377,7 +377,11 @@ if check_password():
                 found_pedido = df_pedidos[df_pedidos['ID'] == search_id]
                 if not found_pedido.empty:
                     st.success(f"Pedido {search_id} encontrado:")
-                    st.dataframe(found_pedido.style.apply(highlight_pedidos_rows, axis=1))
+                    # Reordenar las columnas para que 'ID' sea la primera
+                    column_order = ['ID'] + [col for col in found_pedido.columns if col != 'ID']
+                    found_pedido_reordered = found_pedido[column_order]
+                    # Mostrar el DataFrame reordenado
+                    st.dataframe(found_pedido_reordered.style.apply(highlight_pedidos_rows, axis=1))
                 else:
                     st.warning(f"No se encontró ningún pedido con el ID {search_id}.")
 
@@ -543,14 +547,18 @@ if check_password():
 
             if not pedido_a_eliminar.empty:
                 st.warning(f"¿Seguro que quieres eliminar el pedido con ID **{delete_id}**?") # Mensaje más conciso
-                st.dataframe(pedido_a_eliminar.style.apply(highlight_pedidos_rows, axis=1)) # Mostrar el pedido a eliminar
+                # Reordenar las columnas para que 'ID' sea la primera
+                column_order = ['ID'] + [col for col in pedido_a_eliminar.columns if col != 'ID']
+                pedido_a_eliminar_reordered = pedido_a_eliminar[column_order]
+                # Mostrar el DataFrame reordenado
+                st.dataframe(pedido_a_eliminar_reordered.style.apply(highlight_pedidos_rows, axis=1))
 
                 col_confirm1, col_confirm2 = st.columns(2)
                 with col_confirm1:
                     if st.button("Confirmar Eliminación", key="confirm_delete_button"):
                         # Realizar la eliminación
                         # Para Firestore, necesitamos el 'id_documento_firestore' real, no el 'ID' de tu tabla.
-                        # Primero, obtenemos el id_documento_firestore del pedido a eliminar
+                        # Primero, obtenemos el 'id_documento_firestore' del pedido a eliminar
                         doc_id_to_delete = pedido_a_eliminar['id_documento_firestore'].iloc[0]
                         
                         if delete_document_firestore('pedidos', doc_id_to_delete): # Usar la función de eliminación de Firestore
@@ -664,7 +672,10 @@ if check_password():
             st.subheader("Pedidos sin Estado Específico") # Título más conciso
 
         if not filtered_df.empty:
-            # Aplicar la función de estilo al DataFrame filtrado
-            st.dataframe(filtered_df.style.apply(highlight_pedidos_rows, axis=1))
+            # Reordenar las columnas para que 'ID' sea la primera
+            column_order = ['ID'] + [col for col in filtered_df.columns if col != 'ID']
+            filtered_df_reordered = filtered_df[column_order]
+            # Aplicar el estilo al DataFrame reordenado
+            st.dataframe(filtered_df_reordered.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info(f"No hay pedidos en la categoría: {st.session_state.current_summary_view}")
