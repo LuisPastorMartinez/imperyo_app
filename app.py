@@ -135,24 +135,18 @@ if check_password():
     df_listas = st.session_state.df_listas
     df_trabajos = st.session_state.df_trabajos
 
-    # --- FUNCIÓN PARA UNIFICAR COLUMNAS (AÑADIDA PARA CORREGIR EL ERROR) ---
+    # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
     def unify_dataframe_columns(df):
-        # Limpiar espacios en blanco al principio y al final del nombre de las columnas
         df.columns = [col.strip() for col in df.columns]
         
-        # Unificación de la columna 'Telefono'
         if 'Telefono' in df.columns:
             other_telefono_cols = [col for col in df.columns if col.startswith('Telefono') and col != 'Telefono']
             for col in other_telefono_cols:
-                # Llenar los valores faltantes de 'Telefono' con los de la columna duplicada
                 df['Telefono'] = df['Telefono'].fillna(df[col])
-            # Eliminar las columnas duplicadas después de unificar
             df = df.drop(columns=other_telefono_cols, errors='ignore')
         else:
-            # Si no existe, crear la columna
             df['Telefono'] = pd.Series(dtype=str)
 
-        # Unificación de la columna 'Fecha entrada' (con el mismo principio)
         df.columns = [col.replace('Fecha Entrada', 'Fecha entrada') for col in df.columns]
         if 'Fecha entrada' in df.columns:
             other_fecha_entrada_cols = [col for col in df.columns if col.startswith('Fecha entrada') and col != 'Fecha entrada']
@@ -162,19 +156,16 @@ if check_password():
         else:
             df['Fecha entrada'] = pd.Series(dtype='datetime64[ns]')
 
-        # Asegurar que las columnas de estado existan (útil para el estilizado)
         status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
         for col in status_columns:
             if col not in df.columns:
                 df[col] = False
         
-        # Unificar la columna 'id_documento_firestore' que es crucial para la eliminación
         if 'id_documento_firestore' not in df.columns:
             df['id_documento_firestore'] = None
         
         return df
 
-    # Aplicar la función de unificación al DataFrame de pedidos
     st.session_state.df_pedidos = unify_dataframe_columns(st.session_state.df_pedidos)
     df_pedidos = st.session_state.df_pedidos
 
@@ -286,8 +277,25 @@ if check_password():
             ]
 
         if not filtered_df.empty:
-            filtered_df_sorted = filtered_df.sort_values(by='ID', ascending=False)
-            filtered_df_reordered = get_ordered_dataframe(filtered_df_sorted, 'pedidos')
+            # --- CORRECCIÓN: ASEGURAR QUE LAS COLUMNAS DE ESTADO EXISTAN ANTES DEL ESTILIZADO ---
+            # Se crea una copia para evitar modificar el DataFrame original en el estado de sesión
+            temp_df = filtered_df.copy()
+            status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
+            for col in status_columns:
+                if col not in temp_df.columns:
+                    temp_df[col] = False
+            
+            filtered_df_sorted = temp_df.sort_values(by='ID', ascending=False)
+            
+            new_column_order = [
+                'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
+                'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
+                'Tipo de pago', 'Adelanto', 'Observaciones'
+            ]
+            remaining_columns = [col for col in filtered_df_sorted.columns if col not in new_column_order]
+            final_column_order = [col for col in new_column_order if col in filtered_df_sorted.columns] + remaining_columns
+            filtered_df_reordered = filtered_df_sorted[final_column_order]
+
             st.dataframe(filtered_df_reordered.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info(f"No hay pedidos en la categoría: {selected_summary_view}")
