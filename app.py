@@ -159,13 +159,19 @@ if check_password():
     # Si la carga de datos falló (ej. conexión a Firestore o error de colección), detener la aplicación
     if st.session_state.data is None:
         st.stop()
-
+    
     # Asignar DataFrames a variables más cortas para facilitar su uso
     df_pedidos = st.session_state.data['df_pedidos']
     df_gastos = st.session_state.data['df_gastos']
     df_totales = st.session_state.data['df_totales']
     df_listas = st.session_state.data['df_listas']
     df_trabajos = st.session_state.data['df_trabajos']
+    
+    # --- Corrección: Estandarizar nombres de columna para evitar duplicaciones por acentos/mayúsculas ---
+    # Esto busca cualquier columna llamada 'Telefono' (sin acento) y la renombra a 'Teléfono' (con acento).
+    if 'Telefono' in df_pedidos.columns:
+        df_pedidos = df_pedidos.rename(columns={'Telefono': 'Teléfono'})
+        st.session_state.data['df_pedidos'] = df_pedidos # Actualizar el DataFrame en el estado de sesión
 
     # --- BOTÓN DE CERRAR SESIÓN ---
     st.sidebar.markdown("---")
@@ -225,6 +231,7 @@ if check_password():
                 'Tipo de pago', 'Adelanto', 'Observaciones'
             ]
             # Obtener las columnas restantes para añadirlas al final
+            # Asegurarse de que no haya duplicados en la lista final
             remaining_columns = [col for col in df_pedidos_sorted.columns if col not in new_column_order]
             # Combinar las listas para el orden final
             final_column_order = new_column_order + remaining_columns
@@ -454,7 +461,7 @@ if check_password():
                         
                         breve_descripcion_mod = st.text_area("Breve Descripción", value=current_pedido['Breve Descripción'], key="mod_breve_descripcion")
 
-                    with col2_mod: # La indentación de este bloque ha sido corregida
+                    with col2_mod:
                         # Fecha Entrada
                         # Convertir Timestamp de pandas a datetime.date si no es NaT
                         current_fecha_entrada = current_pedido['Fecha Entrada'].date() if pd.notna(current_pedido['Fecha Entrada']) else None
@@ -645,7 +652,7 @@ if check_password():
         delete_gasto_id = st.number_input("ID del Gasto a Eliminar:", min_value=1, value=None, key="delete_gasto_id_input")
 
         gasto_a_eliminar = pd.DataFrame()
-        if delete_gasto_id is not None and delete_id > 0: # Corregido: delete_id en lugar de delete_gasto_id
+        if delete_gasto_id is not None and delete_gasto_id > 0:
             gasto_a_eliminar = df_gastos[df_gastos['ID'] == delete_gasto_id]
 
         if not gasto_a_eliminar.empty:
