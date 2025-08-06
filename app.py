@@ -167,12 +167,19 @@ if check_password():
     df_listas = st.session_state.data['df_listas']
     df_trabajos = st.session_state.data['df_trabajos']
     
-    # --- Corrección: Estandarizar nombres de columna para evitar duplicaciones por acentos/mayúsculas ---
-    # Esto busca cualquier columna llamada 'Telefono' (sin acento) y la renombra a 'Teléfono' (con acento).
-    if 'Telefono' in df_pedidos.columns:
-        df_pedidos = df_pedidos.rename(columns={'Telefono': 'Teléfono'})
+    # --- CORRECCIÓN FINAL: Combinar 'Telefono' y 'Teléfono' para evitar pérdida de datos ---
+    if 'Telefono' in df_pedidos.columns and 'Teléfono' in df_pedidos.columns:
+        # Si ambas columnas existen, fusionar los datos
+        # Llenar los valores nulos en 'Teléfono' con los valores de 'Telefono'
+        df_pedidos['Teléfono'] = df_pedidos['Teléfono'].fillna(df_pedidos['Telefono'])
+        # Eliminar la columna 'Telefono' (sin acento)
+        df_pedidos = df_pedidos.drop(columns=['Telefono'])
         st.session_state.data['df_pedidos'] = df_pedidos # Actualizar el DataFrame en el estado de sesión
-
+    elif 'Telefono' in df_pedidos.columns and 'Teléfono' not in df_pedidos.columns:
+        # Si solo existe 'Telefono' (sin acento), renombrarla
+        df_pedidos = df_pedidos.rename(columns={'Telefono': 'Teléfono'})
+        st.session_state.data['df_pedidos'] = df_pedidos
+        
     # --- BOTÓN DE CERRAR SESIÓN ---
     st.sidebar.markdown("---")
     if st.sidebar.button("Cerrar Sesión"):
