@@ -168,33 +168,34 @@ if check_password():
     df_trabajos = st.session_state.data['df_trabajos']
     
     # --- NUEVA CORRECCIÓN MEJORADA Y MÁS ROBUSTA: Unificar columnas para mantener 'Telefono' y 'Fecha entrada' ---
-    # Unificación de la columna 'Telefono'
-    # Creamos una lista de columnas a eliminar
-    cols_to_drop = []
+    # Normalizamos los nombres de las columnas eliminando espacios y reemplazando 'Teléfono' por 'Telefono'
+    df_pedidos.columns = [col.strip().replace('Teléfono', 'Telefono') for col in df_pedidos.columns]
+    df_pedidos.columns = [col.strip().replace('Fecha Entrada', 'Fecha entrada') for col in df_pedidos.columns]
     
-    if 'Teléfono' in df_pedidos.columns:
-        # Si 'Telefono' ya existe, fusionamos. Si no, renombramos.
-        if 'Telefono' in df_pedidos.columns:
-            df_pedidos['Telefono'] = df_pedidos['Telefono'].fillna(df_pedidos['Teléfono'])
-            cols_to_drop.append('Teléfono')
-        else:
-            df_pedidos = df_pedidos.rename(columns={'Teléfono': 'Telefono'})
+    # Unificación de la columna 'Telefono'
+    if 'Telefono' in df_pedidos.columns:
+        # Buscar cualquier otra variación de Telefono (ej. 'Telefono.1')
+        other_telefono_cols = [col for col in df_pedidos.columns if col.startswith('Telefono') and col != 'Telefono']
+        for col in other_telefono_cols:
+            df_pedidos['Telefono'] = df_pedidos['Telefono'].fillna(df_pedidos[col])
+            
+        df_pedidos = df_pedidos.drop(columns=other_telefono_cols, errors='ignore')
 
     # Unificación de la columna 'Fecha entrada'
-    if 'Fecha Entrada' in df_pedidos.columns:
-        if 'Fecha entrada' in df_pedidos.columns:
-            df_pedidos['Fecha entrada'] = df_pedidos['Fecha entrada'].fillna(df_pedidos['Fecha Entrada'])
-            cols_to_drop.append('Fecha Entrada')
-        else:
-            df_pedidos = df_pedidos.rename(columns={'Fecha Entrada': 'Fecha entrada'})
+    if 'Fecha entrada' in df_pedidos.columns:
+        # Buscar cualquier otra variación de Fecha entrada (ej. 'Fecha entrada.1')
+        other_fecha_entrada_cols = [col for col in df_pedidos.columns if col.startswith('Fecha entrada') and col != 'Fecha entrada']
+        for col in other_fecha_entrada_cols:
+            df_pedidos['Fecha entrada'] = df_pedidos['Fecha entrada'].fillna(df_pedidos[col])
+            
+        df_pedidos = df_pedidos.drop(columns=other_fecha_entrada_cols, errors='ignore')
 
-    # Eliminamos las columnas duplicadas de una vez
-    if cols_to_drop:
-        df_pedidos = df_pedidos.drop(columns=cols_to_drop, errors='ignore')
-
-    # Aseguramos que la columna 'Telefono' exista, por si no había datos en la base de datos
+    # Aseguramos que las columnas estandarizadas existan, por si no había datos en la base de datos
     if 'Telefono' not in df_pedidos.columns:
         df_pedidos['Telefono'] = pd.Series(dtype=str)
+
+    if 'Fecha entrada' not in df_pedidos.columns:
+        df_pedidos['Fecha entrada'] = pd.Series(dtype='datetime64[ns]')
 
     # Actualizar el DataFrame en el estado de sesión después de las correcciones
     st.session_state.data['df_pedidos'] = df_pedidos
