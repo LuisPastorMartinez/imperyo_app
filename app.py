@@ -189,13 +189,6 @@ if check_password():
             
         df_pedidos = df_pedidos.drop(columns=other_fecha_entrada_cols, errors='ignore')
 
-    # --- NUEVO BLOQUE: Asegurar que las columnas de estado existan para evitar KeyError en el estilizado ---
-    status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
-    for col in status_columns:
-        if col not in df_pedidos.columns:
-            df_pedidos[col] = False # Añade la columna con valores False por defecto
-    # --- FIN DEL NUEVO BLOQUE ---
-
     # Aseguramos que las columnas estandarizadas existan, por si no había datos en la base de datos
     if 'Telefono' not in df_pedidos.columns:
         df_pedidos['Telefono'] = pd.Series(dtype=str)
@@ -255,8 +248,16 @@ if check_password():
         st.subheader("Colección 'pedidos'")
         # Aplicar la función de estilo al DataFrame 'Pedidos' con el nuevo orden
         if not df_pedidos.empty:
+            # --- NUEVO BLOQUE: Asegurar que las columnas de estado existan antes del estilizado ---
+            temp_df = df_pedidos.copy()
+            status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
+            for col in status_columns:
+                if col not in temp_df.columns:
+                    temp_df[col] = False
+            # --- FIN DEL NUEVO BLOQUE ---
+
             # Ordenar primero el DataFrame por 'ID' de mayor a menor
-            df_pedidos_sorted = df_pedidos.sort_values(by='ID', ascending=False)
+            df_pedidos_sorted = temp_df.sort_values(by='ID', ascending=False)
             # Definir el nuevo orden de columnas solicitado
             new_column_order = [
                 'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
@@ -428,6 +429,14 @@ if check_password():
                 found_pedido = df_pedidos[df_pedidos['ID'] == search_id]
                 if not found_pedido.empty:
                     st.success(f"Pedido {search_id} encontrado:")
+                    # --- NUEVO BLOQUE: Asegurar que las columnas de estado existan antes del estilizado ---
+                    temp_df = found_pedido.copy()
+                    status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
+                    for col in status_columns:
+                        if col not in temp_df.columns:
+                            temp_df[col] = False
+                    # --- FIN DEL NUEVO BLOQUE ---
+
                     # Definir el nuevo orden de columnas solicitado
                     new_column_order = [
                         'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
@@ -435,10 +444,10 @@ if check_password():
                         'Tipo de pago', 'Adelanto', 'Observaciones'
                     ]
                     # Obtener las columnas restantes para añadirlas al final
-                    remaining_columns = [col for col in found_pedido.columns if col not in new_column_order]
+                    remaining_columns = [col for col in temp_df.columns if col not in new_column_order]
                     # Combinar las listas para el orden final
                     final_column_order = new_column_order + remaining_columns
-                    found_pedido_reordered = found_pedido[final_column_order]
+                    found_pedido_reordered = temp_df[final_column_order]
                     st.dataframe(found_pedido_reordered.style.apply(highlight_pedidos_rows, axis=1))
                 else:
                     st.warning(f"No se encontró ningún pedido con el ID {search_id}.")
@@ -605,6 +614,14 @@ if check_password():
 
             if not pedido_a_eliminar.empty:
                 st.warning(f"¿Seguro que quieres eliminar el pedido con ID **{delete_id}**?") # Mensaje más conciso
+                # --- NUEVO BLOQUE: Asegurar que las columnas de estado existan antes del estilizado ---
+                temp_df = pedido_a_eliminar.copy()
+                status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
+                for col in status_columns:
+                    if col not in temp_df.columns:
+                        temp_df[col] = False
+                # --- FIN DEL NUEVO BLOQUE ---
+
                 # Definir el nuevo orden de columnas solicitado
                 new_column_order = [
                     'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
@@ -612,10 +629,10 @@ if check_password():
                     'Tipo de pago', 'Adelanto', 'Observaciones'
                 ]
                 # Obtener las columnas restantes para añadirlas al final
-                remaining_columns = [col for col in pedido_a_eliminar.columns if col not in new_column_order]
+                remaining_columns = [col for col in temp_df.columns if col not in new_column_order]
                 # Combinar las listas para el orden final
                 final_column_order = new_column_order + remaining_columns
-                pedido_a_eliminar_reordered = pedido_a_eliminar[final_column_order]
+                pedido_a_eliminar_reordered = temp_df[final_column_order]
                 # Mostrar el DataFrame reordenado
                 st.dataframe(pedido_a_eliminar_reordered.style.apply(highlight_pedidos_rows, axis=1))
 
@@ -738,8 +755,16 @@ if check_password():
             st.subheader("Pedidos sin Estado Específico") # Título más conciso
 
         if not filtered_df.empty:
+            # --- NUEVO BLOQUE: Asegurar que las columnas de estado existan antes del estilizado ---
+            temp_df = filtered_df.copy()
+            status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
+            for col in status_columns:
+                if col not in temp_df.columns:
+                    temp_df[col] = False
+            # --- FIN DEL NUEVO BLOQUE ---
+
             # Ordenar primero el DataFrame por 'ID' de mayor a menor
-            filtered_df_sorted = filtered_df.sort_values(by='ID', ascending=False)
+            filtered_df_sorted = temp_df.sort_values(by='ID', ascending=False)
             # Definir el nuevo orden de columnas solicitado
             new_column_order = [
                 'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
