@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import hashlib
-import re  # Importamos regex para validación de teléfono
+import re
 from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore, delete_document_firestore, get_next_id
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
@@ -31,6 +31,10 @@ h2 {
 .pc-only {
     display: block;
 }
+.telefono-input {
+    font-family: monospace;
+    letter-spacing: 0.1em;
+}
 @media (max-width: 768px) {
     .stImage > img {
         max-width: 60px;
@@ -47,11 +51,6 @@ h2 {
     .pc-only {
         display: none;
     }
-}
-/* Estilo para campos de teléfono */
-.telefono-input {
-    font-family: monospace;
-    letter-spacing: 0.1em;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -83,22 +82,31 @@ def highlight_pedidos_rows(row):
 
     return styles
 
-# --- FUNCIÓN PARA VALIDAR TELÉFONOS ---
-def validar_telefono(numero):
-    """Valida que el número tenga 9 dígitos y no contenga letras"""
+# --- FUNCIONES PARA TELÉFONOS ---
+def limpiar_telefono(numero):
+    """Convierte a string, elimina no-dígitos y devuelve 9 dígitos o None"""
     if pd.isna(numero) or numero == "":
-        return True  # Permitir vacío
-    numero_limpio = str(numero).strip()
-    return bool(re.fullmatch(r'^[0-9]{9}$', numero_limpio))
+        return None
+    digitos = re.sub(r'[^0-9]', '', str(numero))
+    return digitos[:9] if len(digitos) >= 9 else None
+
+def validar_telefono(numero):
+    """Valida que tenga exactamente 9 dígitos"""
+    return bool(re.fullmatch(r'^[0-9]{9}$', str(numero)))
 
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
-    # Primero eliminamos la columna "Teléfono" con acento si existe
-    if 'Teléfono' in df.columns:
-        df = df.drop(columns=['Teléfono'])
+    # Eliminar columnas problemáticas de teléfono
+    for col in ['Teléfono', 'Telefono ']:
+        if col in df.columns:
+            df = df.drop(columns=[col])
     
+    # Limpieza de teléfonos si existe la columna
+    if 'Telefono' in df.columns:
+        df['Telefono'] = df['Telefono'].apply(limpiar_telefono)
+    
+    # Unificación de otras columnas
     columnas_a_unificar = {
-        'Telefono ': 'Telefono',
         'Fecha Entreda': 'Fecha entrada',
         'Precio factura': 'Precio Factura',
         'Obserbaciones': 'Observaciones',
@@ -108,15 +116,8 @@ def unificar_columnas(df):
     
     for col_vieja, col_nueva in columnas_a_unificar.items():
         if col_vieja in df.columns:
-            if col_nueva not in df.columns:
-                df[col_nueva] = df[col_vieja]
-            else:
-                df[col_nueva] = df[col_nueva].combine_first(df[col_vieja])
+            df[col_nueva] = df[col_nueva].combine_first(df[col_vieja])
             df = df.drop(columns=[col_vieja])
-    
-    # Limpiar números de teléfono (eliminar ceros iniciales y espacios)
-    if 'Telefono' in df.columns:
-        df['Telefono'] = df['Telefono'].astype(str).str.strip().str.lstrip('0')
     
     return df
 
@@ -260,9 +261,10 @@ if check_password():
                     cliente = st.text_input("Cliente", key="new_cliente")
                     
                     # Campo de teléfono con validación
-                    telefono = st.text_input("Teléfono (9 dígitos)", key="new_telefono", 
-                                           help="Debe contener exactamente 9 dígitos numéricos",
-                                           max_chars=9)
+                    telefono = st.text_input("Teléfono (9 dígitos)", 
+                                           key="new_telefono",
+                                           max_chars=9,
+                                           help="Ejemplo: 622019738 (solo números, sin espacios ni guiones)")
                     
                     club = st.text_input("Club", key="new_club")
                     talla_options = [""] + df_listas['Talla'].dropna().unique().tolist()
@@ -300,9 +302,13 @@ if check_password():
                 if submitted:
                     # Validar teléfono
                     telefono_ingresado = st.session_state.new_telefono.strip()
-                    if telefono_ingresado and not validar_telefono(telefono_ingresado):
-                        st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
-                        st.stop()
+                    if telefono_ingresado:  # Solo validar si no está vacío
+                        if not validar_telefono(telefono_ingresado):
+                            st.error("ERROR: El teléfono debe contener exactamente 9 dígitos numéricos")
+                            st.stop()
+                        telefono_limpio = limpiar_telefono(telefono_ingresado)
+                    else:
+                        telefono_limpio = None
 
                     if ch_empezado and ch_trabajo_terminado:
                         st.error("Error: Un pedido no puede estar 'Empezado' y 'Trabajo Terminado' al mismo tiempo.")
@@ -320,7 +326,7 @@ if check_password():
                         'ID': next_pedido_id,
                         'Producto': producto if producto != "" else None,
                         'Cliente': cliente,
-                        'Telefono': telefono_ingresado if telefono_ingresado else None,
+                        'Telefono': telefono_limpio,
                         'Club': club,
                         'Talla': talla if talla != "" else None,
                         'Tela': tela if tela != "" else None,
@@ -399,9 +405,11 @@ if check_password():
                         
                         # Campo de teléfono con validación
                         telefono_actual = str(current_pedido.get('Telefono', '')).strip()
-                        telefono_mod = st.text_input("Teléfono (9 dígitos)", value=telefono_actual, key="mod_telefono",
-                                                    help="Debe contener exactamente 9 dígitos numéricos",
-                                                    max_chars=9)
+                        telefono_mod = st.text_input("Teléfono (9 dígitos)", 
+                                                   value=telefono_actual,
+                                                   key="mod_telefono",
+                                                   max_chars=9,
+                                                   help="Ejemplo: 622019738 (solo números)")
                         
                         club_mod = st.text_input("Club", value=current_pedido['Club'], key="mod_club")
                         talla_options = [""] + df_listas['Talla'].dropna().unique().tolist()
@@ -447,9 +455,13 @@ if check_password():
                     if submitted_mod:
                         # Validar teléfono
                         telefono_mod_ingresado = st.session_state.mod_telefono.strip()
-                        if telefono_mod_ingresado and not validar_telefono(telefono_mod_ingresado):
-                            st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
-                            st.stop()
+                        if telefono_mod_ingresado:  # Solo validar si no está vacío
+                            if not validar_telefono(telefono_mod_ingresado):
+                                st.error("ERROR: El teléfono debe contener exactamente 9 dígitos numéricos")
+                                st.stop()
+                            telefono_limpio = limpiar_telefono(telefono_mod_ingresado)
+                        else:
+                            telefono_limpio = None
 
                         if ch_empezado_mod and ch_trabajo_terminado_mod:
                             st.error("Error: Un pedido no puede estar 'Empezado' y 'Trabajo Terminado' al mismo tiempo.")
@@ -469,7 +481,7 @@ if check_password():
                             'ID': current_pedido['ID'],
                             'Producto': producto_mod if producto_mod != "" else None,
                             'Cliente': cliente_mod,
-                            'Telefono': telefono_mod_ingresado if telefono_mod_ingresado else None,
+                            'Telefono': telefono_limpio,
                             'Club': club_mod,
                             'Talla': talla_mod if talla_mod != "" else None,
                             'Tela': tela_mod if tela_mod != "" else None,
