@@ -167,25 +167,34 @@ if check_password():
     df_listas = st.session_state.data['df_listas']
     df_trabajos = st.session_state.data['df_trabajos']
     
-    # --- NUEVA CORRECCIÓN: Unificar columnas para mantener 'Telefono' y 'Fecha entrada' ---
-    
+    # --- NUEVA CORRECCIÓN MEJORADA Y MÁS ROBUSTA: Unificar columnas para mantener 'Telefono' y 'Fecha entrada' ---
     # Unificación de la columna 'Telefono'
-    # Primero, si 'Telefono' no existe, la creamos para tener una columna base
-    if 'Telefono' not in df_pedidos.columns:
-        df_pedidos['Telefono'] = pd.Series(dtype=str)
+    # Creamos una lista de columnas a eliminar
+    cols_to_drop = []
     
-    # Luego, buscamos variaciones y fusionamos los datos
     if 'Teléfono' in df_pedidos.columns:
-        df_pedidos['Telefono'] = df_pedidos['Telefono'].fillna(df_pedidos['Teléfono'])
-        df_pedidos = df_pedidos.drop(columns=['Teléfono'])
+        # Si 'Telefono' ya existe, fusionamos. Si no, renombramos.
+        if 'Telefono' in df_pedidos.columns:
+            df_pedidos['Telefono'] = df_pedidos['Telefono'].fillna(df_pedidos['Teléfono'])
+            cols_to_drop.append('Teléfono')
+        else:
+            df_pedidos = df_pedidos.rename(columns={'Teléfono': 'Telefono'})
 
     # Unificación de la columna 'Fecha entrada'
-    if 'Fecha entrada' not in df_pedidos.columns:
-        df_pedidos['Fecha entrada'] = pd.Series(dtype='datetime64[ns]')
-
     if 'Fecha Entrada' in df_pedidos.columns:
-        df_pedidos['Fecha entrada'] = df_pedidos['Fecha entrada'].fillna(df_pedidos['Fecha Entrada'])
-        df_pedidos = df_pedidos.drop(columns=['Fecha Entrada'])
+        if 'Fecha entrada' in df_pedidos.columns:
+            df_pedidos['Fecha entrada'] = df_pedidos['Fecha entrada'].fillna(df_pedidos['Fecha Entrada'])
+            cols_to_drop.append('Fecha Entrada')
+        else:
+            df_pedidos = df_pedidos.rename(columns={'Fecha Entrada': 'Fecha entrada'})
+
+    # Eliminamos las columnas duplicadas de una vez
+    if cols_to_drop:
+        df_pedidos = df_pedidos.drop(columns=cols_to_drop, errors='ignore')
+
+    # Aseguramos que la columna 'Telefono' exista, por si no había datos en la base de datos
+    if 'Telefono' not in df_pedidos.columns:
+        df_pedidos['Telefono'] = pd.Series(dtype=str)
 
     # Actualizar el DataFrame en el estado de sesión después de las correcciones
     st.session_state.data['df_pedidos'] = df_pedidos
@@ -292,7 +301,7 @@ if check_password():
                     producto = st.selectbox("Producto", options=producto_options, key="new_producto", index=0) # Por defecto a vacío
                     
                     cliente = st.text_input("Cliente", key="new_cliente")
-                    telefono = st.text_input("Telefono", key="new_telefono")
+                    telefono = st.text_input("Telefono", key="new_telefono") # Usar siempre 'Telefono' sin tilde
                     club = st.text_input("Club", key="new_club")
                     
                     # Obtener opciones únicas para 'Talla' del DataFrame 'Listas'
@@ -463,8 +472,7 @@ if check_password():
                         producto_mod = st.selectbox("Producto", options=producto_options, index=current_producto_idx, key="mod_producto")
                         
                         cliente_mod = st.text_input("Cliente", value=current_pedido['Cliente'], key="mod_cliente")
-                        # Corregido: Referencia a la columna 'Telefono' sin acento
-                        telefono_mod = st.text_input("Telefono", value=current_pedido.get('Telefono', ""), key="mod_telefono")
+                        telefono_mod = st.text_input("Telefono", value=current_pedido.get('Telefono', ""), key="mod_telefono") # Usar .get() para evitar KeyError y el nombre sin tilde
                         club_mod = st.text_input("Club", value=current_pedido['Club'], key="mod_club")
                         
                         talla_options = [""] + df_listas['Talla'].dropna().unique().tolist() # Añadir cadena vacía
@@ -483,7 +491,6 @@ if check_password():
                         # Fecha entrada
                         # Convertir Timestamp de pandas a datetime.date si no es NaT
                         current_fecha_entrada = current_pedido['Fecha entrada'].date() if pd.notna(current_pedido['Fecha entrada']) else None
-                        # Corregido: Referencia a la columna 'Fecha entrada'
                         fecha_entrada_mod = st.date_input("Fecha entrada", value=current_fecha_entrada, key="mod_fecha_entrada")
 
                         # --- Fecha Salida: Siempre habilitada (sin restricciones) ---
