@@ -216,8 +216,11 @@ if check_password():
         st.subheader("Colección 'pedidos'")
         # Aplicar la función de estilo al DataFrame 'Pedidos' con el nuevo orden
         if not df_pedidos.empty:
-            column_order = ['ID'] + [col for col in df_pedidos.columns if col != 'ID']
-            df_pedidos_reordered = df_pedidos[column_order]
+            # Ordenar primero el DataFrame por 'ID' de mayor a menor
+            df_pedidos_sorted = df_pedidos.sort_values(by='ID', ascending=False)
+            # Reordenar las columnas para que 'ID' sea la primera
+            column_order = ['ID'] + [col for col in df_pedidos_sorted.columns if col != 'ID']
+            df_pedidos_reordered = df_pedidos_sorted[column_order]
             st.dataframe(df_pedidos_reordered.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info("No hay datos en la colección 'pedidos'.")
@@ -672,9 +675,11 @@ if check_password():
             st.subheader("Pedidos sin Estado Específico") # Título más conciso
 
         if not filtered_df.empty:
+            # Ordenar primero el DataFrame por 'ID' de mayor a menor
+            filtered_df_sorted = filtered_df.sort_values(by='ID', ascending=False)
             # Reordenar las columnas para que 'ID' sea la primera
-            column_order = ['ID'] + [col for col in filtered_df.columns if col != 'ID']
-            filtered_df_reordered = filtered_df[column_order]
+            column_order = ['ID'] + [col for col in filtered_df_sorted.columns if col != 'ID']
+            filtered_df_reordered = filtered_df_sorted[column_order]
             # Aplicar el estilo al DataFrame reordenado
             st.dataframe(filtered_df_reordered.style.apply(highlight_pedidos_rows, axis=1))
         else:
