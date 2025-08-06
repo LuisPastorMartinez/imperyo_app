@@ -93,7 +93,7 @@ def check_password():
         if st.session_state["username_input"] == correct_username and hashed_input_password == correct_password_hash:
             st.session_state["authenticated"] = True
             st.success("Inicio de sesión exitoso!")
-            st.rerun()
+            # st.rerun() # Eliminado, el cambio de estado ya provoca un rerun
         else:
             st.error("Usuario o contraseña incorrectos.")
 
@@ -435,7 +435,7 @@ if check_password():
 
             if save_dataframe_firestore(st.session_state.df_pedidos, 'pedidos'):
                 st.success(f"Pedido {form_data['ID']} guardado con éxito!")
-                st.rerun()
+                st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
             else:
                 st.error("Error al guardar el pedido.")
 
@@ -511,7 +511,7 @@ if check_password():
                 if save_dataframe_firestore(st.session_state.df_pedidos, 'pedidos'):
                     st.success(f"Pedido {current_pedido['ID']} modificado con éxito!")
                     st.session_state.modifying_pedido = None
-                    st.rerun()
+                    st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
                 else:
                     st.error("Error al modificar el pedido.")
 
@@ -531,14 +531,13 @@ if check_password():
                         doc_id_to_delete = pedido_a_eliminar['id_documento_firestore'].iloc[0]
                         if delete_document_firestore('pedidos', doc_id_to_delete):
                             st.success(f"Pedido {delete_id} eliminado con éxito de Firestore.")
-                            st.session_state.data_loaded = False
-                            st.rerun()
+                            st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
                         else:
                             st.error("Error al eliminar el pedido de Firestore.")
                 with col_confirm2:
                     if st.button("Cancelar Eliminación", key="cancel_delete_button"):
                         st.info("Eliminación cancelada.")
-                        st.rerun()
+                        st.session_state.data_loaded = False # Forzar un rerun para limpiar el estado
             else:
                 st.info(f"No se encontró ningún pedido con el ID {delete_id} para eliminar.")
 
@@ -569,7 +568,7 @@ if check_password():
                 
                 if save_dataframe_firestore(st.session_state.df_gastos, 'gastos'):
                     st.success(f"Gasto {next_gasto_id} guardado con éxito!")
-                    st.rerun()
+                    st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
                 else:
                     st.error("Error al guardar el gasto.")
 
@@ -589,22 +588,24 @@ if check_password():
                         doc_id_to_delete_gasto = gasto_a_eliminar['id_documento_firestore'].iloc[0]
                         if delete_document_firestore('gastos', doc_id_to_delete_gasto):
                             st.success(f"Gasto {delete_gasto_id} eliminado con éxito de Firestore.")
-                            st.session_state.data_loaded = False
-                            st.rerun()
+                            st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
                         else:
                             st.error("Error al eliminar el gasto de Firestore.")
             with col_g_confirm2:
                 if st.button("Cancelar Eliminación Gasto", key="cancel_delete_gasto_button"):
                     st.info("Eliminación de gasto cancelada.")
-                    st.rerun()
+                    st.session_state.data_loaded = False # Forzar un rerun para limpiar el estado
         elif delete_gasto_id is not None and delete_gasto_id > 0:
             st.info(f"No se encontró ningún gasto con el ID {delete_gasto_id} para eliminar.")
 
     # --- BOTÓN DE CERRAR SESIÓN ---
     st.sidebar.markdown("---")
-    if st.sidebar.button("Cerrar Sesión"):
+    def logout():
         st.session_state.clear()
-        st.rerun()
+        # st.rerun() # Eliminado, el cambio de estado ya provoca un rerun
+
+    if st.sidebar.button("Cerrar Sesión", on_click=logout):
+        pass # La función `logout` ya se encarga de todo
 
     # --- NAVEGACIÓN DE LA APLICACIÓN (BARRA LATERAL) ---
     st.sidebar.title("Navegación")
