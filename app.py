@@ -60,6 +60,7 @@ with col_title:
 # --- FUNCIÓN DE COLOREADO DE FILAS ---
 def highlight_pedidos_rows(row):
     styles = [''] * len(row)
+    # Usar .get() para evitar KeyError si la columna no existe en la fila
     trabajo_terminado = row.get('Trabajo Terminado', False)
     cobrado = row.get('Cobrado', False)
     retirado = row.get('Retirado', False)
@@ -88,19 +89,18 @@ def check_password():
         st.error("Error de configuración: No se encontraron las credenciales en secrets.toml.")
         st.stop()
 
-    def authenticate_user():
-        hashed_input_password = hashlib.sha256(st.session_state["password_input"].encode()).hexdigest()
-        if st.session_state["username_input"] == correct_username and hashed_input_password == correct_password_hash:
-            st.session_state["authenticated"] = True
-            st.success("Inicio de sesión exitoso!")
-            # st.rerun() # Eliminado, el cambio de estado ya provoca un rerun
-        else:
-            st.error("Usuario o contraseña incorrectos.")
-
     if not st.session_state["authenticated"]:
         st.text_input("Usuario", key="username_input")
         st.text_input("Contraseña", type="password", key="password_input")
-        st.button("Iniciar Sesión", on_click=authenticate_user)
+        
+        if st.button("Iniciar Sesión"):
+            hashed_input_password = hashlib.sha256(st.session_state["password_input"].encode()).hexdigest()
+            if st.session_state["username_input"] == correct_username and hashed_input_password == correct_password_hash:
+                st.session_state["authenticated"] = True
+                st.success("Inicio de sesión exitoso!")
+                st.rerun()
+            else:
+                st.error("Usuario o contraseña incorrectos.")
         return False
     else:
         return True
@@ -132,17 +132,15 @@ if check_password():
     df_listas = st.session_state.df_listas
     df_trabajos = st.session_state.df_trabajos
 
-    # --- FUNCIÓN PARA UNIFICAR COLUMNAS (CORREGIDA) ---
+    # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
     def unify_dataframe_columns(df):
         df.columns = [col.strip() for col in df.columns]
         
-        # Unificación de la columna 'Telefono'
         telefono_cols = [col for col in df.columns if 'telefono' in col.lower()]
         if telefono_cols:
             main_telefono_col = 'Telefono'
             if main_telefono_col not in df.columns:
                 df[main_telefono_col] = pd.Series(dtype=str)
-            
             for col in telefono_cols:
                 if col != main_telefono_col:
                     df[main_telefono_col] = df[main_telefono_col].fillna(df[col])
@@ -150,13 +148,11 @@ if check_password():
         else:
             df['Telefono'] = pd.Series(dtype=str)
 
-        # Unificación de la columna 'Fecha entrada'
         fecha_entrada_cols = [col for col in df.columns if 'fecha entrada' in col.lower()]
         if fecha_entrada_cols:
             main_fecha_entrada_col = 'Fecha entrada'
             if main_fecha_entrada_col not in df.columns:
                 df[main_fecha_entrada_col] = pd.Series(dtype='datetime64[ns]')
-            
             for col in fecha_entrada_cols:
                 if col != main_fecha_entrada_col:
                     df[main_fecha_entrada_col] = df[main_fecha_entrada_col].fillna(df[col])
@@ -169,9 +165,20 @@ if check_password():
         
         return df
 
-    st.session_state.df_pedidos = unify_dataframe_columns(st.session_state.df_pedidos)
+    st.session_state.df_pedidos = unify_dataframe_columns(st.session_state.df_pedidos.copy())
     df_pedidos = st.session_state.df_pedidos
 
+    # --- FUNCIÓN PARA ASEGURAR COLUMNAS DE ESTADO ---
+    def ensure_status_columns(df):
+        status_cols = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
+        for col in status_cols:
+            if col not in df.columns:
+                df[col] = False
+        return df
+
+    st.session_state.df_pedidos = ensure_status_columns(st.session_state.df_pedidos.copy())
+    df_pedidos = st.session_state.df_pedidos
+    
     # --- FUNCIÓN PARA EL ORDEN DE LAS COLUMNAS ---
     def get_ordered_dataframe(df_to_order, collection_name):
         default_order = {
@@ -184,10 +191,14 @@ if check_password():
                 'ID', 'Fecha', 'Concepto', 'Importe', 'Tipo'
             ]
         }
-        
-        new_column_order = default_order.get(collection_name, df_to_order.columns.tolist())
-        remaining_columns = [col for col in df_to_order.columns if col not in new_column_order]
-        final_column_order = [col for col in new_column_order if col in df_to_order.columns] + remaining_columns
+        status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
+
+        if collection_name == 'pedidos':
+            new_column_order = default_order['pedidos'] + status_columns
+        else:
+            new_column_order = default_order.get(collection_name, df_to_order.columns.tolist())
+
+        final_column_order = [col for col in new_column_order if col in df_to_order.columns]
         
         return df_to_order[final_column_order]
     
@@ -280,23 +291,8 @@ if check_password():
             ]
 
         if not filtered_df.empty:
-            temp_df = filtered_df.copy()
-            status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
-            for col in status_columns:
-                if col not in temp_df.columns:
-                    temp_df[col] = False
-            
-            filtered_df_sorted = temp_df.sort_values(by='ID', ascending=False)
-            
-            new_column_order = [
-                'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
-                'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                'Tipo de pago', 'Adelanto', 'Observaciones'
-            ]
-            remaining_columns = [col for col in filtered_df_sorted.columns if col not in new_column_order]
-            final_column_order = [col for col in new_column_order if col in filtered_df_sorted.columns] + remaining_columns
-            filtered_df_reordered = filtered_df_sorted[final_column_order]
-
+            filtered_df_sorted = filtered_df.sort_values(by='ID', ascending=False)
+            filtered_df_reordered = get_ordered_dataframe(filtered_df_sorted, 'pedidos')
             st.dataframe(filtered_df_reordered.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info(f"No hay pedidos en la categoría: {selected_summary_view}")
@@ -397,47 +393,48 @@ if check_password():
         if submitted:
             if form_data['Inicio Trabajo'] and form_data['Trabajo Terminado']:
                 st.error("Error: Un pedido no puede estar 'Empezado' y 'Trabajo Terminado' al mismo tiempo.")
-                return
-
-            adelanto = None
-            if form_data['Adelanto_str']:
-                try:
-                    adelanto = float(form_data['Adelanto_str'])
-                except ValueError:
-                    st.error("Por favor, introduce un número válido para 'Adelanto' o déjalo vacío.")
-                    return
-            
-            new_record = {
-                'ID': form_data['ID'],
-                'Producto': form_data['Producto'] if form_data['Producto'] != "" else None,
-                'Cliente': form_data['Cliente'],
-                'Telefono': form_data['Telefono'],
-                'Club': form_data['Club'],
-                'Talla': form_data['Talla'] if form_data['Talla'] != "" else None,
-                'Tela': form_data['Tela'] if form_data['Tela'] != "" else None,
-                'Breve Descripción': form_data['Breve Descripción'],
-                'Fecha entrada': form_data['Fecha entrada'],
-                'Fecha Salida': form_data['Fecha Salida'],
-                'Precio': form_data['Precio'],
-                'Precio Factura': form_data['Precio Factura'],
-                'Tipo de pago': form_data['Tipo de pago'] if form_data['Tipo de pago'] != "" else None,
-                'Adelanto': adelanto,
-                'Observaciones': form_data['Observaciones'],
-                'Inicio Trabajo': form_data['Inicio Trabajo'],
-                'Cobrado': form_data['Cobrado'],
-                'Retirado': form_data['Retirado'],
-                'Pendiente': form_data['Pendiente'],
-                'Trabajo Terminado': form_data['Trabajo Terminado']
-            }
-            
-            new_df_row = pd.DataFrame([new_record])
-            st.session_state.df_pedidos = pd.concat([st.session_state.df_pedidos, new_df_row], ignore_index=True)
-
-            if save_dataframe_firestore(st.session_state.df_pedidos, 'pedidos'):
-                st.success(f"Pedido {form_data['ID']} guardado con éxito!")
-                st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
+                st.rerun()
             else:
-                st.error("Error al guardar el pedido.")
+                adelanto = None
+                if form_data['Adelanto_str']:
+                    try:
+                        adelanto = float(form_data['Adelanto_str'])
+                    except ValueError:
+                        st.error("Por favor, introduce un número válido para 'Adelanto' o déjalo vacío.")
+                        st.rerun()
+
+                new_record = {
+                    'ID': form_data['ID'],
+                    'Producto': form_data['Producto'] if form_data['Producto'] != "" else None,
+                    'Cliente': form_data['Cliente'],
+                    'Telefono': form_data['Telefono'],
+                    'Club': form_data['Club'],
+                    'Talla': form_data['Talla'] if form_data['Talla'] != "" else None,
+                    'Tela': form_data['Tela'] if form_data['Tela'] != "" else None,
+                    'Breve Descripción': form_data['Breve Descripción'],
+                    'Fecha entrada': form_data['Fecha entrada'],
+                    'Fecha Salida': form_data['Fecha Salida'],
+                    'Precio': form_data['Precio'],
+                    'Precio Factura': form_data['Precio Factura'],
+                    'Tipo de pago': form_data['Tipo de pago'] if form_data['Tipo de pago'] != "" else None,
+                    'Adelanto': adelanto,
+                    'Observaciones': form_data['Observaciones'],
+                    'Inicio Trabajo': form_data['Inicio Trabajo'],
+                    'Cobrado': form_data['Cobrado'],
+                    'Retirado': form_data['Retirado'],
+                    'Pendiente': form_data['Pendiente'],
+                    'Trabajo Terminado': form_data['Trabajo Terminado']
+                }
+                
+                new_df_row = pd.DataFrame([new_record])
+                st.session_state.df_pedidos = pd.concat([st.session_state.df_pedidos, new_df_row], ignore_index=True)
+
+                if save_dataframe_firestore(st.session_state.df_pedidos, 'pedidos'):
+                    st.success(f"Pedido {form_data['ID']} guardado con éxito!")
+                    st.session_state.data_loaded = False
+                    st.rerun()
+                else:
+                    st.error("Error al guardar el pedido.")
 
     def handle_search_pedido():
         st.subheader("Buscar Pedido")
@@ -459,6 +456,7 @@ if check_password():
             if not found_pedido_row.empty:
                 st.session_state.modifying_pedido = found_pedido_row.iloc[0].to_dict()
                 st.success(f"Pedido {modify_search_id} encontrado. Modifica a continuación.")
+                st.rerun()
             else:
                 st.session_state.modifying_pedido = None
                 st.warning(f"No se encontró ningún pedido con el ID {modify_search_id}.")
@@ -470,50 +468,53 @@ if check_password():
             if submitted:
                 if form_data['Inicio Trabajo'] and form_data['Trabajo Terminado']:
                     st.error("Error: Un pedido no puede estar 'Empezado' y 'Trabajo Terminado' al mismo tiempo.")
-                    return
-
-                adelanto = None
-                if form_data['Adelanto_str']:
-                    try:
-                        adelanto = float(form_data['Adelanto_str'])
-                    except ValueError:
-                        st.error("Por favor, introduce un número válido para 'Adelanto' o déjalo vacío.")
-                        return
-
-                row_index = st.session_state.df_pedidos[st.session_state.df_pedidos['ID'] == current_pedido['ID']].index[0]
-                
-                updated_record = {
-                    'ID': current_pedido['ID'],
-                    'Producto': form_data['Producto'] if form_data['Producto'] != "" else None,
-                    'Cliente': form_data['Cliente'],
-                    'Telefono': form_data['Telefono'],
-                    'Club': form_data['Club'],
-                    'Talla': form_data['Talla'] if form_data['Talla'] != "" else None,
-                    'Tela': form_data['Tela'] if form_data['Tela'] != "" else None,
-                    'Breve Descripción': form_data['Breve Descripción'],
-                    'Fecha entrada': form_data['Fecha entrada'],
-                    'Fecha Salida': form_data['Fecha Salida'],
-                    'Precio': form_data['Precio'],
-                    'Precio Factura': form_data['Precio Factura'],
-                    'Tipo de pago': form_data['Tipo de pago'] if form_data['Tipo de pago'] != "" else None,
-                    'Adelanto': adelanto,
-                    'Observaciones': form_data['Observaciones'],
-                    'Inicio Trabajo': form_data['Inicio Trabajo'],
-                    'Cobrado': form_data['Cobrado'],
-                    'Retirado': form_data['Retirado'],
-                    'Pendiente': form_data['Pendiente'],
-                    'Trabajo Terminado': form_data['Trabajo Terminado'],
-                    'id_documento_firestore': current_pedido['id_documento_firestore']
-                }
-
-                st.session_state.df_pedidos.loc[row_index] = updated_record
-                
-                if save_dataframe_firestore(st.session_state.df_pedidos, 'pedidos'):
-                    st.success(f"Pedido {current_pedido['ID']} modificado con éxito!")
-                    st.session_state.modifying_pedido = None
-                    st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
+                    st.rerun()
                 else:
-                    st.error("Error al modificar el pedido.")
+                    adelanto = None
+                    if form_data['Adelanto_str']:
+                        try:
+                            adelanto = float(form_data['Adelanto_str'])
+                        except ValueError:
+                            st.error("Por favor, introduce un número válido para 'Adelanto' o déjalo vacío.")
+                            st.rerun()
+
+                    row_index = st.session_state.df_pedidos[st.session_state.df_pedidos['ID'] == current_pedido['ID']].index[0]
+                    
+                    updated_record = {
+                        'ID': current_pedido['ID'],
+                        'Producto': form_data['Producto'] if form_data['Producto'] != "" else None,
+                        'Cliente': form_data['Cliente'],
+                        'Telefono': form_data['Telefono'],
+                        'Club': form_data['Club'],
+                        'Talla': form_data['Talla'] if form_data['Talla'] != "" else None,
+                        'Tela': form_data['Tela'] if form_data['Tela'] != "" else None,
+                        'Breve Descripción': form_data['Breve Descripción'],
+                        'Fecha entrada': form_data['Fecha entrada'],
+                        'Fecha Salida': form_data['Fecha Salida'],
+                        'Precio': form_data['Precio'],
+                        'Precio Factura': form_data['Precio Factura'],
+                        'Tipo de pago': form_data['Tipo de pago'] if form_data['Tipo de pago'] != "" else None,
+                        'Adelanto': adelanto,
+                        'Observaciones': form_data['Observaciones'],
+                        'Inicio Trabajo': form_data['Inicio Trabajo'],
+                        'Cobrado': form_data['Cobrado'],
+                        'Retirado': form_data['Retirado'],
+                        'Pendiente': form_data['Pendiente'],
+                        'Trabajo Terminado': form_data['Trabajo Terminado'],
+                        'id_documento_firestore': current_pedido['id_documento_firestore']
+                    }
+
+                    st.session_state.df_pedidos.loc[row_index] = updated_record
+                    
+                    if save_dataframe_firestore(st.session_state.df_pedidos, 'pedidos'):
+                        st.success(f"Pedido {current_pedido['ID']} modificado con éxito!")
+                        st.session_state.modifying_pedido = None
+                        st.session_state.data_loaded = False
+                        st.rerun()
+                    else:
+                        st.error("Error al modificar el pedido.")
+                        st.rerun()
+
 
     def handle_delete_pedido():
         st.subheader("Eliminar Pedido")
@@ -531,13 +532,16 @@ if check_password():
                         doc_id_to_delete = pedido_a_eliminar['id_documento_firestore'].iloc[0]
                         if delete_document_firestore('pedidos', doc_id_to_delete):
                             st.success(f"Pedido {delete_id} eliminado con éxito de Firestore.")
-                            st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
+                            st.session_state.data_loaded = False
+                            st.rerun()
                         else:
                             st.error("Error al eliminar el pedido de Firestore.")
+                            st.rerun()
                 with col_confirm2:
                     if st.button("Cancelar Eliminación", key="cancel_delete_button"):
                         st.info("Eliminación cancelada.")
-                        st.session_state.data_loaded = False # Forzar un rerun para limpiar el estado
+                        st.session_state.data_loaded = False
+                        st.rerun()
             else:
                 st.info(f"No se encontró ningún pedido con el ID {delete_id} para eliminar.")
 
@@ -568,9 +572,11 @@ if check_password():
                 
                 if save_dataframe_firestore(st.session_state.df_gastos, 'gastos'):
                     st.success(f"Gasto {next_gasto_id} guardado con éxito!")
-                    st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
+                    st.session_state.data_loaded = False
+                    st.rerun()
                 else:
                     st.error("Error al guardar el gasto.")
+                    st.rerun()
 
     def handle_delete_gasto():
         st.subheader("Eliminar Gasto")
@@ -588,13 +594,16 @@ if check_password():
                         doc_id_to_delete_gasto = gasto_a_eliminar['id_documento_firestore'].iloc[0]
                         if delete_document_firestore('gastos', doc_id_to_delete_gasto):
                             st.success(f"Gasto {delete_gasto_id} eliminado con éxito de Firestore.")
-                            st.session_state.data_loaded = False # Forzar un nuevo fetch de datos después de la modificación
+                            st.session_state.data_loaded = False
+                            st.rerun()
                         else:
                             st.error("Error al eliminar el gasto de Firestore.")
+                            st.rerun()
             with col_g_confirm2:
                 if st.button("Cancelar Eliminación Gasto", key="cancel_delete_gasto_button"):
                     st.info("Eliminación de gasto cancelada.")
-                    st.session_state.data_loaded = False # Forzar un rerun para limpiar el estado
+                    st.session_state.data_loaded = False
+                    st.rerun()
         elif delete_gasto_id is not None and delete_gasto_id > 0:
             st.info(f"No se encontró ningún gasto con el ID {delete_gasto_id} para eliminar.")
 
@@ -602,10 +611,10 @@ if check_password():
     st.sidebar.markdown("---")
     def logout():
         st.session_state.clear()
-        # st.rerun() # Eliminado, el cambio de estado ya provoca un rerun
+        st.rerun()
 
-    if st.sidebar.button("Cerrar Sesión", on_click=logout):
-        pass # La función `logout` ya se encarga de todo
+    if st.sidebar.button("Cerrar Sesión"):
+        logout()
 
     # --- NAVEGACIÓN DE LA APLICACIÓN (BARRA LATERAL) ---
     st.sidebar.title("Navegación")
