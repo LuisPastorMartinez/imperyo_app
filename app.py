@@ -190,6 +190,13 @@ if check_password():
             
         df_pedidos = df_pedidos.drop(columns=other_fecha_entrada_cols, errors='ignore')
 
+    # --- NUEVO BLOQUE: Asegurar que las columnas de estado existan para evitar KeyError en el estilizado ---
+    status_columns = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
+    for col in status_columns:
+        if col not in df_pedidos.columns:
+            df_pedidos[col] = False # Añade la columna con valores False por defecto
+    # --- FIN DEL NUEVO BLOQUE ---
+
     # Aseguramos que las columnas estandarizadas existan, por si no había datos en la base de datos
     if 'Telefono' not in df_pedidos.columns:
         df_pedidos['Telefono'] = pd.Series(dtype=str)
