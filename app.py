@@ -2,8 +2,9 @@ import streamlit as st
 import pandas as pd
 import os
 import hashlib
-import re  # Importamos regex para validación de teléfono
+import re
 from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore, delete_document_firestore, get_next_id
+from datetime import datetime
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -48,7 +49,6 @@ h2 {
         display: none;
     }
 }
-/* Estilo para campos de teléfono */
 .telefono-input {
     font-family: monospace;
     letter-spacing: 0.1em;
@@ -89,30 +89,41 @@ def limpiar_telefono(numero):
     if pd.isna(numero) or numero == "":
         return None
     
-    # Convertir a string y eliminar caracteres no numéricos
     numero_limpio = re.sub(r'[^0-9]', '', str(numero))
     
-    # Si tiene 9 dígitos exactos, devolverlo
     if len(numero_limpio) == 9:
         return numero_limpio
-    
-    # Si tiene más de 9 dígitos, tomar los primeros 9
     elif len(numero_limpio) > 9:
         return numero_limpio[:9]
     
-    return None  # Si no cumple los criterios
+    return None
 
-# --- FUNCIÓN PARA VALIDAR TELÉFONOS ---
-def validar_telefono(numero):
-    """Valida que el número tenga 9 dígitos y no contenga letras"""
-    if pd.isna(numero) or numero == "":
-        return True  # Permitir vacío
-    numero_limpio = str(numero).strip()
-    return bool(re.fullmatch(r'^[0-9]{9}$', numero_limpio))
+# --- FUNCIÓN PARA LIMPIAR FECHAS ---
+def limpiar_fecha(fecha):
+    """Convierte la fecha a formato date (sin hora)"""
+    if pd.isna(fecha):
+        return None
+    
+    if isinstance(fecha, str):
+        try:
+            # Intentar parsear diferentes formatos de fecha
+            return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
+        except:
+            return None
+    elif isinstance(fecha, datetime):
+        return fecha.date()
+    elif isinstance(fecha, pd.Timestamp):
+        return fecha.to_pydatetime().date()
+    
+    return None
 
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
-    # Primero unificar las columnas de teléfono
+    # Eliminar columna "Fechas Entrada" si existe
+    if 'Fechas Entrada' in df.columns:
+        df = df.drop(columns=['Fechas Entrada'])
+    
+    # Unificar columnas de teléfono
     if 'Teléfono' in df.columns and 'Telefono' in df.columns:
         df['Telefono'] = df['Telefono'].combine_first(df['Teléfono'])
         df = df.drop(columns=['Teléfono'])
@@ -123,10 +134,14 @@ def unificar_columnas(df):
         df['Telefono'] = df['Telefono'].combine_first(df['Telefono '])
         df = df.drop(columns=['Telefono '])
     
-    # Aplicar limpieza solo si la columna existe
+    # Limpiar teléfonos
     if 'Telefono' in df.columns:
         df['Telefono'] = df['Telefono'].apply(lambda x: x if pd.isna(x) else str(x).strip())
         df['Telefono'] = df['Telefono'].apply(limpiar_telefono)
+    
+    # Limpiar fechas
+    if 'Fecha entrada' in df.columns:
+        df['Fecha entrada'] = df['Fecha entrada'].apply(limpiar_fecha)
     
     # Resto de unificaciones
     columnas_a_unificar = {
@@ -286,7 +301,6 @@ if check_password():
                     producto = st.selectbox("Producto", options=producto_options, key="new_producto", index=0)
                     cliente = st.text_input("Cliente", key="new_cliente")
                     
-                    # Campo de teléfono con validación
                     telefono = st.text_input("Teléfono (9 dígitos)", key="new_telefono", 
                                            help="Debe contener exactamente 9 dígitos numéricos",
                                            max_chars=9)
@@ -325,7 +339,6 @@ if check_password():
                 submitted = st.form_submit_button("Guardar Pedido")
 
                 if submitted:
-                    # Validar teléfono
                     telefono_ingresado = st.session_state.new_telefono.strip()
                     telefono_limpio = limpiar_telefono(telefono_ingresado) if telefono_ingresado else None
                     
@@ -354,8 +367,8 @@ if check_password():
                         'Talla': talla if talla != "" else None,
                         'Tela': tela if tela != "" else None,
                         'Breve Descripción': breve_descripcion,
-                        'Fecha entrada': fecha_entrada,
-                        'Fecha Salida': fecha_salida,
+                        'Fecha entrada': st.session_state.new_fecha_entrada,  # Ya es date object
+                        'Fecha Salida': st.session_state.new_fecha_salida,
                         'Precio': precio,
                         'Precio Factura': precio_factura,
                         'Tipo de pago': tipo_pago if tipo_pago != "" else None,
@@ -426,7 +439,6 @@ if check_password():
                         producto_mod = st.selectbox("Producto", options=producto_options, index=current_producto_idx, key="mod_producto")
                         cliente_mod = st.text_input("Cliente", value=current_pedido['Cliente'], key="mod_cliente")
                         
-                        # Campo de teléfono con validación
                         telefono_actual = str(current_pedido.get('Telefono', '')).strip()
                         telefono_mod = st.text_input("Teléfono (9 dígitos)", value=telefono_actual, key="mod_telefono",
                                                     help="Debe contener exactamente 9 dígitos numéricos",
@@ -444,9 +456,26 @@ if check_password():
                         breve_descripcion_mod = st.text_area("Breve Descripción", value=current_pedido['Breve Descripción'], key="mod_breve_descripcion")
 
                     with col2_mod:
-                        current_fecha_entrada = current_pedido['Fecha entrada'].date() if pd.notna(current_pedido['Fecha entrada']) else None
+                        current_fecha_entrada = current_pedido['Fecha entrada']
+                        if isinstance(current_fecha_entrada, str):
+                            try:
+                                current_fecha_entrada = datetime.strptime(current_fecha_entrada.split()[0], '%Y-%m-%d').date()
+                            except:
+                                current_fecha_entrada = None
+                        elif hasattr(current_fecha_entrada, 'date'):
+                            current_fecha_entrada = current_fecha_entrada.date()
+                        
                         fecha_entrada_mod = st.date_input("Fecha entrada", value=current_fecha_entrada, key="mod_fecha_entrada")
-                        current_fecha_salida = current_pedido['Fecha Salida'].date() if pd.notna(current_pedido['Fecha Salida']) else None
+                        
+                        current_fecha_salida = current_pedido['Fecha Salida']
+                        if isinstance(current_fecha_salida, str):
+                            try:
+                                current_fecha_salida = datetime.strptime(current_fecha_salida.split()[0], '%Y-%m-%d').date()
+                            except:
+                                current_fecha_salida = None
+                        elif hasattr(current_fecha_salida, 'date'):
+                            current_fecha_salida = current_fecha_salida.date()
+                        
                         fecha_salida_mod = st.date_input("Fecha Salida", key="mod_fecha_salida", value=current_fecha_salida)
                         precio_mod = st.number_input("Precio", min_value=0.0, format="%.2f", value=float(current_pedido['Precio']) if pd.notna(current_pedido['Precio']) else 0.0, key="mod_precio")
                         precio_factura_mod = st.number_input("Precio Factura", min_value=0.0, format="%.2f", value=float(current_pedido['Precio Factura']) if pd.notna(current_pedido['Precio Factura']) else 0.0, key="mod_precio_factura")
@@ -474,7 +503,6 @@ if check_password():
                     submitted_mod = st.form_submit_button("Guardar Cambios")
 
                     if submitted_mod:
-                        # Validar teléfono
                         telefono_mod_ingresado = st.session_state.mod_telefono.strip()
                         telefono_mod_limpio = limpiar_telefono(telefono_mod_ingresado) if telefono_mod_ingresado else None
 
@@ -505,8 +533,8 @@ if check_password():
                             'Talla': talla_mod if talla_mod != "" else None,
                             'Tela': tela_mod if tela_mod != "" else None,
                             'Breve Descripción': breve_descripcion_mod,
-                            'Fecha entrada': fecha_entrada_mod,
-                            'Fecha Salida': fecha_salida_mod,
+                            'Fecha entrada': st.session_state.mod_fecha_entrada,  # Ya es date object
+                            'Fecha Salida': st.session_state.mod_fecha_salida,
                             'Precio': precio_mod,
                             'Precio Factura': precio_factura_mod,
                             'Tipo de pago': tipo_pago_mod if tipo_pago_mod != "" else None,
