@@ -3,8 +3,8 @@ import pandas as pd
 import os
 import hashlib
 import re
-from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore, delete_document_firestore, get_next_id
 from datetime import datetime
+from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore, delete_document_firestore, get_next_id
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -101,19 +101,24 @@ def limpiar_telefono(numero):
 # --- FUNCIÓN PARA LIMPIAR FECHAS ---
 def limpiar_fecha(fecha):
     """Convierte la fecha a formato date (sin hora)"""
-    if pd.isna(fecha):
+    if pd.isna(fecha) or fecha == "":
         return None
     
-    if isinstance(fecha, str):
-        try:
-            # Intentar parsear diferentes formatos de fecha
-            return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
-        except:
-            return None
-    elif isinstance(fecha, datetime):
-        return fecha.date()
-    elif isinstance(fecha, pd.Timestamp):
-        return fecha.to_pydatetime().date()
+    try:
+        if isinstance(fecha, str):
+            # Manejar diferentes formatos de fecha
+            if 'T' in fecha:  # Formato ISO con hora (2025-07-29T00:00:00.000Z)
+                return datetime.strptime(fecha.split('T')[0], '%Y-%m-%d').date()
+            elif ' ' in fecha:  # Formato con espacio (2025-08-07 00:00:00+00:00)
+                return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
+            elif '/' in fecha:  # Formato día/mes/año (29/07/2025)
+                return datetime.strptime(fecha, '%d/%m/%Y').date()
+            else:  # Asumir formato YYYY-MM-DD
+                return datetime.strptime(fecha, '%Y-%m-%d').date()
+        elif hasattr(fecha, 'date'):  # Si ya es datetime o Timestamp
+            return fecha.date()
+    except:
+        return None
     
     return None
 
@@ -139,16 +144,22 @@ def unificar_columnas(df):
         df['Telefono'] = df['Telefono'].apply(lambda x: x if pd.isna(x) else str(x).strip())
         df['Telefono'] = df['Telefono'].apply(limpiar_telefono)
     
-    # Limpiar fechas
+    # Limpiar y unificar fechas
     if 'Fecha entrada' in df.columns:
         df['Fecha entrada'] = df['Fecha entrada'].apply(limpiar_fecha)
     
+    if 'Fecha Entreda' in df.columns:
+        df['Fecha entrada'] = df['Fecha entrada'].combine_first(df['Fecha Entreda'].apply(limpiar_fecha))
+        df = df.drop(columns=['Fecha Entreda'])
+    
+    if 'Fecha salida' in df.columns:
+        df['Fecha Salida'] = df['Fecha Salida'].combine_first(df['Fecha salida'].apply(limpiar_fecha))
+        df = df.drop(columns=['Fecha salida'])
+    
     # Resto de unificaciones
     columnas_a_unificar = {
-        'Fecha Entreda': 'Fecha entrada',
         'Precio factura': 'Precio Factura',
         'Obserbaciones': 'Observaciones',
-        'Fecha salida': 'Fecha Salida',
         'Descripcion del Articulo': 'Breve Descripción'
     }
     
@@ -458,10 +469,7 @@ if check_password():
                     with col2_mod:
                         current_fecha_entrada = current_pedido['Fecha entrada']
                         if isinstance(current_fecha_entrada, str):
-                            try:
-                                current_fecha_entrada = datetime.strptime(current_fecha_entrada.split()[0], '%Y-%m-%d').date()
-                            except:
-                                current_fecha_entrada = None
+                            current_fecha_entrada = limpiar_fecha(current_fecha_entrada)
                         elif hasattr(current_fecha_entrada, 'date'):
                             current_fecha_entrada = current_fecha_entrada.date()
                         
@@ -469,10 +477,7 @@ if check_password():
                         
                         current_fecha_salida = current_pedido['Fecha Salida']
                         if isinstance(current_fecha_salida, str):
-                            try:
-                                current_fecha_salida = datetime.strptime(current_fecha_salida.split()[0], '%Y-%m-%d').date()
-                            except:
-                                current_fecha_salida = None
+                            current_fecha_salida = limpiar_fecha(current_fecha_salida)
                         elif hasattr(current_fecha_salida, 'date'):
                             current_fecha_salida = current_fecha_salida.date()
                         
