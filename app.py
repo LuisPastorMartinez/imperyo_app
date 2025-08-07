@@ -161,7 +161,7 @@ if check_password():
                         fecha_salida_mod = st.date_input("Fecha Salida", value=datetime.strptime(current_pedido.get('Fecha Salida', '2000-01-01'), "%Y-%m-%d"), key="mod_fecha_salida")
                         precio_mod = st.number_input("Precio", min_value=0, value=int(current_pedido.get('Precio', 0)), step=1, key="mod_precio")
                         precio_factura_mod = st.number_input("Precio Factura", min_value=0, value=int(current_pedido.get('Precio Factura', 0)), step=1, key="mod_precio_factura")
-                        tipo_pago_mod = st.selectbox("Tipo de Pago", ["Efectivo", "Transferencia", "Tarjeta"], index=["Efectivo", "Transferencia", "Tarjeta"].index(current_pedido.get('Tipo de pago', 'Efectivo'))), key="mod_tipo_pago")
+                        tipo_pago_mod = st.selectbox("Tipo de Pago", ["Efectivo", "Transferencia", "Tarjeta"], index=["Efectivo", "Transferencia", "Tarjeta"].index(current_pedido.get('Tipo de pago', 'Efectivo')), key="mod_tipo_pago")
                         adelanto_mod = st.number_input("Adelanto/Pago Inicial", min_value=0, value=int(current_pedido.get('Adelanto', 0)), step=1, key="mod_adelanto")
                         observaciones_mod = st.text_area("Observaciones", value=current_pedido.get('Observaciones', ''), key="mod_observaciones")
 
