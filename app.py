@@ -106,27 +106,38 @@ def limpiar_fecha(fecha):
     
     try:
         if isinstance(fecha, str):
-            # Manejar diferentes formatos de fecha
-            if 'T' in fecha:  # Formato ISO con hora (2025-07-29T00:00:00.000Z)
+            if 'T' in fecha:
                 return datetime.strptime(fecha.split('T')[0], '%Y-%m-%d').date()
-            elif ' ' in fecha:  # Formato con espacio (2025-08-07 00:00:00+00:00)
+            elif ' ' in fecha:
                 return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
-            elif '/' in fecha:  # Formato día/mes/año (29/07/2025)
+            elif '/' in fecha:
                 return datetime.strptime(fecha, '%d/%m/%Y').date()
-            else:  # Asumir formato YYYY-MM-DD
+            else:
                 return datetime.strptime(fecha, '%Y-%m-%d').date()
-        elif hasattr(fecha, 'date'):  # Si ya es datetime o Timestamp
+        elif hasattr(fecha, 'date'):
             return fecha.date()
     except:
         return None
     
     return None
 
+# --- FUNCIÓN PARA LIMPIAR PRECIOS ---
+def limpiar_precio(precio):
+    """Convierte el precio a entero (sin decimales)"""
+    if pd.isna(precio):
+        return 0
+    try:
+        return int(float(precio))
+    except:
+        return 0
+
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
-    # Eliminar columna "Fechas Entrada" si existe
-    if 'Fechas Entrada' in df.columns:
-        df = df.drop(columns=['Fechas Entrada'])
+    # Eliminar columnas no necesarias
+    columnas_a_eliminar = ['Fechas Entrada', 'Adelanto', 'Pago Inicial']
+    for col in columnas_a_eliminar:
+        if col in df.columns:
+            df = df.drop(columns=[col])
     
     # Unificar columnas de teléfono
     if 'Teléfono' in df.columns and 'Telefono' in df.columns:
@@ -145,20 +156,29 @@ def unificar_columnas(df):
         df['Telefono'] = df['Telefono'].apply(limpiar_telefono)
     
     # Limpiar y unificar fechas
-    if 'Fecha entrada' in df.columns:
-        df['Fecha entrada'] = df['Fecha entrada'].apply(limpiar_fecha)
+    for col_fecha in ['Fecha entrada', 'Fecha Salida', 'Fecha Entreda', 'Fecha salida']:
+        if col_fecha in df.columns:
+            df[col_fecha] = df[col_fecha].apply(limpiar_fecha)
     
     if 'Fecha Entreda' in df.columns:
-        df['Fecha entrada'] = df['Fecha entrada'].combine_first(df['Fecha Entreda'].apply(limpiar_fecha))
+        df['Fecha entrada'] = df['Fecha entrada'].combine_first(df['Fecha Entreda'])
         df = df.drop(columns=['Fecha Entreda'])
     
     if 'Fecha salida' in df.columns:
-        df['Fecha Salida'] = df['Fecha Salida'].combine_first(df['Fecha salida'].apply(limpiar_fecha))
+        df['Fecha Salida'] = df['Fecha Salida'].combine_first(df['Fecha salida'])
         df = df.drop(columns=['Fecha salida'])
+    
+    # Limpiar precios (convertir a enteros)
+    for col_precio in ['Precio', 'Precio Factura', 'Precio factura']:
+        if col_precio in df.columns:
+            df[col_precio] = df[col_precio].apply(limpiar_precio)
+    
+    if 'Precio factura' in df.columns:
+        df['Precio Factura'] = df['Precio Factura'].combine_first(df['Precio factura'])
+        df = df.drop(columns=['Precio factura'])
     
     # Resto de unificaciones
     columnas_a_unificar = {
-        'Precio factura': 'Precio Factura',
         'Obserbaciones': 'Observaciones',
         'Descripcion del Articulo': 'Breve Descripción'
     }
@@ -273,12 +293,14 @@ if check_password():
         st.subheader("Colección 'pedidos'")
         if not df_pedidos.empty:
             df_pedidos_sorted = df_pedidos.sort_values(by='ID', ascending=False)
+            # Eliminar columna 'Adelanto' si existe
+            columnas_mostrar = [col for col in df_pedidos_sorted.columns if col != 'Adelanto']
             new_column_order = [
                 'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
                 'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                'Tipo de pago', 'Adelanto', 'Observaciones'
+                'Tipo de pago', 'Observaciones'
             ]
-            remaining_columns = [col for col in df_pedidos_sorted.columns if col not in new_column_order]
+            remaining_columns = [col for col in columnas_mostrar if col not in new_column_order]
             final_column_order = new_column_order + remaining_columns
             df_pedidos_reordered = df_pedidos_sorted[final_column_order]
             st.dataframe(df_pedidos_reordered.style.apply(highlight_pedidos_rows, axis=1))
@@ -326,11 +348,10 @@ if check_password():
                 with col2:
                     fecha_entrada = st.date_input("Fecha entrada", key="new_fecha_entrada")
                     fecha_salida = st.date_input("Fecha Salida", key="new_fecha_salida", value=None)
-                    precio = st.number_input("Precio", min_value=0.0, format="%.2f", key="new_precio")
-                    precio_factura = st.number_input("Precio Factura", min_value=0.0, format="%.2f", key="new_precio_factura")
+                    precio = st.number_input("Precio", min_value=0, value=0, step=1, key="new_precio")
+                    precio_factura = st.number_input("Precio Factura", min_value=0, value=0, step=1, key="new_precio_factura")
                     tipo_pago_options = [""] + df_listas['Tipo de pago'].dropna().unique().tolist()
                     tipo_pago = st.selectbox("Tipo de Pago", options=tipo_pago_options, key="new_tipo_pago", index=0)
-                    adelanto_str = st.text_input("Adelanto (opcional)", key="new_adelanto_str")
                     observaciones = st.text_area("Observaciones", key="new_observaciones")
 
                 st.write("---")
@@ -361,14 +382,6 @@ if check_password():
                         st.error("Error: Un pedido no puede estar 'Empezado' y 'Trabajo Terminado' al mismo tiempo.")
                         st.stop()
 
-                    adelanto = None
-                    if adelanto_str:
-                        try:
-                            adelanto = float(adelanto_str)
-                        except ValueError:
-                            st.error("Por favor, introduce un número válido para 'Adelanto' o déjalo vacío.")
-                            st.stop()
-
                     new_record = {
                         'ID': next_pedido_id,
                         'Producto': producto if producto != "" else None,
@@ -378,12 +391,11 @@ if check_password():
                         'Talla': talla if talla != "" else None,
                         'Tela': tela if tela != "" else None,
                         'Breve Descripción': breve_descripcion,
-                        'Fecha entrada': st.session_state.new_fecha_entrada,  # Ya es date object
+                        'Fecha entrada': st.session_state.new_fecha_entrada,
                         'Fecha Salida': st.session_state.new_fecha_salida,
-                        'Precio': precio,
-                        'Precio Factura': precio_factura,
+                        'Precio': st.session_state.new_precio,
+                        'Precio Factura': st.session_state.new_precio_factura,
                         'Tipo de pago': tipo_pago if tipo_pago != "" else None,
-                        'Adelanto': adelanto,
                         'Observaciones': observaciones,
                         'Inicio Trabajo': ch_empezado,
                         'Cobrado': ch_cobrado,
@@ -408,12 +420,14 @@ if check_password():
                 found_pedido = df_pedidos[df_pedidos['ID'] == search_id]
                 if not found_pedido.empty:
                     st.success(f"Pedido {search_id} encontrado:")
+                    # Eliminar columna 'Adelanto' si existe
+                    columnas_mostrar = [col for col in found_pedido.columns if col != 'Adelanto']
                     new_column_order = [
                         'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
                         'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                        'Tipo de pago', 'Adelanto', 'Observaciones'
+                        'Tipo de pago', 'Observaciones'
                     ]
-                    remaining_columns = [col for col in found_pedido.columns if col not in new_column_order]
+                    remaining_columns = [col for col in columnas_mostrar if col not in new_column_order]
                     final_column_order = new_column_order + remaining_columns
                     found_pedido_reordered = found_pedido[final_column_order]
                     st.dataframe(found_pedido_reordered.style.apply(highlight_pedidos_rows, axis=1))
@@ -482,13 +496,12 @@ if check_password():
                             current_fecha_salida = current_fecha_salida.date()
                         
                         fecha_salida_mod = st.date_input("Fecha Salida", key="mod_fecha_salida", value=current_fecha_salida)
-                        precio_mod = st.number_input("Precio", min_value=0.0, format="%.2f", value=float(current_pedido['Precio']) if pd.notna(current_pedido['Precio']) else 0.0, key="mod_precio")
-                        precio_factura_mod = st.number_input("Precio Factura", min_value=0.0, format="%.2f", value=float(current_pedido['Precio Factura']) if pd.notna(current_pedido['Precio Factura']) else 0.0, key="mod_precio_factura")
+                        precio_mod = st.number_input("Precio", min_value=0, value=int(current_pedido['Precio']) if pd.notna(current_pedido['Precio']) else 0, step=1, key="mod_precio")
+                        precio_factura_mod = st.number_input("Precio Factura", min_value=0, value=int(current_pedido['Precio Factura']) if pd.notna(current_pedido['Precio Factura']) else 0, step=1, key="mod_precio_factura")
                         tipo_pago_options = [""] + df_listas['Tipo de pago'].dropna().unique().tolist()
                         current_tipo_pago_val = current_pedido['Tipo de pago'] if pd.notna(current_pedido['Tipo de pago']) else ""
                         current_tipo_pago_idx = tipo_pago_options.index(current_tipo_pago_val) if current_tipo_pago_val in tipo_pago_options else 0
                         tipo_pago_mod = st.selectbox("Tipo de Pago", options=tipo_pago_options, index=current_tipo_pago_idx, key="mod_tipo_pago")
-                        adelanto_mod_str = st.text_input("Adelanto (opcional)", value=str(current_pedido['Adelanto']) if pd.notna(current_pedido['Adelanto']) else "", key="mod_adelanto_str")
                         observaciones_mod = st.text_area("Observaciones", value=current_pedido['Observaciones'], key="mod_observaciones")
 
                     st.write("---")
@@ -518,14 +531,6 @@ if check_password():
                         if ch_empezado_mod and ch_trabajo_terminado_mod:
                             st.error("Error: Un pedido no puede estar 'Empezado' y 'Trabajo Terminado' al mismo tiempo.")
                             st.stop()
-
-                        adelanto_mod = None
-                        if adelanto_mod_str:
-                            try:
-                                adelanto_mod = float(adelanto_mod_str)
-                            except ValueError:
-                                st.error("Por favor, introduce un número válido para 'Adelanto' o déjalo vacío.")
-                                st.stop()
                         
                         row_index = df_pedidos[df_pedidos['ID'] == current_pedido['ID']].index[0]
 
@@ -538,12 +543,11 @@ if check_password():
                             'Talla': talla_mod if talla_mod != "" else None,
                             'Tela': tela_mod if tela_mod != "" else None,
                             'Breve Descripción': breve_descripcion_mod,
-                            'Fecha entrada': st.session_state.mod_fecha_entrada,  # Ya es date object
+                            'Fecha entrada': st.session_state.mod_fecha_entrada,
                             'Fecha Salida': st.session_state.mod_fecha_salida,
-                            'Precio': precio_mod,
-                            'Precio Factura': precio_factura_mod,
+                            'Precio': st.session_state.mod_precio,
+                            'Precio Factura': st.session_state.mod_precio_factura,
                             'Tipo de pago': tipo_pago_mod if tipo_pago_mod != "" else None,
-                            'Adelanto': adelanto_mod,
                             'Observaciones': observaciones_mod,
                             'Inicio Trabajo': ch_empezado_mod,
                             'Cobrado': ch_cobrado_mod,
@@ -570,12 +574,14 @@ if check_password():
 
             if not pedido_a_eliminar.empty:
                 st.warning(f"¿Seguro que quieres eliminar el pedido con ID **{delete_id}**?")
+                # Eliminar columna 'Adelanto' si existe
+                columnas_mostrar = [col for col in pedido_a_eliminar.columns if col != 'Adelanto']
                 new_column_order = [
                     'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
                     'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                    'Tipo de pago', 'Adelanto', 'Observaciones'
+                    'Tipo de pago', 'Observaciones'
                 ]
-                remaining_columns = [col for col in pedido_a_eliminar.columns if col not in new_column_order]
+                remaining_columns = [col for col in columnas_mostrar if col not in new_column_order]
                 final_column_order = new_column_order + remaining_columns
                 pedido_a_eliminar_reordered = pedido_a_eliminar[final_column_order]
                 st.dataframe(pedido_a_eliminar_reordered.style.apply(highlight_pedidos_rows, axis=1))
@@ -609,7 +615,7 @@ if check_password():
                 gasto_fecha = st.date_input("Fecha Gasto", key="gasto_fecha")
                 gasto_concepto = st.text_input("Concepto", key="gasto_concepto")
             with col_g2:
-                gasto_importe = st.number_input("Importe", min_value=0.0, format="%.2f", key="gasto_importe")
+                gasto_importe = st.number_input("Importe", min_value=0, value=0, step=1, key="gasto_importe")
                 gasto_tipo = st.selectbox("Tipo Gasto", options=["", "Fijo", "Variable"], key="gasto_tipo")
             
             submitted_gasto = st.form_submit_button("Guardar Gasto")
@@ -685,12 +691,14 @@ if check_password():
 
         if not filtered_df.empty:
             filtered_df_sorted = filtered_df.sort_values(by='ID', ascending=False)
+            # Eliminar columna 'Adelanto' si existe
+            columnas_mostrar = [col for col in filtered_df_sorted.columns if col != 'Adelanto']
             new_column_order = [
                 'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
                 'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                'Tipo de pago', 'Adelanto', 'Observaciones'
+                'Tipo de pago', 'Observaciones'
             ]
-            remaining_columns = [col for col in filtered_df_sorted.columns if col not in new_column_order]
+            remaining_columns = [col for col in columnas_mostrar if col not in new_column_order]
             final_column_order = new_column_order + remaining_columns
             filtered_df_reordered = filtered_df_sorted[final_column_order]
             st.dataframe(filtered_df_reordered.style.apply(highlight_pedidos_rows, axis=1))
