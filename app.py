@@ -53,7 +53,7 @@ h2 {
 """, unsafe_allow_html=True)
 
 # --- INICIALIZACIÓN DE LA BASE DE DATOS Y DATAFRAMES ---
-@st.cache_data(ttl=600)  # Cacha los datos por 10 minutos
+@st.cache_data(ttl=600)
 def get_data_from_firestore():
     data = load_dataframes_firestore()
     df_pedidos = data['df_pedidos']
@@ -62,12 +62,11 @@ def get_data_from_firestore():
     df_trabajos = data['df_trabajos']
     df_totales = data['df_totales']
     
-    # Limpiar DataFrames vacíos para evitar errores
     if df_pedidos.empty:
         df_pedidos = pd.DataFrame(columns=['ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
-                                           'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                                           'Tipo de pago', 'Adelanto', 'Observaciones', 'Inicio Trabajo',
-                                           'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente', 'id_documento_firestore'])
+                                         'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
+                                         'Tipo de pago', 'Adelanto', 'Observaciones', 'Inicio Trabajo',
+                                         'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente', 'id_documento_firestore'])
     if df_gastos.empty:
         df_gastos = pd.DataFrame(columns=['ID', 'Concepto', 'Descripción', 'Cantidad', 'Fecha', 'id_documento_firestore'])
     if df_listas.empty:
@@ -77,7 +76,7 @@ def get_data_from_firestore():
     if df_totales.empty:
         df_totales = pd.DataFrame(columns=['id', 'total_adelanto', 'total_gastos', 'total_precio_factura'])
 
-    # Conversión de tipos para DataFrames
+    # Conversión de tipos
     df_pedidos['ID'] = pd.to_numeric(df_pedidos['ID'], errors='coerce').fillna(0).astype(int)
     df_pedidos['Fecha entrada'] = pd.to_datetime(df_pedidos['Fecha entrada'], errors='coerce').dt.date
     df_pedidos['Fecha Salida'] = pd.to_datetime(df_pedidos['Fecha Salida'], errors='coerce').dt.date
@@ -94,15 +93,13 @@ def get_data_from_firestore():
         'df_totales': df_totales
     }
 
-# --- FUNCIONES DE UTILIDAD Y LIMPIEZA DE DATOS ---
+# --- FUNCIONES DE UTILIDAD ---
 def limpiar_telefono(telefono):
-    if pd.isna(telefono):
+    if pd.isna(telefono) or not telefono:
         return None
     telefono_str = str(telefono).strip()
-    telefono_limpio = re.sub(r'\D', '', telefono_str) # Elimina todo lo que no sea un dígito
-    if len(telefono_limpio) == 9:
-        return telefono_limpio
-    return None
+    telefono_limpio = re.sub(r'\D', '', telefono_str)
+    return telefono_limpio if len(telefono_limpio) == 9 else None
 
 def limpiar_fecha(fecha):
     if pd.isna(fecha):
@@ -121,16 +118,16 @@ def limpiar_fecha(fecha):
 def highlight_pedidos_rows(row):
     color = ''
     if row['Retirado'] == True:
-        color = 'background-color: #d4edda;'  # Verde claro
+        color = 'background-color: #d4edda;'
     elif row['Cobrado'] == True:
-        color = 'background-color: #cce5ff;'  # Azul claro
+        color = 'background-color: #cce5ff;'
     elif row['Trabajo Terminado'] == True:
-        color = 'background-color: #fff3cd;'  # Amarillo claro
+        color = 'background-color: #fff3cd;'
     elif row['Inicio Trabajo'] == True:
-        color = 'background-color: #d1ecf1;'  # Azul cian claro
+        color = 'background-color: #d1ecf1;'
     return [color] * len(row)
 
-# --- AUTENTICACIÓN ---
+# --- AUTENTICACIÓN CON [auth] ---
 def make_hashes(password):
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
 
@@ -145,12 +142,15 @@ if not st.session_state.logged_in:
     username = st.text_input("Usuario")
     password = st.text_input("Contraseña", type="password")
     
-    # Usuario y contraseña en st.secrets
-    users_data = st.secrets["users"]
+    try:
+        auth_data = st.secrets["auth"]
+    except KeyError:
+        st.error("Error de configuración: No se encontró la sección [auth] en secrets.toml")
+        st.stop()
     
     if st.button("Iniciar Sesión"):
-        if username in users_data:
-            hashed_password = users_data[username]['password']
+        if username in auth_data:
+            hashed_password = auth_data[username]
             if check_hashes(password, hashed_password):
                 st.session_state.logged_in = True
                 st.session_state.username = username
@@ -162,7 +162,7 @@ if not st.session_state.logged_in:
             st.error("Usuario no encontrado")
 
 else:
-    # --- INTERFAZ PRINCIPAL DE LA APLICACIÓN ---
+    # --- INTERFAZ PRINCIPAL ---
     col_logo, col_titulo = st.columns([1, 6])
     with col_logo:
         st.image("https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1")
@@ -170,13 +170,11 @@ else:
         st.title("ImperYo - Gestión de Pedidos y Gastos")
         st.caption(f"Bienvenido, {st.session_state.username}")
     
-    # Refrescar datos desde la base de datos al inicio
     st.session_state.data = get_data_from_firestore()
     df_pedidos = st.session_state.data['df_pedidos']
     df_gastos = st.session_state.data['df_gastos']
     df_listas = st.session_state.data['df_listas']
     
-    # Inicialización de estados de sesión para las vistas
     if 'current_view' not in st.session_state:
         st.session_state.current_view = 'Pedidos'
     if 'current_summary_view' not in st.session_state:
@@ -193,10 +191,7 @@ else:
         tab_home, tab_pedidos_add, tab_modificar, tab_eliminar = st.tabs(["Ver Pedidos", "Añadir Pedido", "Modificar Pedido", "Eliminar Pedido"])
         
         with tab_home:
-            # Vista de resumen de pedidos
             st.subheader("Resumen de Pedidos")
-            
-            # Navegación con radio button para el resumen
             st.session_state.current_summary_view = st.radio(
                 "Filtrar por estado:",
                 ["Todos los pedidos", "Pedidos Empezados", "Pedidos Terminados", "Pedidos Cobrados", "Pedidos Retirados", "Pedidos Pendientes", "Pedidos sin estado específico"],
@@ -329,11 +324,10 @@ else:
                         'Trabajo Terminado': st.session_state.add_ch_trabajo_terminado
                     }])
 
-                    # Append new row to the dataframe and save
                     st.session_state.data['df_pedidos'] = pd.concat([st.session_state.data['df_pedidos'], new_row], ignore_index=True)
                     if save_dataframe_firestore(st.session_state.data['df_pedidos'], 'pedidos'):
                         st.success(f"Pedido añadido con éxito! ID: {new_row.iloc[0]['ID']}")
-                        st.session_state.modifying_pedido = None  # Limpiar el estado de modificación
+                        st.session_state.modifying_pedido = None
                         st.rerun()
                     else:
                         st.error("Error al añadir el pedido.")
@@ -357,7 +351,7 @@ else:
                 current_pedido = st.session_state.modifying_pedido
                 st.write(f"Modificando Pedido ID: **{current_pedido['ID']}**")
 
-                with st.form("form_modificar_pedido", clear_on_submit=False):
+                with st.form("form_modificar_pedido"):
                     col1_mod, col2_mod = st.columns(2)
 
                     with col1_mod:
@@ -385,25 +379,27 @@ else:
                         breve_descripcion_mod = st.text_area("Breve Descripción", value=current_pedido['Breve Descripción'], key="mod_breve_descripcion")
 
                     with col2_mod:
-                        # --- CÓDIGO CORREGIDO PARA EL MANEJO DE FECHAS ---
-                        # Manejo seguro de la fecha de entrada
                         current_fecha_entrada = current_pedido.get('Fecha entrada')
-                        if pd.isna(current_fecha_entrada) or not isinstance(current_fecha_entrada, date):
+                        if pd.isna(current_fecha_entrada) or not isinstance(current_fecha_entrada, (date, datetime)):
                             fecha_entrada_valor = None
                         else:
-                            fecha_entrada_valor = current_fecha_entrada
+                            if isinstance(current_fecha_entrada, datetime):
+                                fecha_entrada_valor = current_fecha_entrada.date()
+                            else:
+                                fecha_entrada_valor = current_fecha_entrada
 
                         fecha_entrada_mod = st.date_input("Fecha entrada", value=fecha_entrada_valor, key="mod_fecha_entrada")
                         
-                        # Manejo seguro de la fecha de salida
                         current_fecha_salida = current_pedido.get('Fecha Salida')
-                        if pd.isna(current_fecha_salida) or not isinstance(current_fecha_salida, date):
+                        if pd.isna(current_fecha_salida) or not isinstance(current_fecha_salida, (date, datetime)):
                             fecha_salida_valor = None
                         else:
-                            fecha_salida_valor = current_fecha_salida
+                            if isinstance(current_fecha_salida, datetime):
+                                fecha_salida_valor = current_fecha_salida.date()
+                            else:
+                                fecha_salida_valor = current_fecha_salida
 
                         fecha_salida_mod = st.date_input("Fecha Salida", value=fecha_salida_valor, key="mod_fecha_salida")
-                        # --- FIN DEL CÓDIGO CORREGIDO ---
 
                         precio_mod = st.number_input("Precio", min_value=0.0, format="%.2f", value=float(current_pedido['Precio']) if pd.notna(current_pedido['Precio']) else 0.0, key="mod_precio")
                         precio_factura_mod = st.number_input("Precio Factura", min_value=0.0, format="%.2f", value=float(current_pedido['Precio Factura']) if pd.notna(current_pedido['Precio Factura']) else 0.0, key="mod_precio_factura")
@@ -595,12 +591,10 @@ else:
         with tab_totales:
             st.subheader("Resumen Financiero")
             
-            # Recalcular totales
             total_adelantos = df_pedidos['Adelanto'].sum()
             total_precio_factura = df_pedidos['Precio Factura'].sum()
             total_gastos = df_gastos['Cantidad'].sum()
             
-            # Mostrar totales
             st.metric("Total de Precio en Factura", f"{total_precio_factura:,.2f} €")
             st.metric("Total de Adelantos", f"{total_adelantos:,.2f} €")
             st.metric("Total de Gastos", f"{total_gastos:,.2f} €")
