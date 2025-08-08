@@ -1,14 +1,3 @@
-¡Gracias por la aclaración\! Eso explica perfectamente el error `KeyError`.
-
-El problema es que la aplicación estaba intentando leer las credenciales de una clave llamada `[users]`, pero tu archivo de secretos está configurado con la clave `[auth]`. He modificado el código para que apunte a la clave correcta.
-
-A continuación, te proporciono el archivo `app.py` completo con el cambio. Ahora, la línea `users_data = st.secrets["users"]` se ha cambiado a `users_data = st.secrets["auth"]` para que coincida con tu configuración.
-
-Simplemente reemplaza el contenido de tu archivo `app.py` con este código.
-
------
-
-```python
 import streamlit as st
 import pandas as pd
 import os
@@ -157,7 +146,7 @@ if not st.session_state.logged_in:
     password = st.text_input("Contraseña", type="password")
     
     # Usuario y contraseña en st.secrets
-    users_data = st.secrets["auth"] # CAMBIO REALIZADO AQUÍ
+    users_data = st.secrets["auth"]
     
     if st.button("Iniciar Sesión"):
         if username in users_data:
