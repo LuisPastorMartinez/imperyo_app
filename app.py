@@ -4,7 +4,14 @@ import os
 import hashlib
 import re
 from datetime import datetime
-from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore, delete_document_firestore, get_next_id
+from utils import (
+    limpiar_telefono,
+    limpiar_fecha,
+    load_dataframes_firestore, 
+    save_dataframe_firestore, 
+    delete_document_firestore, 
+    get_next_id
+)
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -63,29 +70,25 @@ with col_logo:
 with col_title:
     st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
 
-# --- FUNCIÓN PARA LIMPIAR FECHAS ---
-def limpiar_fecha(fecha):
-    """Convierte la fecha a formato date (sin hora)"""
-    if pd.isna(fecha) or fecha == "":
-        return None
-    
-    try:
-        if isinstance(fecha, str):
-            # Manejar diferentes formatos de fecha
-            if 'T' in fecha:  # Formato ISO con hora (2025-07-29T00:00:00.000Z)
-                return datetime.strptime(fecha.split('T')[0], '%Y-%m-%d').date()
-            elif ' ' in fecha:  # Formato con espacio (2025-08-07 00:00:00+00:00)
-                return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
-            elif '/' in fecha:  # Formato día/mes/año (29/07/2025)
-                return datetime.strptime(fecha, '%d/%m/%Y').date()
-            else:  # Asumir formato YYYY-MM-DD
-                return datetime.strptime(fecha, '%Y-%m-%d').date()
-        elif hasattr(fecha, 'date'):  # Si ya es datetime o Timestamp
-            return fecha.date()
-    except:
-        return None
-    
-    return None
+# --- FUNCIÓN DE COLOREADO DE FILAS ---
+def highlight_pedidos_rows(row):
+    styles = [''] * len(row)
+    trabajo_terminado = row.get('Trabajo Terminado', False)
+    cobrado = row.get('Cobrado', False)
+    retirado = row.get('Retirado', False)
+    pendiente = row.get('Pendiente', False)
+    empezado = row.get('Inicio Trabajo', False)
+
+    if trabajo_terminado and cobrado and retirado and not pendiente:
+        styles = ['background-color: #00B050'] * len(row)
+    elif empezado and not pendiente:
+        styles = ['background-color: #0070C0'] * len(row)
+    elif trabajo_terminado and not pendiente:
+        styles = ['background-color: #FFC000'] * len(row)
+    elif pendiente:
+        styles = ['background-color: #FF00FF'] * len(row)
+
+    return styles
 
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
@@ -246,7 +249,7 @@ if check_password():
             remaining_columns = [col for col in df_pedidos_sorted.columns if col not in new_column_order]
             final_column_order = new_column_order + remaining_columns
             df_pedidos_reordered = df_pedidos_sorted[final_column_order]
-            st.dataframe(df_pedidos_reordered)
+            st.dataframe(df_pedidos_reordered.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info("No hay datos en la colección 'pedidos'.")
         
@@ -360,6 +363,6 @@ if check_password():
             remaining_columns = [col for col in filtered_df_sorted.columns if col not in new_column_order]
             final_column_order = new_column_order + remaining_columns
             filtered_df_reordered = filtered_df_sorted[final_column_order]
-            st.dataframe(filtered_df_reordered)
+            st.dataframe(filtered_df_reordered.style.apply(highlight_pedidos_rows, axis=1))
         else:
             st.info(f"No hay pedidos en la categoría: {st.session_state.current_summary_view}")
