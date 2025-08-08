@@ -37,17 +37,16 @@ h2 {
         max-width: 60px;
     }
     h1 {
-        font-size: 2em;
-    }
-    h2 {
-        font-size: 1.5em;
-    }
-    .mobile-only {
-        display: block;
-    }
-    .pc-only {
-        display: none;
-    }
+    font-size: 2em;
+}
+h2 {
+    font-size: 1.5em;
+}
+.mobile-only {
+    display: block;
+}
+.pc-only {
+    display: none;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -140,6 +139,13 @@ def check_hashes(password, hashed_text):
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
+# --- INTERFAZ PRINCIPAL DE LA APLICACIÓN ---
+col_logo, col_titulo = st.columns([1, 6])
+with col_logo:
+    st.image("https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1")
+with col_titulo:
+    st.title("ImperYo - Gestión de Pedidos y Gastos")
+
 if not st.session_state.logged_in:
     st.subheader("Acceso a la Aplicación")
     username = st.text_input("Usuario")
@@ -162,13 +168,7 @@ if not st.session_state.logged_in:
             st.error("Usuario no encontrado")
 
 else:
-    # --- INTERFAZ PRINCIPAL DE LA APLICACIÓN ---
-    col_logo, col_titulo = st.columns([1, 6])
-    with col_logo:
-        st.image("https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1")
-    with col_titulo:
-        st.title("ImperYo - Gestión de Pedidos y Gastos")
-        st.caption(f"Bienvenido, {st.session_state.username}")
+    st.caption(f"Bienvenido, {st.session_state.username}")
     
     # Refrescar datos desde la base de datos al inicio
     st.session_state.data = get_data_from_firestore()
@@ -384,7 +384,6 @@ else:
                         breve_descripcion_mod = st.text_area("Breve Descripción", value=current_pedido['Breve Descripción'], key="mod_breve_descripcion")
 
                     with col2_mod:
-                        # --- CÓDIGO CORREGIDO PARA EL MANEJO DE FECHAS ---
                         current_fecha_entrada = current_pedido.get('Fecha entrada')
                         fecha_entrada_valor = current_fecha_entrada if pd.notna(current_fecha_entrada) and isinstance(current_fecha_entrada, date) else None
                         fecha_entrada_mod = st.date_input("Fecha entrada", value=fecha_entrada_valor, key="mod_fecha_entrada")
@@ -392,7 +391,6 @@ else:
                         current_fecha_salida = current_pedido.get('Fecha Salida')
                         fecha_salida_valor = current_fecha_salida if pd.notna(current_fecha_salida) and isinstance(current_fecha_salida, date) else None
                         fecha_salida_mod = st.date_input("Fecha Salida", value=fecha_salida_valor, key="mod_fecha_salida")
-                        # --- FIN DEL CÓDIGO CORREGIDO ---
 
                         precio_mod = st.number_input("Precio", min_value=0.0, format="%.2f", value=float(current_pedido['Precio']) if pd.notna(current_pedido['Precio']) else 0.0, key="mod_precio")
                         precio_factura_mod = st.number_input("Precio Factura", min_value=0.0, format="%.2f", value=float(current_pedido['Precio Factura']) if pd.notna(current_pedido['Precio Factura']) else 0.0, key="mod_precio_factura")
