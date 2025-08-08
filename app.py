@@ -96,7 +96,7 @@ def get_data_from_firestore():
 
 # --- FUNCIONES DE UTILIDAD Y LIMPIEZA DE DATOS ---
 def limpiar_telefono(telefono):
-    if pd.isna(telefono) or not telefono:
+    if pd.isna(telefono):
         return None
     telefono_str = str(telefono).strip()
     telefono_limpio = re.sub(r'\D', '', telefono_str) # Elimina todo lo que no sea un dígito
@@ -357,7 +357,7 @@ else:
                 current_pedido = st.session_state.modifying_pedido
                 st.write(f"Modificando Pedido ID: **{current_pedido['ID']}**")
 
-                with st.form("form_modificar_pedido"):
+                with st.form("form_modificar_pedido", clear_on_submit=False):
                     col1_mod, col2_mod = st.columns(2)
 
                     with col1_mod:
@@ -385,29 +385,25 @@ else:
                         breve_descripcion_mod = st.text_area("Breve Descripción", value=current_pedido['Breve Descripción'], key="mod_breve_descripcion")
 
                     with col2_mod:
+                        # --- CÓDIGO CORREGIDO PARA EL MANEJO DE FECHAS ---
                         # Manejo seguro de la fecha de entrada
                         current_fecha_entrada = current_pedido.get('Fecha entrada')
-                        if pd.isna(current_fecha_entrada) or not isinstance(current_fecha_entrada, (date, datetime)):
+                        if pd.isna(current_fecha_entrada) or not isinstance(current_fecha_entrada, date):
                             fecha_entrada_valor = None
                         else:
-                            if isinstance(current_fecha_entrada, datetime):
-                                fecha_entrada_valor = current_fecha_entrada.date()
-                            else:
-                                fecha_entrada_valor = current_fecha_entrada
+                            fecha_entrada_valor = current_fecha_entrada
 
                         fecha_entrada_mod = st.date_input("Fecha entrada", value=fecha_entrada_valor, key="mod_fecha_entrada")
                         
                         # Manejo seguro de la fecha de salida
                         current_fecha_salida = current_pedido.get('Fecha Salida')
-                        if pd.isna(current_fecha_salida) or not isinstance(current_fecha_salida, (date, datetime)):
+                        if pd.isna(current_fecha_salida) or not isinstance(current_fecha_salida, date):
                             fecha_salida_valor = None
                         else:
-                            if isinstance(current_fecha_salida, datetime):
-                                fecha_salida_valor = current_fecha_salida.date()
-                            else:
-                                fecha_salida_valor = current_fecha_salida
+                            fecha_salida_valor = current_fecha_salida
 
                         fecha_salida_mod = st.date_input("Fecha Salida", value=fecha_salida_valor, key="mod_fecha_salida")
+                        # --- FIN DEL CÓDIGO CORREGIDO ---
 
                         precio_mod = st.number_input("Precio", min_value=0.0, format="%.2f", value=float(current_pedido['Precio']) if pd.notna(current_pedido['Precio']) else 0.0, key="mod_precio")
                         precio_factura_mod = st.number_input("Precio Factura", min_value=0.0, format="%.2f", value=float(current_pedido['Precio Factura']) if pd.notna(current_pedido['Precio Factura']) else 0.0, key="mod_precio_factura")
