@@ -3,26 +3,30 @@ import pandas as pd
 import os
 import hashlib
 import re
+from datetime import datetime
 import sys
 from pathlib import Path
-from datetime import datetime
 
-# Add the parent directory to Python path
-sys.path.append(str(Path(__file__).parent))
+# Solución definitiva para imports
+current_dir = Path(__file__).parent
+sys.path.append(str(current_dir))
 
-# Import from utils package
-from utils import (
-    limpiar_telefono,
-    limpiar_fecha,
-    load_dataframes_firestore, 
-    save_dataframe_firestore, 
-    delete_document_firestore, 
+# Importaciones desde utils
+from utils.firestore_utils import (
+    load_dataframes_firestore,
+    save_dataframe_firestore,
+    delete_document_firestore,
     get_next_id
 )
+from utils.data_utils import limpiar_telefono, limpiar_fecha
 
-# Import page modules
-from pages.pedidos_page import show_pedidos_page
-from pages.gastos_page import show_gastos_page
+# Importaciones desde pages (con manejo de errores)
+try:
+    from pages.pedidos_page import show_pedidos_page
+    from pages.gastos_page import show_gastos_page
+except ImportError as e:
+    st.error(f"Error al importar módulos: {e}")
+    st.stop()
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -30,6 +34,10 @@ st.set_page_config(
     page_icon="https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1",
     layout="wide"
 )
+
+# [El resto de tu código permanece exactamente igual desde aquí...]
+# [Incluyendo todas las funciones, configuración CSS, header, etc.]
+# [Todo el contenido que estaba después de los imports]
 
 # --- CSS PERSONALIZADO ---
 st.markdown("""
