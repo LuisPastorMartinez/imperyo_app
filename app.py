@@ -152,7 +152,11 @@ if not st.session_state.logged_in:
     password = st.text_input("Contraseña", type="password")
     
     # Usuario y contraseña en st.secrets
-    users_data = st.secrets["auth"] 
+    try:
+        users_data = st.secrets["auth"]
+    except KeyError:
+        st.error("Error: La configuración de autenticación no se encontró en secrets.toml. Asegúrate de que tienes una sección llamada '[auth]'")
+        st.stop()
     
     if st.button("Iniciar Sesión"):
         if username in users_data:
