@@ -3,7 +3,14 @@ import pandas as pd
 import os
 import hashlib
 import re
+import sys
+from pathlib import Path
 from datetime import datetime
+
+# Add the parent directory to Python path
+sys.path.append(str(Path(__file__).parent))
+
+# Import from utils package
 from utils import (
     limpiar_telefono,
     limpiar_fecha,
@@ -12,6 +19,10 @@ from utils import (
     delete_document_firestore, 
     get_next_id
 )
+
+# Import page modules
+from pages.pedidos_page import show_pedidos_page
+from pages.gastos_page import show_gastos_page
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -263,11 +274,9 @@ if check_password():
         st.dataframe(df_trabajos)
 
     elif page == "Pedidos":
-        from pages.pedidos_page import show_pedidos_page
         show_pedidos_page(df_pedidos, df_listas)
 
     elif page == "Gastos":
-        from pages.gastos_page import show_gastos_page
         show_gastos_page(df_gastos)
 
     elif page == "Resumen":
