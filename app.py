@@ -267,67 +267,8 @@ if check_password():
         show_pedidos_page(df_pedidos, df_listas)
 
     elif page == "Gastos":
-        st.header("Gestión de Gastos")
-        st.write("Aquí puedes gestionar tus gastos.")
-        st.subheader("Gastos Registrados")
-        st.dataframe(df_gastos)
-
-        st.subheader("Añadir Gasto")
-        with st.form("form_nuevo_gasto", clear_on_submit=True):
-            col_g1, col_g2 = st.columns(2)
-            with col_g1:
-                gasto_fecha = st.date_input("Fecha Gasto", key="gasto_fecha")
-                gasto_concepto = st.text_input("Concepto", key="gasto_concepto")
-            with col_g2:
-                gasto_importe = st.number_input("Importe", min_value=0.0, format="%.2f", key="gasto_importe")
-                gasto_tipo = st.selectbox("Tipo Gasto", options=["", "Fijo", "Variable"], key="gasto_tipo")
-            
-            submitted_gasto = st.form_submit_button("Guardar Gasto")
-
-            if submitted_gasto:
-                next_gasto_id = get_next_id(df_gastos, 'ID')
-                new_gasto_record = {
-                    'ID': next_gasto_id,
-                    'Fecha': gasto_fecha,
-                    'Concepto': gasto_concepto,
-                    'Importe': gasto_importe,
-                    'Tipo': gasto_tipo if gasto_tipo != "" else None
-                }
-                new_gasto_df_row = pd.DataFrame([new_gasto_record])
-                st.session_state.data['df_gastos'] = pd.concat([df_gastos, new_gasto_df_row], ignore_index=True)
-                
-                if save_dataframe_firestore(st.session_state.data['df_gastos'], 'gastos'):
-                    st.success(f"Gasto {next_gasto_id} guardado con éxito!")
-                    st.rerun()
-                else:
-                    st.error("Error al guardar el gasto.")
-
-        st.subheader("Eliminar Gasto")
-        delete_gasto_id = st.number_input("ID del Gasto a Eliminar:", min_value=1, value=None, key="delete_gasto_id_input")
-
-        gasto_a_eliminar = pd.DataFrame()
-        if delete_gasto_id is not None and delete_gasto_id > 0:
-            gasto_a_eliminar = df_gastos[df_gastos['ID'] == delete_gasto_id]
-
-        if not gasto_a_eliminar.empty:
-            st.warning(f"¿Seguro que quieres eliminar el gasto con ID **{delete_gasto_id}**?")
-            st.dataframe(gasto_a_eliminar)
-
-            col_g_confirm1, col_g_confirm2 = st.columns(2)
-            with col_g_confirm1:
-                if st.button("Confirmar Eliminación Gasto", key="confirm_delete_gasto_button"):
-                    doc_id_to_delete_gasto = gasto_a_eliminar['id_documento_firestore'].iloc[0]
-                    if delete_document_firestore('gastos', doc_id_to_delete_gasto):
-                        st.success(f"Gasto {delete_gasto_id} eliminado con éxito de Firestore.")
-                        st.rerun()
-                    else:
-                        st.error("Error al eliminar el gasto de Firestore.")
-            with col_g_confirm2:
-                if st.button("Cancelar Eliminación Gasto", key="cancel_delete_gasto_button"):
-                    st.info("Eliminación de gasto cancelada.")
-                    st.rerun()
-        elif delete_gasto_id is not None and delete_gasto_id > 0:
-            st.info(f"No se encontró ningún gasto con el ID {delete_gasto_id} para eliminar.")
+        from pages.gastos_page import show_gastos_page
+        show_gastos_page(df_gastos)
 
     elif page == "Resumen":
         st.header("Resumen de Pedidos")
