@@ -1,12 +1,28 @@
 # pages/pedidos_page.py
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 from utils import get_next_id, save_dataframe_firestore, delete_document_firestore
 
 def show_pedidos_page(df_pedidos, df_listas):
     # Definir las 4 pestañas
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
+    
+    # Función para conversión segura de tipos
+    def convert_to_firestore_type(value):
+        """Convierte los valores a tipos compatibles con Firestore"""
+        if pd.isna(value) or value is None or value == "":
+            return None
+        elif isinstance(value, (int, float, str, bool)):
+            return value
+        elif isinstance(value, (date, datetime)):  # Maneja tanto date como datetime
+            return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
+        elif isinstance(value, pd.Timestamp):
+            return value.to_pydatetime()
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return str(value)
     
     # ==============================================
     # Pestaña 1: Crear Pedido
@@ -87,19 +103,6 @@ def show_pedidos_page(df_pedidos, df_listas):
                 if not cliente or not telefono or not producto or precio <= 0:
                     st.error("Por favor complete los campos obligatorios (*)")
                 else:
-                    # Función para conversión segura de tipos
-                    def convert_to_firestore_type(value):
-                        if pd.isna(value) or value is None or value == "":
-                            return None
-                        elif isinstance(value, (int, float, str, bool)):
-                            return value
-                        elif isinstance(value, datetime.date):
-                            return datetime.combine(value, datetime.min.time())
-                        try:
-                            return float(value)
-                        except (ValueError, TypeError):
-                            return str(value)
-                    
                     new_id = get_next_id(df_pedidos, 'ID')
                     new_pedido = {
                         'ID': new_id,
@@ -286,19 +289,6 @@ def show_pedidos_page(df_pedidos, df_listas):
                     if not cliente or not telefono or precio <= 0:
                         st.error("Por favor complete los campos obligatorios (*)")
                     else:
-                        # Función para conversión segura de tipos
-                        def convert_to_firestore_type(value):
-                            if pd.isna(value) or value is None or value == "":
-                                return None
-                            elif isinstance(value, (int, float, str, bool)):
-                                return value
-                            elif isinstance(value, datetime.date):
-                                return datetime.combine(value, datetime.min.time())
-                            try:
-                                return float(value)
-                            except (ValueError, TypeError):
-                                return str(value)
-                        
                         # Actualizar los datos del pedido con conversión segura de tipos
                         updated_pedido = {
                             'ID': mod_id,
