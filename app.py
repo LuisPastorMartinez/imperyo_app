@@ -3,13 +3,12 @@ import pandas as pd
 import os
 import hashlib
 import re
-from datetime import datetime
 import sys
 from pathlib import Path
+from datetime import datetime
 
-# Solución definitiva para imports
-current_dir = Path(__file__).parent
-sys.path.append(str(current_dir))
+# Configuración de paths para imports
+sys.path.append(str(Path(__file__).parent))
 
 # Importaciones desde utils
 from utils.firestore_utils import (
@@ -20,13 +19,10 @@ from utils.firestore_utils import (
 )
 from utils.data_utils import limpiar_telefono, limpiar_fecha
 
-# Importaciones desde pages (con manejo de errores)
-try:
-    from pages.pedidos_page import show_pedidos_page
-    from pages.gastos_page import show_gastos_page
-except ImportError as e:
-    st.error(f"Error al importar módulos: {e}")
-    st.stop()
+# Importaciones desde pages
+from pages.pedidos_page import show_pedidos_page
+from pages.gastos_page import show_gastos_page
+from pages.resumen_page import show_resumen_page
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -34,10 +30,6 @@ st.set_page_config(
     page_icon="https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1",
     layout="wide"
 )
-
-# [El resto de tu código permanece exactamente igual desde aquí...]
-# [Incluyendo todas las funciones, configuración CSS, header, etc.]
-# [Todo el contenido que estaba después de los imports]
 
 # --- CSS PERSONALIZADO ---
 st.markdown("""
@@ -88,26 +80,6 @@ with col_logo:
     st.image("https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1", width=80)
 with col_title:
     st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
-
-# --- FUNCIÓN DE COLOREADO DE FILAS ---
-def highlight_pedidos_rows(row):
-    styles = [''] * len(row)
-    trabajo_terminado = row.get('Trabajo Terminado', False)
-    cobrado = row.get('Cobrado', False)
-    retirado = row.get('Retirado', False)
-    pendiente = row.get('Pendiente', False)
-    empezado = row.get('Inicio Trabajo', False)
-
-    if trabajo_terminado and cobrado and retirado and not pendiente:
-        styles = ['background-color: #00B050'] * len(row)
-    elif empezado and not pendiente:
-        styles = ['background-color: #0070C0'] * len(row)
-    elif trabajo_terminado and not pendiente:
-        styles = ['background-color: #FFC000'] * len(row)
-    elif pendiente:
-        styles = ['background-color: #FF00FF'] * len(row)
-
-    return styles
 
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
@@ -268,7 +240,7 @@ if check_password():
             remaining_columns = [col for col in df_pedidos_sorted.columns if col not in new_column_order]
             final_column_order = new_column_order + remaining_columns
             df_pedidos_reordered = df_pedidos_sorted[final_column_order]
-            st.dataframe(df_pedidos_reordered.style.apply(highlight_pedidos_rows, axis=1))
+            st.dataframe(df_pedidos_reordered)
         else:
             st.info("No hay datos en la colección 'pedidos'.")
         
@@ -288,39 +260,4 @@ if check_password():
         show_gastos_page(df_gastos)
 
     elif page == "Resumen":
-        st.header("Resumen de Pedidos")
-        filtered_df = pd.DataFrame()
-
-        if st.session_state.current_summary_view == "Todos los Pedidos":
-            filtered_df = df_pedidos
-            st.subheader("Todos los Pedidos")
-        elif st.session_state.current_summary_view == "Trabajos Empezados":
-            filtered_df = df_pedidos[df_pedidos['Inicio Trabajo'] == True]
-            st.subheader("Pedidos con 'Inicio Trabajo'")
-        elif st.session_state.current_summary_view == "Trabajos Terminados":
-            filtered_df = df_pedidos[df_pedidos['Trabajo Terminado'] == True]
-            st.subheader("Pedidos con 'Trabajo Terminado'")
-        elif st.session_state.current_summary_view == "Pedidos Pendientes":
-            filtered_df = df_pedidos[df_pedidos['Pendiente'] == True]
-            st.subheader("Pedidos con 'Pendiente'")
-        elif st.session_state.current_summary_view == "Pedidos sin estado específico":
-            filtered_df = df_pedidos[
-                (df_pedidos['Inicio Trabajo'] == False) &
-                (df_pedidos['Trabajo Terminado'] == False) &
-                (df_pedidos['Pendiente'] == False)
-            ]
-            st.subheader("Pedidos sin Estado Específico")
-
-        if not filtered_df.empty:
-            filtered_df_sorted = filtered_df.sort_values(by='ID', ascending=False)
-            new_column_order = [
-                'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
-                'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                'Tipo de pago', 'Adelanto', 'Observaciones'
-            ]
-            remaining_columns = [col for col in filtered_df_sorted.columns if col not in new_column_order]
-            final_column_order = new_column_order + remaining_columns
-            filtered_df_reordered = filtered_df_sorted[final_column_order]
-            st.dataframe(filtered_df_reordered.style.apply(highlight_pedidos_rows, axis=1))
-        else:
-            st.info(f"No hay pedidos en la categoría: {st.session_state.current_summary_view}")
+        show_resumen_page(df_pedidos, st.session_state.current_summary_view)
