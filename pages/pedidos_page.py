@@ -87,29 +87,42 @@ def show_pedidos_page(df_pedidos, df_listas):
                 if not cliente or not telefono or not producto or precio <= 0:
                     st.error("Por favor complete los campos obligatorios (*)")
                 else:
+                    # Función para conversión segura de tipos
+                    def convert_to_firestore_type(value):
+                        if pd.isna(value) or value is None or value == "":
+                            return None
+                        elif isinstance(value, (int, float, str, bool)):
+                            return value
+                        elif isinstance(value, datetime.date):
+                            return datetime.combine(value, datetime.min.time())
+                        try:
+                            return float(value)
+                        except (ValueError, TypeError):
+                            return str(value)
+                    
                     new_id = get_next_id(df_pedidos, 'ID')
                     new_pedido = {
                         'ID': new_id,
-                        'Producto': producto or None,
-                        'Cliente': cliente,
-                        'Telefono': telefono,
-                        'Club': club,
-                        'Talla': talla or None,
-                        'Tela': tela or None,
-                        'Breve Descripción': descripcion,
-                        'Fecha entrada': fecha_entrada,
-                        'Fecha Salida': fecha_salida if fecha_salida else None,
-                        'Precio': float(precio),
-                        'Precio Factura': float(precio_factura) if precio_factura else None,
-                        'Tipo de pago': tipo_pago or None,
-                        'Adelanto': float(adelanto) if adelanto else None,
-                        'Observaciones': observaciones,
-                        'Inicio Trabajo': empezado,
-                        'Trabajo Terminado': terminado,
-                        'Cobrado': cobrado,
-                        'Retirado': retirado,
-                        'Pendiente': pendiente,
-                        'id_documento_firestore': None  # Se asignará al guardar
+                        'Producto': convert_to_firestore_type(producto),
+                        'Cliente': convert_to_firestore_type(cliente),
+                        'Telefono': convert_to_firestore_type(telefono),
+                        'Club': convert_to_firestore_type(club),
+                        'Talla': convert_to_firestore_type(talla),
+                        'Tela': convert_to_firestore_type(tela),
+                        'Breve Descripción': convert_to_firestore_type(descripcion),
+                        'Fecha entrada': convert_to_firestore_type(fecha_entrada),
+                        'Fecha Salida': convert_to_firestore_type(fecha_salida),
+                        'Precio': convert_to_firestore_type(precio),
+                        'Precio Factura': convert_to_firestore_type(precio_factura),
+                        'Tipo de pago': convert_to_firestore_type(tipo_pago),
+                        'Adelanto': convert_to_firestore_type(adelanto),
+                        'Observaciones': convert_to_firestore_type(observaciones),
+                        'Inicio Trabajo': convert_to_firestore_type(empezado),
+                        'Trabajo Terminado': convert_to_firestore_type(terminado),
+                        'Cobrado': convert_to_firestore_type(cobrado),
+                        'Retirado': convert_to_firestore_type(retirado),
+                        'Pendiente': convert_to_firestore_type(pendiente),
+                        'id_documento_firestore': None
                     }
                     
                     # Añadir al DataFrame
@@ -273,28 +286,41 @@ def show_pedidos_page(df_pedidos, df_listas):
                     if not cliente or not telefono or precio <= 0:
                         st.error("Por favor complete los campos obligatorios (*)")
                     else:
-                        # Actualizar los datos del pedido
+                        # Función para conversión segura de tipos
+                        def convert_to_firestore_type(value):
+                            if pd.isna(value) or value is None or value == "":
+                                return None
+                            elif isinstance(value, (int, float, str, bool)):
+                                return value
+                            elif isinstance(value, datetime.date):
+                                return datetime.combine(value, datetime.min.time())
+                            try:
+                                return float(value)
+                            except (ValueError, TypeError):
+                                return str(value)
+                        
+                        # Actualizar los datos del pedido con conversión segura de tipos
                         updated_pedido = {
                             'ID': mod_id,
-                            'Producto': producto or None,
-                            'Cliente': cliente,
-                            'Telefono': telefono,
-                            'Club': club,
-                            'Talla': talla or None,
-                            'Tela': tela or None,
-                            'Breve Descripción': descripcion,
-                            'Fecha entrada': fecha_entrada,
-                            'Fecha Salida': fecha_salida if fecha_salida else None,
-                            'Precio': float(precio),
-                            'Precio Factura': float(precio_factura) if precio_factura else None,
-                            'Tipo de pago': tipo_pago or None,
-                            'Adelanto': float(adelanto) if adelanto else None,
-                            'Observaciones': observaciones,
-                            'Inicio Trabajo': empezado,
-                            'Trabajo Terminado': terminado,
-                            'Cobrado': cobrado,
-                            'Retirado': retirado,
-                            'Pendiente': pendiente,
+                            'Producto': convert_to_firestore_type(producto),
+                            'Cliente': convert_to_firestore_type(cliente),
+                            'Telefono': convert_to_firestore_type(telefono),
+                            'Club': convert_to_firestore_type(club),
+                            'Talla': convert_to_firestore_type(talla),
+                            'Tela': convert_to_firestore_type(tela),
+                            'Breve Descripción': convert_to_firestore_type(descripcion),
+                            'Fecha entrada': convert_to_firestore_type(fecha_entrada),
+                            'Fecha Salida': convert_to_firestore_type(fecha_salida),
+                            'Precio': convert_to_firestore_type(precio),
+                            'Precio Factura': convert_to_firestore_type(precio_factura),
+                            'Tipo de pago': convert_to_firestore_type(tipo_pago),
+                            'Adelanto': convert_to_firestore_type(adelanto),
+                            'Observaciones': convert_to_firestore_type(observaciones),
+                            'Inicio Trabajo': convert_to_firestore_type(empezado),
+                            'Trabajo Terminado': convert_to_firestore_type(terminado),
+                            'Cobrado': convert_to_firestore_type(cobrado),
+                            'Retirado': convert_to_firestore_type(retirado),
+                            'Pendiente': convert_to_firestore_type(pendiente),
                             'id_documento_firestore': pedido['id_documento_firestore']
                         }
                         
