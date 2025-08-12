@@ -90,7 +90,6 @@ def unificar_columnas(df):
     if df.empty:
         return df
 
-    # Unificación de nombres de columna
     column_mapping = {
         'Teléfono': 'Telefono',
         'Telefono ': 'Telefono',
@@ -101,17 +100,14 @@ def unificar_columnas(df):
         'Descripcion del Articulo': 'Breve Descripción',
         'Inicio del trabajo': 'Inicio Trabajo'
     }
-
     df.rename(columns=column_mapping, inplace=True)
     
-    # Limpiar columnas de teléfono
     if 'Telefono' in df.columns:
         df['Telefono'] = df['Telefono'].astype(str).str.strip().str.replace(r'[^\d]', '', regex=True)
 
     # Limpiar columnas de fecha de forma robusta
     for col in ['Fecha entrada', 'Fecha Salida']:
         if col in df.columns:
-            # Convierte a formato de fecha, manejando errores con 'coerce'
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
 
     # Asegurar que las columnas booleanas son del tipo correcto y rellenar nulos
@@ -119,12 +115,10 @@ def unificar_columnas(df):
         if col in df.columns:
             df[col] = df[col].fillna(False).astype(bool)
 
-    # Asegurar que la columna ID es de tipo numérico
     if 'ID' in df.columns:
         df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
 
     return df
-
 
 # --- LÓGICA DE AUTENTICACIÓN ---
 def check_password():
@@ -163,7 +157,6 @@ def check_password():
 
 # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
 if check_password():
-    # --- CARGA DE DATOS ---
     if 'data_loaded' not in st.session_state or not st.session_state.data_loaded:
         with st.spinner("Cargando datos de Firestore..."):
             st.session_state.data = load_dataframes_firestore()
@@ -173,26 +166,22 @@ if check_password():
             st.error("Error crítico: no se pudieron cargar los datos de Firestore. La aplicación no puede continuar.")
             st.stop()
         
-        # Aplicar unificación de columnas después de la carga
         if 'df_pedidos' in st.session_state.data:
             st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
         
         st.success("Datos cargados correctamente! ✅")
 
-    # Asignar DataFrames a variables locales para mayor comodidad
     df_pedidos = st.session_state.data.get('df_pedidos', pd.DataFrame())
     df_gastos = st.session_state.data.get('df_gastos', pd.DataFrame())
     df_totales = st.session_state.data.get('df_totales', pd.DataFrame())
     df_listas = st.session_state.data.get('df_listas', pd.DataFrame())
     df_trabajos = st.session_state.data.get('df_trabajos', pd.DataFrame())
     
-    # --- BOTÓN DE CERRAR SESIÓN ---
     st.sidebar.markdown("---")
     if st.sidebar.button("Cerrar Sesión"):
         st.session_state.clear()
         st.rerun()
 
-    # --- NAVEGACIÓN ---
     st.sidebar.title("Navegación")
     page = st.sidebar.radio("Ir a:", ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos"], key="main_page_radio")
 
@@ -201,14 +190,9 @@ if check_password():
 
     if page == "Resumen":
         with st.sidebar.expander("Seleccionar Vista de Resumen", expanded=True):
-            selected_summary_view_in_expander = st.radio(
-                "Ver por categoría:",
-                ["Todos los Pedidos", "Trabajos Empezados", "Trabajos Terminados", "Pedidos Pendientes", "Pedidos sin estado específico"],
-                key="summary_view_radio"
-            )
+            selected_summary_view_in_expander = st.radio("Ver por categoría:", ["Todos los Pedidos", "Trabajos Empezados", "Trabajos Terminados", "Pedidos Pendientes", "Pedidos sin estado específico"], key="summary_view_radio")
             st.session_state.current_summary_view = selected_summary_view_in_expander
 
-    # --- CONTENIDO DE LAS PÁGINAS ---
     if page == "Inicio":
         st.header("Bienvenido a Imperyo Sport")
         st.write("---")
@@ -245,7 +229,6 @@ if check_password():
         show_pedidos_page(df_pedidos, df_listas)
 
     elif page == "Gastos":
-        # Asegúrate de pasar el DataFrame correcto
         show_gastos_page(df_gastos)
 
     elif page == "Resumen":
