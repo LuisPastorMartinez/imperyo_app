@@ -63,13 +63,12 @@ def load_dataframes_firestore():
                 df = pd.DataFrame(records)
                 
                 for col in df.columns:
-                    # Convertir cualquier columna que contenga objetos de fecha de Firestore a datetime.date
-                    try:
-                        # Si la columna contiene Timestamps de Firestore, pandas los convierte
-                        df[col] = pd.to_datetime(df[col]).dt.date
-                    except (ValueError, TypeError):
-                        # Si no es un tipo de fecha válido, simplemente ignoramos la conversión
-                        pass
+                    # Intenta convertir la columna a tipo datetime, ignorando errores
+                    converted_series = pd.to_datetime(df[col], errors='coerce')
+                    
+                    # Verifica si la conversión fue exitosa antes de usar .dt
+                    if pd.api.types.is_datetime64_any_dtype(converted_series):
+                         df[col] = converted_series.dt.date
                     
                     # Rellena NaN en columnas booleanas y convierte a bool
                     if col in ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']:
