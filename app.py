@@ -3,13 +3,12 @@ import pandas as pd
 import os
 import hashlib
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, date
 import json
 
 # Configuración de paths para imports
 import sys
 from pathlib import Path
-# Asegura que Streamlit pueda encontrar los módulos en el directorio 'utils' y 'pages'
 sys.path.append(str(Path(__file__).parent)) 
 
 # Importaciones desde utils
@@ -19,7 +18,6 @@ from utils.firestore_utils import (
     delete_document_firestore,
     get_next_id
 )
-# Asumiendo que 'data_utils' ya está creado y contiene estas funciones
 from utils.data_utils import limpiar_telefono, limpiar_fecha
 
 # Importaciones desde pages
@@ -87,7 +85,7 @@ with col_title:
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
     """
-    Unifica nombres de columnas inconsistentes y limpia los datos.
+    Unifica nombres de columnas inconsistentes y limpia los datos de forma robusta.
     """
     if df.empty:
         return df
@@ -101,8 +99,7 @@ def unificar_columnas(df):
         'Precio factura': 'Precio Factura',
         'Obserbaciones': 'Observaciones',
         'Descripcion del Articulo': 'Breve Descripción',
-        'Inicio del trabajo': 'Inicio Trabajo', # Corrección de un posible error
-        'Trabajo Terminado': 'Trabajo Terminado'
+        'Inicio del trabajo': 'Inicio Trabajo'
     }
 
     df.rename(columns=column_mapping, inplace=True)
@@ -111,16 +108,20 @@ def unificar_columnas(df):
     if 'Telefono' in df.columns:
         df['Telefono'] = df['Telefono'].astype(str).str.strip().str.replace(r'[^\d]', '', regex=True)
 
-    # Limpiar columnas de fecha
+    # Limpiar columnas de fecha de forma robusta
     for col in ['Fecha entrada', 'Fecha Salida']:
         if col in df.columns:
-            # Convierte a formato de fecha, manejando errores
+            # Convierte a formato de fecha, manejando errores con 'coerce'
             df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
 
-    # Asegurar que las columnas booleanas son del tipo correcto
+    # Asegurar que las columnas booleanas son del tipo correcto y rellenar nulos
     for col in ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']:
         if col in df.columns:
-            df[col] = df[col].astype(bool)
+            df[col] = df[col].fillna(False).astype(bool)
+
+    # Asegurar que la columna ID es de tipo numérico
+    if 'ID' in df.columns:
+        df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
 
     return df
 
@@ -159,7 +160,6 @@ def check_password():
         return False
     else:
         return True
-
 
 # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
 if check_password():
@@ -245,6 +245,7 @@ if check_password():
         show_pedidos_page(df_pedidos, df_listas)
 
     elif page == "Gastos":
+        # Asegúrate de pasar el DataFrame correcto
         show_gastos_page(df_gastos)
 
     elif page == "Resumen":
