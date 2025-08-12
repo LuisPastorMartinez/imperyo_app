@@ -63,11 +63,15 @@ def load_dataframes_firestore():
                 df = pd.DataFrame(records)
                 
                 for col in df.columns:
-                    # Convierte Timestamps de Firestore a datetime.date
-                    if df[col].apply(lambda x: isinstance(x, firestore.Timestamp)).any():
-                         df[col] = pd.to_datetime(df[col]).dt.date
+                    # Convertir cualquier columna que contenga objetos de fecha de Firestore a datetime.date
+                    try:
+                        # Si la columna contiene Timestamps de Firestore, pandas los convierte
+                        df[col] = pd.to_datetime(df[col]).dt.date
+                    except (ValueError, TypeError):
+                        # Si no es un tipo de fecha válido, simplemente ignoramos la conversión
+                        pass
                     
-                    # Rellena NaN en booleanas
+                    # Rellena NaN en columnas booleanas y convierte a bool
                     if col in ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']:
                         df[col] = df[col].fillna(False).astype(bool)
                 
@@ -103,7 +107,6 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
         for _, row in df.iterrows():
             record = row.to_dict()
             
-            # Limpieza y conversión de tipos antes de guardar
             clean_record = {}
             for k, v in record.items():
                 if pd.isna(v) or v is None or v == '':
@@ -161,7 +164,14 @@ def create_empty_dataframe(collection_name):
             'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
             'id_documento_firestore'
         ])
-    # ... Resto de la función ...
+    elif collection_name == 'gastos':
+        return pd.DataFrame(columns=[
+            'ID', 'Fecha', 'Concepto', 'Importe', 'Tipo', 'id_documento_firestore'
+        ])
+    elif collection_name == 'listas':
+        return pd.DataFrame(columns=[
+            'Producto', 'Talla', 'Tela', 'Tipo de pago'
+        ])
     return pd.DataFrame()
 
 def get_next_id(df: pd.DataFrame, id_column_name: str) -> int:
