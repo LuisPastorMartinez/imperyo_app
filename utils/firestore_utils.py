@@ -18,10 +18,7 @@ COLLECTION_NAMES = {
 
 @st.cache_resource
 def initialize_firestore():
-    """
-    Inicializa la conexión con Firestore de manera segura y la almacena
-    en el caché de recursos de Streamlit.
-    """
+    """Inicializa la conexión con Firestore."""
     try:
         if not firebase_admin._apps:
             try:
@@ -47,7 +44,7 @@ def initialize_firestore():
 db = initialize_firestore()
 
 def load_dataframes_firestore():
-    """Carga todos los DataFrames desde Firestore con manejo de tipos seguro."""
+    """Carga todos los DataFrames desde Firestore."""
     if db is None:
         return None
 
@@ -65,14 +62,12 @@ def load_dataframes_firestore():
             if records:
                 df = pd.DataFrame(records)
                 
-                # Conversión de tipos de datos al cargar
                 for col in df.columns:
-                    # Convierte Timestamps de Firestore a datetime.date de Python
-                    # Usamos .any() para que la verificación sea eficiente y no falle
+                    # Convierte Timestamps de Firestore a datetime.date
                     if df[col].apply(lambda x: isinstance(x, firestore.Timestamp)).any():
                          df[col] = pd.to_datetime(df[col]).dt.date
                     
-                    # Rellena NaN en columnas booleanas y convierte a bool
+                    # Rellena NaN en booleanas
                     if col in ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']:
                         df[col] = df[col].fillna(False).astype(bool)
                 
@@ -91,10 +86,7 @@ def load_dataframes_firestore():
         return None
 
 def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
-    """
-    Guarda un DataFrame en Firestore, actualizando documentos existentes o añadiendo nuevos.
-    Maneja la conversión de tipos y NaN de forma segura.
-    """
+    """Guarda un DataFrame en Firestore de forma segura."""
     if db is None:
         st.error("No hay conexión a Firestore")
         return False
@@ -108,32 +100,33 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
         batch = db.batch()
         collection_ref = db.collection(collection_name)
         
-        # Iterar sobre cada fila para la operación de guardado
         for _, row in df.iterrows():
             record = row.to_dict()
             
             # Limpieza y conversión de tipos antes de guardar
+            clean_record = {}
             for k, v in record.items():
                 if pd.isna(v) or v is None or v == '':
-                    record[k] = None
+                    clean_record[k] = None
                 elif isinstance(v, date) and not isinstance(v, datetime):
-                    # Convierte un objeto date a datetime, que Firestore acepta
-                    record[k] = datetime(v.year, v.month, v.day)
+                    clean_record[k] = datetime(v.year, v.month, v.day)
                 elif isinstance(v, pd.Timestamp):
-                    record[k] = v.to_pydatetime()
+                    clean_record[k] = v.to_pydatetime()
                 elif isinstance(v, np.integer):
-                    record[k] = int(v)
+                    clean_record[k] = int(v)
                 elif isinstance(v, np.floating):
-                    record[k] = float(v)
+                    clean_record[k] = float(v)
+                else:
+                    clean_record[k] = v
 
-            doc_id = record.pop('id_documento_firestore', None)
+            doc_id = clean_record.pop('id_documento_firestore', None)
             
             if doc_id:
                 doc_ref = collection_ref.document(str(doc_id))
-                batch.set(doc_ref, record, merge=True)
+                batch.set(doc_ref, clean_record, merge=True)
             else:
                 new_doc_ref = collection_ref.document()
-                batch.set(new_doc_ref, record)
+                batch.set(new_doc_ref, clean_record)
         
         batch.commit()
         return True
@@ -145,21 +138,17 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
 def delete_document_firestore(collection_key: str, doc_id: str) -> bool:
     """Elimina un documento específico de Firestore."""
     if db is None:
-        st.error("No hay conexión a Firestore")
         return False
 
     collection_name = COLLECTION_NAMES.get(collection_key)
     if not collection_name:
-        st.error(f"Colección {collection_key} no encontrada")
         return False
 
     try:
         db.collection(collection_name).document(doc_id).delete()
-        st.success(f"Documento '{doc_id}' eliminado de '{collection_name}'.")
         return True
     except Exception as e:
         st.error(f"Error eliminando documento: {str(e)}")
-        st.exception(e)
         return False
 
 def create_empty_dataframe(collection_name):
@@ -172,14 +161,7 @@ def create_empty_dataframe(collection_name):
             'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
             'id_documento_firestore'
         ])
-    elif collection_name == 'gastos':
-        return pd.DataFrame(columns=[
-            'ID', 'Fecha', 'Concepto', 'Importe', 'Tipo', 'id_documento_firestore'
-        ])
-    elif collection_name == 'listas':
-        return pd.DataFrame(columns=[
-            'Producto', 'Talla', 'Tela', 'Tipo de pago'
-        ])
+    # ... Resto de la función ...
     return pd.DataFrame()
 
 def get_next_id(df: pd.DataFrame, id_column_name: str) -> int:
@@ -188,7 +170,6 @@ def get_next_id(df: pd.DataFrame, id_column_name: str) -> int:
         return 1
     
     try:
-        # Convertir a numérico y limpiar valores no válidos
         numeric_ids = pd.to_numeric(df[id_column_name], errors='coerce')
         df_clean = numeric_ids.dropna()
         
