@@ -4,29 +4,37 @@ import pandas as pd
 from datetime import datetime, date
 from utils import get_next_id, save_dataframe_firestore, delete_document_firestore
 
+def convert_to_firestore_type(value):
+    """Función mejorada para conversión segura de tipos"""
+    if pd.isna(value) or value is None or value == "":
+        return None
+    
+    # Manejo de fechas
+    if isinstance(value, (date, datetime)):
+        return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
+    
+    # Manejo de pandas Timestamp
+    if isinstance(value, pd.Timestamp):
+        return value.to_pydatetime()
+    
+    # Manejo de booleanos
+    if isinstance(value, bool):
+        return bool(value)
+    
+    # Manejo de números
+    try:
+        if isinstance(value, (int, float)):
+            return float(value) if '.' in str(value) else int(value)
+    except (ValueError, TypeError):
+        pass
+    
+    # Para cualquier otro tipo, convertimos a string
+    return str(value)
+
 def show_pedidos_page(df_pedidos, df_listas):
-    # Definir las 4 pestañas
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
     
-    # Función para conversión segura de tipos
-    def convert_to_firestore_type(value):
-        """Convierte los valores a tipos compatibles con Firestore (versión corregida)"""
-        if pd.isna(value) or value is None or value == "":
-            return None
-        elif isinstance(value, (int, float, str, bool)):
-            return value
-        elif isinstance(value, (date, datetime)):
-            return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
-        elif isinstance(value, pd.Timestamp):
-            return value.to_pydatetime()
-        try:
-            return float(value) if '.' in str(value) else int(value)
-        except (ValueError, TypeError):
-            return str(value)
-    
-    # ==============================================
     # Pestaña 1: Crear Pedido
-    # ==============================================
     with tab1:
         st.subheader("Crear Nuevo Pedido")
         
@@ -99,7 +107,8 @@ def show_pedidos_page(df_pedidos, df_listas):
             with estado_cols[4]:
                 pendiente = st.checkbox("Pendiente", value=True, key="new_pendiente")
             
-            if st.form_submit_button("Guardar Nuevo Pedido"):
+            submitted = st.form_submit_button("Guardar Nuevo Pedido")
+            if submitted:
                 if not cliente or not telefono or not producto or precio <= 0:
                     st.error("Por favor complete los campos obligatorios (*)")
                 else:
@@ -127,22 +136,29 @@ def show_pedidos_page(df_pedidos, df_listas):
                         'Pendiente': convert_to_firestore_type(pendiente),
                         'id_documento_firestore': None
                     }
-                    
-                    # Añadir al DataFrame
-                    new_pedido_df = pd.DataFrame([new_pedido])
-                    df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
-                    
-                    # Guardar en Firestore
-                    if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                        st.success(f"Pedido {new_id} creado correctamente!")
-                        st.session_state.data['df_pedidos'] = df_pedidos
-                        st.rerun()
-                    else:
-                        st.error("Error al crear el pedido")
 
-    # ==============================================
-    # Pestaña 2: Consultar Pedidos (CORREGIDO)
-    # ==============================================
+                    # DEBUG: Mostrar tipos de datos
+                    with st.expander("🔍 Debug: Tipos de datos del nuevo pedido", expanded=False):
+                        st.json({k: str(type(v)) for k, v in new_pedido.items()})
+                        st.write("Valores completos:")
+                        st.json(new_pedido)
+
+                    try:
+                        new_pedido_df = pd.DataFrame([new_pedido])
+                        df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
+                        
+                        if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                            st.success(f"✅ Pedido {new_id} creado correctamente!")
+                            st.session_state.data['df_pedidos'] = df_pedidos
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al guardar en Firestore")
+                    except Exception as e:
+                        st.error(f"⚠️ Error al crear el pedido: {str(e)}")
+                        st.error("Tipos de datos recibidos por Firestore:")
+                        st.json({k: str(type(v)) for k, v in new_pedido.items()})
+
+    # Pestaña 2: Consultar Pedidos
     with tab2:
         st.subheader("Consultar Pedidos")
         
@@ -179,16 +195,15 @@ def show_pedidos_page(df_pedidos, df_listas):
             elif filtro_estado == "Retirado":
                 df_filtrado = df_filtrado[df_filtrado['Retirado'] == True]
         
-        # Preparar DataFrame para visualización (CORRECCIÓN PARA ArrowTypeError)
+        # Mostrar resultados
         if not df_filtrado.empty:
-            # Seleccionar y ordenar columnas
+            # Preparar DataFrame para visualización
             columnas_mostrar = [
-                'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 
+                'ID', 'Producto', 'Cliente', 'Club', 'Telefono',
                 'Fecha entrada', 'Fecha Salida', 'Precio', 'Pendiente',
                 'Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado'
             ]
             
-            # Crear copia para no modificar el original
             df_mostrar = df_filtrado[columnas_mostrar].copy()
             
             # Convertir tipos problemáticos
@@ -200,7 +215,6 @@ def show_pedidos_page(df_pedidos, df_listas):
                 if col in df_mostrar.columns:
                     df_mostrar[col] = df_mostrar[col].fillna(False).astype(bool)
             
-            # Ordenar y mostrar
             st.dataframe(
                 df_mostrar.sort_values('ID', ascending=False),
                 height=500
@@ -208,13 +222,10 @@ def show_pedidos_page(df_pedidos, df_listas):
         else:
             st.info("No se encontraron pedidos con los filtros aplicados")
 
-    # ==============================================
     # Pestaña 3: Modificar Pedido
-    # ==============================================
     with tab3:
         st.subheader("Modificar Pedido Existente")
         
-        # Selección del pedido a modificar
         mod_id = st.number_input("ID del pedido a modificar:", min_value=1, key="modify_id_input")
         
         if st.button("Cargar Pedido", key="load_pedido_button"):
@@ -304,11 +315,9 @@ def show_pedidos_page(df_pedidos, df_listas):
                     pendiente = st.checkbox("Pendiente", value=pedido['Pendiente'], key="mod_pendiente")
                 
                 if st.form_submit_button("Guardar Cambios"):
-                    # Validación de campos obligatorios
                     if not cliente or not telefono or precio <= 0:
                         st.error("Por favor complete los campos obligatorios (*)")
                     else:
-                        # Actualizar los datos del pedido con conversión segura de tipos
                         updated_pedido = {
                             'ID': mod_id,
                             'Producto': convert_to_firestore_type(producto),
@@ -332,27 +341,29 @@ def show_pedidos_page(df_pedidos, df_listas):
                             'Pendiente': convert_to_firestore_type(pendiente),
                             'id_documento_firestore': pedido['id_documento_firestore']
                         }
-                        
-                        # Actualizar el DataFrame
-                        idx = df_pedidos[df_pedidos['ID'] == mod_id].index[0]
-                        df_pedidos.loc[idx] = updated_pedido
-                        
-                        # Guardar en Firestore
-                        if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                            st.success(f"Pedido {mod_id} actualizado correctamente!")
-                            st.session_state.pedido_a_modificar = None
-                            st.session_state.data['df_pedidos'] = df_pedidos
-                            st.rerun()
-                        else:
-                            st.error("Error al actualizar el pedido")
 
-    # ==============================================
+                        # DEBUG: Mostrar tipos de datos
+                        with st.expander("🔍 Debug: Tipos de datos del pedido modificado", expanded=False):
+                            st.json({k: str(type(v)) for k, v in updated_pedido.items()})
+
+                        try:
+                            idx = df_pedidos[df_pedidos['ID'] == mod_id].index[0]
+                            df_pedidos.loc[idx] = updated_pedido
+                            
+                            if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                                st.success(f"✅ Pedido {mod_id} actualizado correctamente!")
+                                st.session_state.pedido_a_modificar = None
+                                st.session_state.data['df_pedidos'] = df_pedidos
+                                st.rerun()
+                            else:
+                                st.error("❌ Error al actualizar el pedido")
+                        except Exception as e:
+                            st.error(f"⚠️ Error al modificar el pedido: {str(e)}")
+
     # Pestaña 4: Eliminar Pedido
-    # ==============================================
     with tab4:
         st.subheader("Eliminar Pedido")
         
-        # Selección del pedido a eliminar
         del_id = st.number_input("ID del pedido a eliminar:", min_value=1, key="delete_id_input")
         
         if st.button("Buscar Pedido", key="search_pedido_button"):
@@ -389,12 +400,12 @@ def show_pedidos_page(df_pedidos, df_listas):
                         if delete_document_firestore('pedidos', doc_id):
                             st.session_state.data['df_pedidos'] = df_pedidos
                             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                                st.success(f"Pedido {del_id} eliminado correctamente!")
+                                st.success(f"✅ Pedido {del_id} eliminado correctamente!")
                                 st.session_state.pedido_a_eliminar = None
                                 st.rerun()
                             else:
-                                st.error("Error al guardar los cambios en Firestore")
+                                st.error("❌ Error al guardar los cambios en Firestore")
                         else:
-                            st.error("Error al eliminar el pedido de Firestore")
+                            st.error("❌ Error al eliminar el pedido de Firestore")
                     except Exception as e:
-                        st.error(f"Error al eliminar el pedido: {str(e)}")
+                        st.error(f"⚠️ Error al eliminar el pedido: {str(e)}")
