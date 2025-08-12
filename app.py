@@ -18,9 +18,6 @@ from utils.firestore_utils import (
     delete_document_firestore,
     get_next_id
 )
-from utils.data_utils import limpiar_telefono, limpiar_fecha
-
-# Importaciones desde pages
 from pages.pedidos_page import show_pedidos_page
 from pages.gastos_page import show_gastos_page
 from pages.resumen_page import show_resumen_page
@@ -100,7 +97,11 @@ def unificar_columnas(df):
         'Descripcion del Articulo': 'Breve Descripción',
         'Inicio del trabajo': 'Inicio Trabajo'
     }
-    df.rename(columns=column_mapping, inplace=True)
+    
+    # Prevenir duplicados
+    for old_name, new_name in column_mapping.items():
+        if old_name in df.columns and new_name not in df.columns:
+            df.rename(columns={old_name: new_name}, inplace=True)
     
     # Comprobar si la columna existe antes de limpiarla
     if 'Telefono' in df.columns:
