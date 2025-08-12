@@ -6,6 +6,7 @@ import re
 import sys
 from pathlib import Path
 from datetime import datetime
+import numpy as np  # Import añadido para manejo de tipos numéricos
 
 # Configuración de paths para imports
 sys.path.append(str(Path(__file__).parent))
@@ -177,31 +178,37 @@ def check_password():
 if check_password():
     # --- CARGA Y CORRECCIÓN DE DATOS ---
     if 'data_loaded' not in st.session_state:
-        st.session_state.data = load_dataframes_firestore()
-        
-        if 'df_pedidos' in st.session_state.data:
-            st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
-        
-        st.session_state.data_loaded = True
+        try:
+            st.session_state.data = load_dataframes_firestore()
+            
+            if st.session_state.data is None:
+                st.error("No se pudieron cargar los datos desde Firestore. Por favor intenta recargar la página.")
+                st.stop()
+            
+            if 'df_pedidos' in st.session_state.data:
+                st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
+            
+            st.session_state.data_loaded = True
+        except Exception as e:
+            st.error(f"Error crítico al cargar datos: {str(e)}")
+            st.stop()
 
-    if st.session_state.data is None:
+    # Asignar DataFrames con verificación
+    try:
+        df_pedidos = st.session_state.data['df_pedidos']
+        df_gastos = st.session_state.data['df_gastos']
+        df_totales = st.session_state.data['df_totales']
+        df_listas = st.session_state.data['df_listas']
+        df_trabajos = st.session_state.data['df_trabajos']
+    except KeyError as e:
+        st.error(f"Falta la colección de datos: {str(e)}")
         st.stop()
-    
-    # Asignar DataFrames
-    df_pedidos = st.session_state.data['df_pedidos']
-    df_gastos = st.session_state.data['df_gastos']
-    df_totales = st.session_state.data['df_totales']
-    df_listas = st.session_state.data['df_listas']
-    df_trabajos = st.session_state.data['df_trabajos']
-    
+
     # --- BOTÓN DE CERRAR SESIÓN ---
     st.sidebar.markdown("---")
     if st.sidebar.button("Cerrar Sesión"):
-        st.session_state["authenticated"] = False
-        st.session_state["data_loaded"] = False
-        st.session_state["login_attempted"] = False
-        st.session_state["username_input"] = ""
-        st.session_state["password_input"] = ""
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         st.rerun()
 
     # --- NAVEGACIÓN ---
@@ -231,16 +238,26 @@ if check_password():
         st.header("Datos Cargados de Firestore")
         st.subheader("Colección 'pedidos'")
         if not df_pedidos.empty:
-            df_pedidos_sorted = df_pedidos.sort_values(by='ID', ascending=False)
-            new_column_order = [
-                'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
-                'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                'Tipo de pago', 'Adelanto', 'Observaciones'
-            ]
-            remaining_columns = [col for col in df_pedidos_sorted.columns if col not in new_column_order]
-            final_column_order = new_column_order + remaining_columns
-            df_pedidos_reordered = df_pedidos_sorted[final_column_order]
-            st.dataframe(df_pedidos_reordered)
+            try:
+                # Preparar DataFrame para visualización segura
+                df_pedidos_sorted = df_pedidos.sort_values(by='ID', ascending=False).copy()
+                
+                # Convertir tipos problemáticos
+                for col in ['Fecha entrada', 'Fecha Salida']:
+                    if col in df_pedidos_sorted.columns:
+                        df_pedidos_sorted[col] = pd.to_datetime(df_pedidos_sorted[col]).dt.strftime('%Y-%m-%d')
+                
+                new_column_order = [
+                    'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
+                    'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
+                    'Tipo de pago', 'Adelanto', 'Observaciones'
+                ]
+                remaining_columns = [col for col in df_pedidos_sorted.columns if col not in new_column_order]
+                final_column_order = new_column_order + remaining_columns
+                
+                st.dataframe(df_pedidos_sorted[final_column_order])
+            except Exception as e:
+                st.error(f"Error al mostrar datos: {str(e)}")
         else:
             st.info("No hay datos en la colección 'pedidos'.")
         
@@ -254,10 +271,20 @@ if check_password():
         st.dataframe(df_trabajos)
 
     elif page == "Pedidos":
-        show_pedidos_page(df_pedidos, df_listas)
+        try:
+            show_pedidos_page(df_pedidos, df_listas)
+        except Exception as e:
+            st.error(f"Error en la página de pedidos: {str(e)}")
+            st.error("Por favor recarga la página o contacta al administrador.")
 
     elif page == "Gastos":
-        show_gastos_page(df_gastos)
+        try:
+            show_gastos_page(df_gastos)
+        except Exception as e:
+            st.error(f"Error en la página de gastos: {str(e)}")
 
     elif page == "Resumen":
-        show_resumen_page(df_pedidos, st.session_state.current_summary_view)
+        try:
+            show_resumen_page(df_pedidos, st.session_state.current_summary_view)
+        except Exception as e:
+            st.error(f"Error en la página de resumen: {str(e)}")
