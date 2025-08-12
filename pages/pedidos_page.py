@@ -1,11 +1,9 @@
-# pages/pedidos_page.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
 from utils.firestore_utils import get_next_id, save_dataframe_firestore, delete_document_firestore
 
 def show_pedidos_page(df_pedidos, df_listas):
-    # Definir las 4 pestañas para la navegación
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
 
     # ==============================================
@@ -18,55 +16,21 @@ def show_pedidos_page(df_pedidos, df_listas):
             col1, col2 = st.columns(2)
             
             with col1:
-                producto = st.selectbox(
-                    "Producto*",
-                    [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""],
-                    key="new_producto"
-                )
+                producto = st.selectbox("Producto*", [""] + df_listas['Producto'].dropna().unique().tolist(), key="new_producto")
                 cliente = st.text_input("Cliente*", key="new_cliente")
                 telefono = st.text_input("Teléfono*", key="new_telefono")
                 club = st.text_input("Club", key="new_club")
-                talla = st.selectbox(
-                    "Talla",
-                    [""] + df_listas['Talla'].dropna().unique().tolist() if 'Talla' in df_listas.columns else [""],
-                    key="new_talla"
-                )
-                tela = st.selectbox(
-                    "Tela",
-                    [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""],
-                    key="new_tela"
-                )
+                talla = st.selectbox("Talla", [""] + df_listas['Talla'].dropna().unique().tolist(), key="new_talla")
+                tela = st.selectbox("Tela", [""] + df_listas['Tela'].dropna().unique().tolist(), key="new_tela")
                 descripcion = st.text_area("Descripción", key="new_descripcion")
             
             with col2:
-                fecha_entrada_valor = st.date_input(
-                    "Fecha entrada*", 
-                    value=datetime.now().date(),
-                    key="new_fecha_entrada"
-                )
-                fecha_salida_valor = st.date_input(
-                    "Fecha salida", 
-                    value=None,
-                    key="new_fecha_salida"
-                )
+                fecha_entrada_valor = st.date_input("Fecha entrada*", value=datetime.now().date(), key="new_fecha_entrada")
+                fecha_salida_valor = st.date_input("Fecha salida", value=None, key="new_fecha_salida")
                 precio = st.number_input("Precio*", min_value=0.0, value=0.0, key="new_precio")
-                precio_factura = st.number_input(
-                    "Precio factura", 
-                    min_value=0.0, 
-                    value=0.0,
-                    key="new_precio_factura"
-                )
-                tipo_pago = st.selectbox(
-                    "Tipo de pago",
-                    [""] + df_listas['Tipo de pago'].dropna().unique().tolist() if 'Tipo de pago' in df_listas.columns else [""],
-                    key="new_tipo_pago"
-                )
-                adelanto = st.number_input(
-                    "Adelanto", 
-                    min_value=0.0, 
-                    value=0.0,
-                    key="new_adelanto"
-                )
+                precio_factura = st.number_input("Precio factura", min_value=0.0, value=0.0, key="new_precio_factura")
+                tipo_pago = st.selectbox("Tipo de pago", [""] + df_listas['Tipo de pago'].dropna().unique().tolist(), key="new_tipo_pago")
+                adelanto = st.number_input("Adelanto", min_value=0.0, value=0.0, key="new_adelanto")
                 observaciones = st.text_area("Observaciones", key="new_observaciones")
             
             st.write("**Estado del pedido:**")
@@ -83,7 +47,6 @@ def show_pedidos_page(df_pedidos, df_listas):
                 pendiente = st.checkbox("Pendiente", value=True, key="new_pendiente")
             
             if st.form_submit_button("Guardar Nuevo Pedido"):
-                # Validar campos obligatorios
                 if not cliente or not telefono or not producto or precio <= 0:
                     st.error("Por favor complete los campos obligatorios (*).")
                 else:
@@ -91,7 +54,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                         new_id = get_next_id(df_pedidos, 'ID')
                         new_pedido = {
                             'ID': new_id,
-                            'Producto': producto,
+                            'Producto': producto if producto else None,
                             'Cliente': cliente,
                             'Telefono': telefono,
                             'Club': club if club else None,
@@ -241,24 +204,9 @@ def show_pedidos_page(df_pedidos, df_listas):
                         key="mod_fecha_salida"
                     )
                     precio = st.number_input("Precio*", min_value=0.0, value=float(pedido.get('Precio', 0.0)), key="mod_precio")
-                    precio_factura = st.number_input(
-                        "Precio factura", 
-                        min_value=0.0, 
-                        value=float(pedido.get('Precio Factura', 0.0)),
-                        key="mod_precio_factura"
-                    )
-                    tipo_pago = st.selectbox(
-                        "Tipo de pago",
-                        [""] + df_listas['Tipo de pago'].dropna().unique().tolist(),
-                        index= (df_listas['Tipo de pago'].dropna().unique().tolist().index(pedido.get('Tipo de pago')) + 1) if pedido.get('Tipo de pago') in df_listas['Tipo de pago'].dropna().unique().tolist() else 0,
-                        key="mod_tipo_pago"
-                    )
-                    adelanto = st.number_input(
-                        "Adelanto", 
-                        min_value=0.0, 
-                        value=float(pedido.get('Adelanto', 0.0)),
-                        key="mod_adelanto"
-                    )
+                    precio_factura = st.number_input("Precio factura", min_value=0.0, value=float(pedido.get('Precio Factura', 0.0)), key="mod_precio_factura")
+                    tipo_pago = st.selectbox("Tipo de pago", [""] + df_listas['Tipo de pago'].dropna().unique().tolist(), index= (df_listas['Tipo de pago'].dropna().unique().tolist().index(pedido.get('Tipo de pago')) + 1) if pedido.get('Tipo de pago') in df_listas['Tipo de pago'].dropna().unique().tolist() else 0, key="mod_tipo_pago")
+                    adelanto = st.number_input("Adelanto", min_value=0.0, value=float(pedido.get('Adelanto', 0.0)), key="mod_adelanto")
                     observaciones = st.text_area("Observaciones", value=pedido.get('Observaciones', ''), key="mod_observaciones")
                 
                 st.write("**Estado del pedido:**")
@@ -279,42 +227,42 @@ def show_pedidos_page(df_pedidos, df_listas):
                         st.error("Por favor complete los campos obligatorios (*).")
                     else:
                         try:
-                            if 'id_documento_firestore' in pedido and pedido['id_documento_firestore'] is not None:
-                                index_to_edit = df_pedidos[df_pedidos['id_documento_firestore'] == pedido['id_documento_firestore']].index
-                                if not index_to_edit.empty:
-                                    index_to_edit = index_to_edit[0]
-                                    
-                                    df_pedidos.loc[index_to_edit, 'Producto'] = producto
-                                    df_pedidos.loc[index_to_edit, 'Cliente'] = cliente
-                                    df_pedidos.loc[index_to_edit, 'Telefono'] = telefono
-                                    df_pedidos.loc[index_to_edit, 'Club'] = club if club else None
-                                    df_pedidos.loc[index_to_edit, 'Talla'] = talla if talla else None
-                                    df_pedidos.loc[index_to_edit, 'Tela'] = tela if tela else None
-                                    df_pedidos.loc[index_to_edit, 'Breve Descripción'] = descripcion if descripcion else None
-                                    df_pedidos.loc[index_to_edit, 'Fecha entrada'] = fecha_entrada
-                                    df_pedidos.loc[index_to_edit, 'Fecha Salida'] = fecha_salida
-                                    df_pedidos.loc[index_to_edit, 'Precio'] = precio
-                                    df_pedidos.loc[index_to_edit, 'Precio Factura'] = precio_factura
-                                    df_pedidos.loc[index_to_edit, 'Tipo de pago'] = tipo_pago if tipo_pago else None
-                                    df_pedidos.loc[index_to_edit, 'Adelanto'] = adelanto
-                                    df_pedidos.loc[index_to_edit, 'Observaciones'] = observaciones if observaciones else None
-                                    df_pedidos.loc[index_to_edit, 'Inicio Trabajo'] = empezado
-                                    df_pedidos.loc[index_to_edit, 'Trabajo Terminado'] = terminado
-                                    df_pedidos.loc[index_to_edit, 'Cobrado'] = cobrado
-                                    df_pedidos.loc[index_to_edit, 'Retirado'] = retirado
-                                    df_pedidos.loc[index_to_edit, 'Pendiente'] = pendiente
-                                    
-                                    if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                                        st.success(f"Pedido {pedido['ID']} actualizado correctamente! ✅")
-                                        st.session_state.data['df_pedidos'] = df_pedidos
-                                        del st.session_state.pedido_a_modificar
-                                        st.rerun()
-                                    else:
-                                        st.error("Error al actualizar el pedido en Firestore. ❌")
+                            # Encontrar el índice del DataFrame
+                            index_to_edit = df_pedidos[df_pedidos['ID'] == mod_id_input].index
+                            
+                            if not index_to_edit.empty:
+                                index = index_to_edit[0]
+                                
+                                # Actualizar los valores en el DataFrame
+                                df_pedidos.loc[index, 'Producto'] = producto if producto else None
+                                df_pedidos.loc[index, 'Cliente'] = cliente
+                                df_pedidos.loc[index, 'Telefono'] = telefono
+                                df_pedidos.loc[index, 'Club'] = club if club else None
+                                df_pedidos.loc[index, 'Talla'] = talla if talla else None
+                                df_pedidos.loc[index, 'Tela'] = tela if tela else None
+                                df_pedidos.loc[index, 'Breve Descripción'] = descripcion if descripcion else None
+                                df_pedidos.loc[index, 'Fecha entrada'] = fecha_entrada
+                                df_pedidos.loc[index, 'Fecha Salida'] = fecha_salida
+                                df_pedidos.loc[index, 'Precio'] = precio
+                                df_pedidos.loc[index, 'Precio Factura'] = precio_factura
+                                df_pedidos.loc[index, 'Tipo de pago'] = tipo_pago if tipo_pago else None
+                                df_pedidos.loc[index, 'Adelanto'] = adelanto
+                                df_pedidos.loc[index, 'Observaciones'] = observaciones if observaciones else None
+                                df_pedidos.loc[index, 'Inicio Trabajo'] = empezado
+                                df_pedidos.loc[index, 'Trabajo Terminado'] = terminado
+                                df_pedidos.loc[index, 'Cobrado'] = cobrado
+                                df_pedidos.loc[index, 'Retirado'] = retirado
+                                df_pedidos.loc[index, 'Pendiente'] = pendiente
+                                
+                                if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                                    st.success(f"Pedido {pedido['ID']} actualizado correctamente! ✅")
+                                    st.session_state.data['df_pedidos'] = df_pedidos
+                                    del st.session_state.pedido_a_modificar
+                                    st.rerun()
                                 else:
-                                    st.error("Error: No se encontró el pedido en el DataFrame para actualizar.")
+                                    st.error("Error al actualizar el pedido en Firestore. ❌")
                             else:
-                                st.error("Error: El pedido cargado no tiene un ID de documento de Firestore válido.")
+                                st.error("Error: No se encontró el pedido en el DataFrame para actualizar.")
                         except Exception as e:
                             st.error(f"Error inesperado al procesar la modificación del pedido: {e} ⚠️")
                             st.exception(e)
@@ -328,22 +276,21 @@ def show_pedidos_page(df_pedidos, df_listas):
         if not df_pedidos.empty:
             pedidos_ids_disponibles = sorted(df_pedidos['ID'].tolist(), reverse=True)
             
-            pedido_a_eliminar_id_display = st.selectbox(
+            pedido_a_eliminar_id = st.selectbox(
                 "Selecciona el ID del pedido a eliminar",
                 options=pedidos_ids_disponibles,
                 key="delete_pedido_id_select"
             )
 
             if st.button("Confirmar Eliminación", key="delete_button"):
-                # Buscar el id_documento_firestore real usando el ID de visualización
-                doc_id_firestore_to_delete = df_pedidos[df_pedidos['ID'] == pedido_a_eliminar_id_display]['id_documento_firestore'].iloc[0]
+                doc_id_firestore_to_delete = df_pedidos[df_pedidos['ID'] == pedido_a_eliminar_id]['id_documento_firestore'].iloc[0]
                 
                 if delete_document_firestore('pedidos', doc_id_firestore_to_delete):
-                    df_pedidos_updated = df_pedidos[df_pedidos['ID'] != pedido_a_eliminar_id_display].reset_index(drop=True)
+                    df_pedidos_updated = df_pedidos[df_pedidos['ID'] != pedido_a_eliminar_id].reset_index(drop=True)
                     st.session_state.data['df_pedidos'] = df_pedidos_updated
-                    st.success(f"Pedido ID {pedido_a_eliminar_id_display} eliminado exitosamente! 🗑️")
+                    st.success(f"Pedido ID {pedido_a_eliminar_id} eliminado exitosamente! 🗑️")
                     st.rerun()
                 else:
-                    st.error(f"Error al eliminar el pedido ID {pedido_a_eliminar_id_display} de Firestore. ❌")
+                    st.error(f"Error al eliminar el pedido ID {pedido_a_eliminar_id} de Firestore. ❌")
         else:
             st.info("No hay pedidos para eliminar.")
