@@ -102,6 +102,7 @@ def unificar_columnas(df):
     }
     df.rename(columns=column_mapping, inplace=True)
     
+    # Comprobar si la columna existe antes de limpiarla
     if 'Telefono' in df.columns:
         df['Telefono'] = df['Telefono'].astype(str).str.strip().str.replace(r'[^\d]', '', regex=True)
 
