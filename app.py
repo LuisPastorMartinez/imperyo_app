@@ -2,14 +2,13 @@ import streamlit as st
 import pandas as pd
 import os
 import hashlib
-from pathlib import Path
-from datetime import datetime, date
-import json
-
-# Configuración de paths para imports
+import re
 import sys
 from pathlib import Path
-sys.path.append(str(Path(__file__).parent)) 
+from datetime import datetime
+
+# Configuración de paths para imports
+sys.path.append(str(Path(__file__).parent))
 
 # Importaciones desde utils
 from utils.firestore_utils import (
@@ -18,6 +17,9 @@ from utils.firestore_utils import (
     delete_document_firestore,
     get_next_id
 )
+from utils.data_utils import limpiar_telefono, limpiar_fecha
+
+# Importaciones desde pages
 from pages.pedidos_page import show_pedidos_page
 from pages.gastos_page import show_gastos_page
 from pages.resumen_page import show_resumen_page
@@ -81,68 +83,81 @@ with col_title:
 
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
-    """
-    Unifica nombres de columnas inconsistentes y limpia los datos de forma robusta.
-    """
-    if df.empty:
-        return df
-
-    column_mapping = {
-        'Teléfono': 'Telefono',
-        'Telefono ': 'Telefono',
-        'Fecha Entreda': 'Fecha entrada',
-        'Fecha salida': 'Fecha Salida',
+    # Eliminar columna "Fechas Entrada" si existe
+    if 'Fechas Entrada' in df.columns:
+        df = df.drop(columns=['Fechas Entrada'])
+    
+    # Unificar columnas de teléfono
+    if 'Teléfono' in df.columns and 'Telefono' in df.columns:
+        df['Telefono'] = df['Telefono'].combine_first(df['Teléfono'])
+        df = df.drop(columns=['Teléfono'])
+    elif 'Teléfono' in df.columns:
+        df = df.rename(columns={'Teléfono': 'Telefono'})
+    
+    if 'Telefono ' in df.columns:
+        df['Telefono'] = df['Telefono'].combine_first(df['Telefono '])
+        df = df.drop(columns=['Telefono '])
+    
+    # Limpiar teléfonos
+    if 'Telefono' in df.columns:
+        df['Telefono'] = df['Telefono'].apply(lambda x: x if pd.isna(x) else str(x).strip())
+        df['Telefono'] = df['Telefono'].apply(limpiar_telefono)
+    
+    # Limpiar y unificar fechas
+    if 'Fecha entrada' in df.columns:
+        df['Fecha entrada'] = df['Fecha entrada'].apply(limpiar_fecha)
+    
+    if 'Fecha Entreda' in df.columns:
+        df['Fecha entrada'] = df['Fecha entrada'].combine_first(df['Fecha Entreda'].apply(limpiar_fecha))
+        df = df.drop(columns=['Fecha Entreda'])
+    
+    if 'Fecha salida' in df.columns:
+        df['Fecha Salida'] = df['Fecha Salida'].combine_first(df['Fecha salida'].apply(limpiar_fecha))
+        df = df.drop(columns=['Fecha salida'])
+    
+    # Resto de unificaciones
+    columnas_a_unificar = {
         'Precio factura': 'Precio Factura',
         'Obserbaciones': 'Observaciones',
-        'Descripcion del Articulo': 'Breve Descripción',
-        'Inicio del trabajo': 'Inicio Trabajo'
+        'Descripcion del Articulo': 'Breve Descripción'
     }
     
-    # Prevenir duplicados
-    for old_name, new_name in column_mapping.items():
-        if old_name in df.columns and new_name not in df.columns:
-            df.rename(columns={old_name: new_name}, inplace=True)
+    for col_vieja, col_nueva in columnas_a_unificar.items():
+        if col_vieja in df.columns:
+            if col_nueva not in df.columns:
+                df[col_nueva] = df[col_vieja]
+            else:
+                df[col_nueva] = df[col_nueva].combine_first(df[col_vieja])
+            df = df.drop(columns=[col_vieja])
     
-    # Comprobar si la columna existe antes de limpiarla
-    if 'Telefono' in df.columns:
-        # Rellenar valores nulos con una cadena vacía antes de aplicar el método str.
-        df['Telefono'] = df['Telefono'].fillna('').astype(str).str.strip().str.replace(r'[^\d]', '', regex=True)
-
-    # Limpiar columnas de fecha de forma robusta
-    for col in ['Fecha entrada', 'Fecha Salida']:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
-
-    # Asegurar que las columnas booleanas son del tipo correcto y rellenar nulos
-    for col in ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']:
-        if col in df.columns:
-            df[col] = df[col].fillna(False).astype(bool)
-
-    if 'ID' in df.columns:
-        df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
-
     return df
 
 # --- LÓGICA DE AUTENTICACIÓN ---
 def check_password():
-    """
-    Controla el acceso a la aplicación por medio de un usuario y contraseña.
-    """
     try:
         correct_username = st.secrets["auth"]["username"]
         correct_password_hash = st.secrets["auth"]["password_hash"]
     except KeyError:
         st.error("Error de configuración: No se encontraron las credenciales de autenticación.")
-        return False
+        st.stop()
 
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
+    if "login_attempted" not in st.session_state:
+        st.session_state["login_attempted"] = False
+    if "username_input" not in st.session_state:
+        st.session_state["username_input"] = ""
+    if "password_input" not in st.session_state:
+        st.session_state["password_input"] = ""
 
     def authenticate_user():
         hashed_input_password = hashlib.sha256(st.session_state["password_input"].encode()).hexdigest()
-        if st.session_state["username_input"] == correct_username and hashed_input_password == correct_password_hash:
+        if st.session_state["username_input"] == correct_username and \
+           hashed_input_password == correct_password_hash:
             st.session_state["authenticated"] = True
             st.session_state["login_attempted"] = False
+            st.session_state["username_input"] = ""
+            st.session_state["password_input"] = ""
         else:
             st.session_state["authenticated"] = False
             st.session_state["login_attempted"] = True
@@ -152,7 +167,7 @@ def check_password():
         st.text_input("Contraseña", type="password", key="password_input")
         st.button("Iniciar Sesión", on_click=authenticate_user)
 
-        if st.session_state.get("login_attempted", False) and not st.session_state["authenticated"]:
+        if st.session_state["login_attempted"] and not st.session_state["authenticated"]:
             st.error("Usuario o contraseña incorrectos.")
         return False
     else:
@@ -160,31 +175,36 @@ def check_password():
 
 # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
 if check_password():
-    if 'data_loaded' not in st.session_state or not st.session_state.data_loaded:
-        with st.spinner("Cargando datos de Firestore..."):
-            st.session_state.data = load_dataframes_firestore()
-            st.session_state.data_loaded = True
-        
-        if st.session_state.data is None:
-            st.error("Error crítico: no se pudieron cargar los datos de Firestore. La aplicación no puede continuar.")
-            st.stop()
+    # --- CARGA Y CORRECCIÓN DE DATOS ---
+    if 'data_loaded' not in st.session_state:
+        st.session_state.data = load_dataframes_firestore()
         
         if 'df_pedidos' in st.session_state.data:
             st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
         
-        st.success("Datos cargados correctamente! ✅")
+        st.session_state.data_loaded = True
 
-    df_pedidos = st.session_state.data.get('df_pedidos', pd.DataFrame())
-    df_gastos = st.session_state.data.get('df_gastos', pd.DataFrame())
-    df_totales = st.session_state.data.get('df_totales', pd.DataFrame())
-    df_listas = st.session_state.data.get('df_listas', pd.DataFrame())
-    df_trabajos = st.session_state.data.get('df_trabajos', pd.DataFrame())
+    if st.session_state.data is None:
+        st.stop()
     
+    # Asignar DataFrames
+    df_pedidos = st.session_state.data['df_pedidos']
+    df_gastos = st.session_state.data['df_gastos']
+    df_totales = st.session_state.data['df_totales']
+    df_listas = st.session_state.data['df_listas']
+    df_trabajos = st.session_state.data['df_trabajos']
+    
+    # --- BOTÓN DE CERRAR SESIÓN ---
     st.sidebar.markdown("---")
     if st.sidebar.button("Cerrar Sesión"):
-        st.session_state.clear()
+        st.session_state["authenticated"] = False
+        st.session_state["data_loaded"] = False
+        st.session_state["login_attempted"] = False
+        st.session_state["username_input"] = ""
+        st.session_state["password_input"] = ""
         st.rerun()
 
+    # --- NAVEGACIÓN ---
     st.sidebar.title("Navegación")
     page = st.sidebar.radio("Ir a:", ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos"], key="main_page_radio")
 
@@ -193,9 +213,14 @@ if check_password():
 
     if page == "Resumen":
         with st.sidebar.expander("Seleccionar Vista de Resumen", expanded=True):
-            selected_summary_view_in_expander = st.radio("Ver por categoría:", ["Todos los Pedidos", "Trabajos Empezados", "Trabajos Terminados", "Pedidos Pendientes", "Pedidos sin estado específico"], key="summary_view_radio")
+            selected_summary_view_in_expander = st.radio(
+                "Ver por categoría:",
+                ["Todos los Pedidos", "Trabajos Empezados", "Trabajos Terminados", "Pedidos Pendientes", "Pedidos sin estado específico"],
+                key="summary_view_radio"
+            )
             st.session_state.current_summary_view = selected_summary_view_in_expander
 
+    # --- CONTENIDO DE LAS PÁGINAS ---
     if page == "Inicio":
         st.header("Bienvenido a Imperyo Sport")
         st.write("---")
