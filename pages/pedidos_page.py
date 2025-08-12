@@ -6,6 +6,13 @@ from utils.firestore_utils import get_next_id, save_dataframe_firestore, delete_
 def show_pedidos_page(df_pedidos, df_listas):
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
 
+    # Función auxiliar para obtener opciones únicas y evitar valores nulos
+    def get_list_options(df, column):
+        if not df.empty and column in df.columns:
+            options = df[column].dropna().unique().tolist()
+            return [""] + sorted(options)
+        return [""]
+
     # ==============================================
     # Pestaña 1: Crear Pedido
     # ==============================================
@@ -14,19 +21,23 @@ def show_pedidos_page(df_pedidos, df_listas):
         with st.form("nuevo_pedido_form"):
             col1, col2 = st.columns(2)
             with col1:
-                producto = st.selectbox("Producto*", [""] + df_listas['Producto'].dropna().unique().tolist(), key="new_producto")
+                producto_options = get_list_options(df_listas, 'Producto')
+                producto = st.selectbox("Producto*", producto_options, key="new_producto")
                 cliente = st.text_input("Cliente*", key="new_cliente")
                 telefono = st.text_input("Teléfono*", key="new_telefono")
                 club = st.text_input("Club", key="new_club")
-                talla = st.selectbox("Talla", [""] + df_listas['Talla'].dropna().unique().tolist(), key="new_talla")
-                tela = st.selectbox("Tela", [""] + df_listas['Tela'].dropna().unique().tolist(), key="new_tela")
+                talla_options = get_list_options(df_listas, 'Talla')
+                talla = st.selectbox("Talla", talla_options, key="new_talla")
+                tela_options = get_list_options(df_listas, 'Tela')
+                tela = st.selectbox("Tela", tela_options, key="new_tela")
                 descripcion = st.text_area("Descripción", key="new_descripcion")
             with col2:
                 fecha_entrada_valor = st.date_input("Fecha entrada*", value=datetime.now().date(), key="new_fecha_entrada")
                 fecha_salida_valor = st.date_input("Fecha salida", value=None, key="new_fecha_salida")
                 precio = st.number_input("Precio*", min_value=0.0, value=0.0, key="new_precio")
                 precio_factura = st.number_input("Precio factura", min_value=0.0, value=0.0, key="new_precio_factura")
-                tipo_pago = st.selectbox("Tipo de pago", [""] + df_listas['Tipo de pago'].dropna().unique().tolist(), key="new_tipo_pago")
+                tipo_pago_options = get_list_options(df_listas, 'Tipo de pago')
+                tipo_pago = st.selectbox("Tipo de pago", tipo_pago_options, key="new_tipo_pago")
                 adelanto = st.number_input("Adelanto", min_value=0.0, value=0.0, key="new_adelanto")
                 observaciones = st.text_area("Observaciones", key="new_observaciones")
             st.write("**Estado del pedido:**")
@@ -90,7 +101,7 @@ def show_pedidos_page(df_pedidos, df_listas):
         with col_f1:
             filtro_cliente = st.text_input("Filtrar por cliente")
         with col_f2:
-            filtro_producto = st.selectbox("Filtrar por producto", [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""])
+            filtro_producto = st.selectbox("Filtrar por producto", get_list_options(df_listas, 'Producto'))
         with col_f3:
             filtro_estado = st.selectbox("Filtrar por estado", ["", "Pendiente", "Empezado", "Terminado", "Cobrado", "Retirado"])
         df_filtrado = df_pedidos.copy()
@@ -146,25 +157,28 @@ def show_pedidos_page(df_pedidos, df_listas):
                 col1_mod, col2_mod = st.columns(2)
                 with col1_mod:
                     st.text_input("ID", value=pedido.get('ID', ''), disabled=True, key="mod_display_id")
+                    producto_options = get_list_options(df_listas, 'Producto')
                     producto = st.selectbox(
                         "Producto*",
-                        [""] + df_listas['Producto'].dropna().unique().tolist(),
-                        index= (df_listas['Producto'].dropna().unique().tolist().index(pedido.get('Producto')) + 1) if pedido.get('Producto') in df_listas['Producto'].dropna().unique().tolist() else 0,
+                        producto_options,
+                        index=producto_options.index(pedido.get('Producto')) if pedido.get('Producto') in producto_options else 0,
                         key="mod_producto"
                     )
                     cliente = st.text_input("Cliente*", value=pedido.get('Cliente', ''), key="mod_cliente")
                     telefono = st.text_input("Teléfono*", value=pedido.get('Telefono', ''), key="mod_telefono")
                     club = st.text_input("Club", value=pedido.get('Club', ''), key="mod_club")
+                    talla_options = get_list_options(df_listas, 'Talla')
                     talla = st.selectbox(
                         "Talla",
-                        [""] + df_listas['Talla'].dropna().unique().tolist(),
-                        index= (df_listas['Talla'].dropna().unique().tolist().index(pedido.get('Talla')) + 1) if pedido.get('Talla') in df_listas['Talla'].dropna().unique().tolist() else 0,
+                        talla_options,
+                        index=talla_options.index(pedido.get('Talla')) if pedido.get('Talla') in talla_options else 0,
                         key="mod_talla"
                     )
+                    tela_options = get_list_options(df_listas, 'Tela')
                     tela = st.selectbox(
                         "Tela",
-                        [""] + df_listas['Tela'].dropna().unique().tolist(),
-                        index= (df_listas['Tela'].dropna().unique().tolist().index(pedido.get('Tela')) + 1) if pedido.get('Tela') in df_listas['Tela'].dropna().unique().tolist() else 0,
+                        tela_options,
+                        index=tela_options.index(pedido.get('Tela')) if pedido.get('Tela') in tela_options else 0,
                         key="mod_tela"
                     )
                     descripcion = st.text_area("Descripción", value=pedido.get('Breve Descripción', ''), key="mod_descripcion")
@@ -183,7 +197,8 @@ def show_pedidos_page(df_pedidos, df_listas):
                     )
                     precio = st.number_input("Precio*", min_value=0.0, value=float(pedido.get('Precio', 0.0)), key="mod_precio")
                     precio_factura = st.number_input("Precio factura", min_value=0.0, value=float(pedido.get('Precio Factura', 0.0)), key="mod_precio_factura")
-                    tipo_pago = st.selectbox("Tipo de pago", [""] + df_listas['Tipo de pago'].dropna().unique().tolist(), index= (df_listas['Tipo de pago'].dropna().unique().tolist().index(pedido.get('Tipo de pago')) + 1) if pedido.get('Tipo de pago') in df_listas['Tipo de pago'].dropna().unique().tolist() else 0, key="mod_tipo_pago")
+                    tipo_pago_options = get_list_options(df_listas, 'Tipo de pago')
+                    tipo_pago = st.selectbox("Tipo de pago", tipo_pago_options, index=tipo_pago_options.index(pedido.get('Tipo de pago')) if pedido.get('Tipo de pago') in tipo_pago_options else 0, key="mod_tipo_pago")
                     adelanto = st.number_input("Adelanto", min_value=0.0, value=float(pedido.get('Adelanto', 0.0)), key="mod_adelanto")
                     observaciones = st.text_area("Observaciones", value=pedido.get('Observaciones', ''), key="mod_observaciones")
                 st.write("**Estado del pedido:**")
