@@ -52,29 +52,22 @@ def load_dataframes_firestore():
     try:
         for key, collection_name in COLLECTION_NAMES.items():
             docs = db.collection(collection_name).stream()
-            records = []
-            
-            for doc in docs:
-                doc_data = doc.to_dict()
-                doc_data['id_documento_firestore'] = doc.id
-                records.append(doc_data)
+            records = [doc.to_dict() for doc in docs]
 
             if records:
                 df = pd.DataFrame(records)
                 
+                # Asegura la existencia de 'id_documento_firestore'
+                df['id_documento_firestore'] = [doc.id for doc in db.collection(collection_name).stream()]
+                
                 for col in df.columns:
-                    # Intenta convertir la columna a tipo datetime, ignorando errores
                     converted_series = pd.to_datetime(df[col], errors='coerce')
-                    
-                    # Verifica si la conversión fue exitosa antes de usar .dt
                     if pd.api.types.is_datetime64_any_dtype(converted_series):
                          df[col] = converted_series.dt.date
                     
-                    # Rellena NaN en columnas booleanas y convierte a bool
                     if col in ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']:
                         df[col] = df[col].fillna(False).astype(bool)
                 
-                # Asegura que la columna ID sea de tipo entero
                 if 'ID' in df.columns:
                     df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype(int)
             else:
@@ -168,6 +161,7 @@ def create_empty_dataframe(collection_name):
             'ID', 'Fecha', 'Concepto', 'Importe', 'Tipo', 'id_documento_firestore'
         ])
     elif collection_name == 'listas':
+        # Definición de columnas para 'listas'
         return pd.DataFrame(columns=[
             'Producto', 'Talla', 'Tela', 'Tipo de pago'
         ])
