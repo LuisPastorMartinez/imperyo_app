@@ -30,16 +30,16 @@ def initialize_firestore():
 db = initialize_firestore()
 
 def convert_to_firestore_types(value):
-    """Convierte tipos de Python a tipos compatibles con Firestore"""
-    if isinstance(value, pd.Timestamp):
+    """Convierte tipos de Python a tipos compatibles con Firestore (CORREGIDO)"""
+    if pd.isna(value) or value is None:
+        return None
+    elif isinstance(value, (pd.Timestamp, datetime)):
         return value.to_pydatetime()
     elif isinstance(value, datetime.date):
         return datetime.combine(value, datetime.min.time())
-    elif pd.isna(value) or value is None:
-        return None
-    elif isinstance(value, (np.int64, np.int32)):
+    elif isinstance(value, (np.int64, np.int32, int)):
         return int(value)
-    elif isinstance(value, (np.float64, np.float32)):
+    elif isinstance(value, (np.float64, np.float32, float)):
         return float(value)
     return value
 
@@ -62,7 +62,6 @@ def load_dataframes_firestore():
             if records:
                 df = pd.DataFrame(records)
                 
-                # Conversión de tipos para pedidos
                 if key == 'pedidos':
                     bool_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
                     for col in bool_cols:
@@ -92,7 +91,6 @@ def save_dataframe_firestore(df, collection_key):
         return False
 
     try:
-        # Convertir tipos antes de guardar
         df = df.copy()
         for col in df.columns:
             df[col] = df[col].apply(convert_to_firestore_types)
@@ -107,7 +105,6 @@ def save_dataframe_firestore(df, collection_key):
                 else:
                     db.collection(collection_name).add(record)
         else:
-            # Para otras colecciones (borrar y recrear)
             batch = db.batch()
             docs = db.collection(collection_name).stream()
             
