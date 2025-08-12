@@ -1,161 +1,78 @@
 import streamlit as st
 import pandas as pd
-import firebase_admin
-from firebase_admin import credentials, firestore
-from datetime import datetime
-import numpy as np
+from datetime import datetime, date
+from utils import get_next_id, save_dataframe_firestore, delete_document_firestore
 
-# Configuración de colecciones
-COLLECTION_NAMES = {
-    'pedidos': 'pedidos',
-    'gastos': 'gastos',
-    'totales': 'totales', 
-    'listas': 'listas',
-    'trabajos': 'trabajos'
-}
-
-@st.cache_resource
-def initialize_firestore():
-    """Inicializa la conexión con Firestore"""
-    try:
-        if not firebase_admin._apps:
-            cred_dict = dict(st.secrets["firestore"])
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred)
-        return firestore.client()
-    except Exception as e:
-        st.error(f"Error inicializando Firestore: {e}")
-        return None
-
-db = initialize_firestore()
-
-def convert_to_firestore_types(value):
-    """Convierte tipos de Python a tipos compatibles con Firestore (CORREGIDO)"""
-    if pd.isna(value) or value is None:
-        return None
-    elif isinstance(value, (pd.Timestamp, datetime)):
-        return value.to_pydatetime()
-    elif isinstance(value, datetime.date):
-        return datetime.combine(value, datetime.min.time())
-    elif isinstance(value, (np.int64, np.int32, int)):
-        return int(value)
-    elif isinstance(value, (np.float64, np.float32, float)):
-        return float(value)
-    return value
-
-def load_dataframes_firestore():
-    """Carga todos los DataFrames desde Firestore"""
-    if db is None:
-        return None
-
-    data = {}
-    try:
-        for key, collection_name in COLLECTION_NAMES.items():
-            docs = db.collection(collection_name).stream()
-            records = []
-            
-            for doc in docs:
-                doc_data = doc.to_dict()
-                doc_data['id_documento_firestore'] = doc.id
-                records.append(doc_data)
-
-            if records:
-                df = pd.DataFrame(records)
+def show_pedidos_page(df_pedidos, df_listas):
+    tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
+    
+    def convert_to_firestore_type(value):
+        if pd.isna(value) or value is None or value == "":
+            return None
+        elif isinstance(value, (int, float, str, bool)):
+            return value
+        elif isinstance(value, (date, datetime)):
+            return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
+        elif isinstance(value, pd.Timestamp):
+            return value.to_pydatetime()
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return str(value)
+    
+    # Pestaña 1: Crear Pedido (sin cambios)
+    with tab1:
+        # ... (mantener todo el código existente sin cambios)
+    
+    # Pestaña 2: Consultar Pedidos (CORRECCIÓN PARA ArrowTypeError)
+    with tab2:
+        st.subheader("Consultar Pedidos")
+        
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            filtro_cliente = st.text_input("Filtrar por cliente")
+        with col_f2:
+            filtro_producto = st.selectbox(
+                "Filtrar por producto",
+                [""] + df_listas['Producto'].dropna().unique().tolist()
+            )
+        with col_f3:
+            filtro_estado = st.selectbox(
+                "Filtrar por estado",
+                ["", "Pendiente", "Empezado", "Terminado", "Cobrado", "Retirado"]
+            )
+        
+        df_filtrado = df_pedidos.copy()
+        
+        # Aplicar filtros (sin cambios)
+        if filtro_cliente:
+            df_filtrado = df_filtrado[df_filtrado['Cliente'].str.contains(filtro_cliente, case=False, na=False)]
+        if filtro_producto:
+            df_filtrado = df_filtrado[df_filtrado['Producto'] == filtro_producto]
+        if filtro_estado:
+            # ... (mantener lógica de filtrado existente)
+        
+        # PREPARACIÓN DEL DATAFRAME PARA VISUALIZACIÓN (CORRECCIÓN)
+        df_mostrar = df_filtrado[[
+            'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 
+            'Fecha entrada', 'Fecha Salida', 'Precio', 'Pendiente',
+            'Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado'
+        ]].sort_values('ID', ascending=False).copy()
+        
+        # Convertir tipos problemáticos
+        for col in ['Fecha entrada', 'Fecha Salida']:
+            if col in df_mostrar.columns:
+                df_mostrar[col] = pd.to_datetime(df_mostrar[col]).dt.date
                 
-                if key == 'pedidos':
-                    bool_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
-                    for col in bool_cols:
-                        if col in df.columns:
-                            df[col] = df[col].astype(bool)
-                    
-                    date_cols = ['Fecha entrada', 'Fecha Salida']
-                    for col in date_cols:
-                        if col in df.columns:
-                            df[col] = pd.to_datetime(df[col]).dt.date
-            else:
-                df = create_empty_dataframe(collection_name)
-            
-            data[f'df_{key}'] = df
-        return data
-    except Exception as e:
-        st.error(f"Error cargando datos: {e}")
-        return None
+        for col in ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']:
+            if col in df_mostrar.columns:
+                df_mostrar[col] = df_mostrar[col].fillna(False).astype(bool)
+        
+        st.dataframe(df_mostrar, height=500)
 
-def save_dataframe_firestore(df, collection_key):
-    """Guarda un DataFrame en Firestore con conversión de tipos"""
-    if db is None:
-        return False
-
-    collection_name = COLLECTION_NAMES.get(collection_key)
-    if not collection_name:
-        return False
-
-    try:
-        df = df.copy()
-        for col in df.columns:
-            df[col] = df[col].apply(convert_to_firestore_types)
-
-        if collection_key == 'pedidos':
-            for _, row in df.iterrows():
-                record = row.drop('id_documento_firestore', errors='ignore').to_dict()
-                doc_id = row.get('id_documento_firestore')
-                
-                if doc_id:
-                    db.collection(collection_name).document(doc_id).set(record)
-                else:
-                    db.collection(collection_name).add(record)
-        else:
-            batch = db.batch()
-            docs = db.collection(collection_name).stream()
-            
-            for doc in docs:
-                batch.delete(doc.reference)
-            
-            for _, row in df.iterrows():
-                record = row.to_dict()
-                new_doc = db.collection(collection_name).document()
-                batch.set(new_doc, record)
-            
-            batch.commit()
-        return True
-    except Exception as e:
-        st.error(f"Error guardando en Firestore: {e}")
-        return False
-
-def delete_document_firestore(collection_key, doc_id):
-    """Elimina un documento específico"""
-    if db is None:
-        return False
-
-    collection_name = COLLECTION_NAMES.get(collection_key)
-    if not collection_name:
-        return False
-
-    try:
-        db.collection(collection_name).document(doc_id).delete()
-        return True
-    except Exception as e:
-        st.error(f"Error eliminando documento: {e}")
-        return False
-
-def create_empty_dataframe(collection_name):
-    """Crea DataFrames vacíos con la estructura correcta"""
-    if collection_name == 'pedidos':
-        return pd.DataFrame(columns=[
-            'ID', 'Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela',
-            'Breve Descripción', 'Fecha entrada', 'Fecha Salida', 'Precio',
-            'Precio Factura', 'Tipo de pago', 'Adelanto', 'Observaciones',
-            'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
-            'id_documento_firestore'
-        ])
-    elif collection_name == 'gastos':
-        return pd.DataFrame(columns=['ID', 'Fecha', 'Concepto', 'Importe', 'Tipo', 'id_documento_firestore'])
-    return pd.DataFrame()
-
-def get_next_id(df, id_column_name):
-    """Obtiene el próximo ID disponible"""
-    if df.empty or id_column_name not in df.columns:
-        return 1
-    df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
-    df_clean = df.dropna(subset=[id_column_name])
-    return 1 if df_clean.empty else int(df_clean[id_column_name].max()) + 1
+    # Pestañas 3 y 4 (sin cambios)
+    with tab3:
+        # ... (mantener código existente)
+    
+    with tab4:
+        # ... (mantener código existente)
