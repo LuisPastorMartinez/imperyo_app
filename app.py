@@ -104,7 +104,8 @@ def unificar_columnas(df):
     
     # Comprobar si la columna existe antes de limpiarla
     if 'Telefono' in df.columns:
-        df['Telefono'] = df['Telefono'].astype(str).str.strip().str.replace(r'[^\d]', '', regex=True)
+        # Rellenar valores nulos con una cadena vacía antes de aplicar el método str.
+        df['Telefono'] = df['Telefono'].fillna('').astype(str).str.strip().str.replace(r'[^\d]', '', regex=True)
 
     # Limpiar columnas de fecha de forma robusta
     for col in ['Fecha entrada', 'Fecha Salida']:
