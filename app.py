@@ -7,10 +7,10 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-# Configuración de paths para imports
-sys.path.append(str(Path(__file__).parent))
+# --- Configuración de paths para imports ---
+sys.path.append(str(Path(__file__).parent))  # Asegura que Python encuentre los módulos en imperyo_app_8_2
 
-# Importaciones desde utils
+# --- Importaciones desde utils ---
 from utils.firestore_utils import (
     load_dataframes_firestore,
     save_dataframe_firestore,
@@ -19,7 +19,7 @@ from utils.firestore_utils import (
 )
 from utils.data_utils import limpiar_telefono, limpiar_fecha
 
-# Importaciones desde pages
+# --- Importaciones desde pages ---
 from pages.pedidos_page import show_pedidos_page
 from pages.gastos_page import show_gastos_page
 from pages.resumen_page import show_resumen_page

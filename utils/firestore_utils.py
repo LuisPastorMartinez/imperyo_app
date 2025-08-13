@@ -1,4 +1,10 @@
 # utils/firestore_utils.py
+import sys
+from pathlib import Path
+
+# Ensure proper imports by adding parent directory to path
+sys.path.append(str(Path(__file__).parent.parent))
+
 import streamlit as st
 import pandas as pd
 import firebase_admin
@@ -138,6 +144,22 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
         st.error(f"Error al guardar {collection_key}. Ver logs.")
         return False
 
+def delete_document_firestore(collection_key: str, doc_id: str) -> bool:
+    """Elimina un documento específico de Firestore."""
+    if db is None:
+        return False
+
+    collection_name = COLLECTION_NAMES.get(collection_key)
+    if not collection_name:
+        return False
+
+    try:
+        db.collection(collection_name).document(doc_id).delete()
+        return True
+    except Exception as e:
+        logger.error(f"Error eliminando documento: {str(e)}")
+        return False
+
 def create_empty_dataframe(collection_name: str) -> pd.DataFrame:
     """Crea DataFrames vacíos con estructura predefinida."""
     schemas = {
@@ -150,6 +172,15 @@ def create_empty_dataframe(collection_name: str) -> pd.DataFrame:
         ],
         'gastos': [
             'ID', 'Fecha', 'Concepto', 'Importe', 'Tipo', 'id_documento_firestore'
+        ],
+        'listas': [
+            'Producto', 'Talla', 'Tela', 'Tipo de pago'
+        ],
+        'trabajos': [
+            'ID', 'Descripcion', 'Estado'
+        ],
+        'totales': [
+            'Mes', 'Total_Pedidos', 'Total_Gastos', 'Balance'
         ]
     }
     return pd.DataFrame(columns=schemas.get(collection_name, []))
