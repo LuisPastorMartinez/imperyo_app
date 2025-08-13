@@ -1,4 +1,3 @@
-# pages/pedidos_page.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
@@ -6,7 +5,7 @@ from utils import get_next_id, save_dataframe_firestore, delete_document_firesto
 
 def show_pedidos_page(df_pedidos, df_listas):
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
-    
+
     def convert_to_firestore_type(value):
         if pd.isna(value) or value is None or value == "":
             return None
@@ -20,13 +19,13 @@ def show_pedidos_page(df_pedidos, df_listas):
             return float(value)
         except (ValueError, TypeError):
             return str(value)
-    
+
     # ==============================================
     # Pestaña 1: Crear Pedido
     # ==============================================
     with tab1:
         st.subheader("Crear Nuevo Pedido")
-        
+
         # Autocompletado: obtener valores únicos de la base
         clientes_existentes = sorted(df_pedidos['Cliente'].dropna().unique())
         telefonos_existentes = sorted(df_pedidos['Telefono'].dropna().unique())
@@ -34,7 +33,7 @@ def show_pedidos_page(df_pedidos, df_listas):
 
         with st.form("nuevo_pedido_form"):
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 producto = st.selectbox(
                     "Producto*",
@@ -79,7 +78,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                     key="new_tela"
                 )
                 descripcion = st.text_area("Descripción", key="new_descripcion")
-            
+
             with col2:
                 fecha_entrada = st.date_input(
                     "Fecha entrada*",
@@ -110,7 +109,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                     key="new_adelanto"
                 )
                 observaciones = st.text_area("Observaciones", key="new_observaciones")
-            
+
             st.write("**Estado del pedido:**")
             estado_cols = st.columns(5)
             with estado_cols[0]:
@@ -123,7 +122,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                 retirado = st.checkbox("Retirado", value=False, key="new_retirado")
             with estado_cols[4]:
                 pendiente = st.checkbox("Pendiente", value=True, key="new_pendiente")
-            
+
             if st.form_submit_button("Guardar Nuevo Pedido"):
                 # Validación solo Cliente/Telefono/Club/Producto/Fecha entrada obligatorios
                 if not cliente_final or not telefono_final or not club_final or not producto or not fecha_entrada:
@@ -153,10 +152,10 @@ def show_pedidos_page(df_pedidos, df_listas):
                         'Pendiente': convert_to_firestore_type(pendiente),
                         'id_documento_firestore': None
                     }
-                    
+
                     new_pedido_df = pd.DataFrame([new_pedido])
                     df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
-                    
+
                     if save_dataframe_firestore(df_pedidos, 'pedidos'):
                         st.success(f"Pedido {new_id} creado correctamente!")
                         st.session_state.data['df_pedidos'] = df_pedidos
