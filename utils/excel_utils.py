@@ -2,10 +2,16 @@
 import streamlit as st
 import pandas as pd
 import os
+from pathlib import Path
+from typing import Optional, Dict
+import logging
 from .data_utils import get_next_id
 
-# Configuración de rutas y nombres de hojas
-EXCEL_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "2025_1 Gastos.xlsm")
+logger = logging.getLogger(__name__)
+
+# Configuración dinámica
+def get_excel_path(year: int, month: int) -> Path:
+    return Path(__file__).parent.parent / "data" / f"{year}_{month}_Gastos.xlsm"
 
 SHEET_NAMES = {
     'pedidos': 'Pedidos',
@@ -15,37 +21,78 @@ SHEET_NAMES = {
     'trabajos': 'Trabajos'
 }
 
+REQUIRED_COLUMNS = {
+    'pedidos': ['ID', 'Cliente', 'Producto'],
+    'gastos': ['Fecha', 'Concepto', 'Importe']
+}
+
 @st.cache_data(ttl=600)
-def load_dataframes_local():
-    """Carga dataframes desde archivo Excel local"""
-    if not os.path.exists(EXCEL_FILE_PATH):
-        st.error(f"Error: Archivo Excel no encontrado en {EXCEL_FILE_PATH}")
-        return None
+def load_dataframes_local(year: int, month: int) -> Optional[Dict[str, pd.DataFrame]]:
+    """Carga dataframes desde Excel con validación de estructura."""
+    excel_path = get_excel_path(year, month)
     
-    try:
-        data = {}
-        for key, sheet_name in SHEET_NAMES.items():
-            data[f'df_{key}'] = pd.read_excel(EXCEL_FILE_PATH, sheet_name=sheet_name)
-        return data
-    except Exception as e:
-        st.error(f"Error al cargar Excel: {e}")
+    if not excel_path.exists():
+        logger.error(f"Archivo no encontrado: {excel_path}")
+        st.error("Archivo Excel no disponible")
         return None
 
-def save_dataframe_local(df, sheet_key):
-    """Guarda un dataframe en una hoja específica del Excel"""
+    try:
+        data = {}
+        with pd.ExcelFile(excel_path) as xls:
+            for key, sheet_name in SHEET_NAMES.items():
+                if sheet_name not in xls.sheet_names:
+                    logger.warning(f"Hoja {sheet_name} no encontrada")
+                    data[f'df_{key}'] = pd.DataFrame(columns=REQUIRED_COLUMNS.get(key, []))
+                    continue
+                
+                df = pd.read_excel(xls, sheet_name=sheet_name)
+                missing_cols = [
+                    col for col in REQUIRED_COLUMNS.get(key, [])
+                    if col not in df.columns
+                ]
+                
+                if missing_cols:
+                    logger.error(f"Faltan columnas en {sheet_name}: {missing_cols}")
+                    st.warning(f"Estructura inválida en {sheet_name}")
+                    continue
+                
+                data[f'df_{key}'] = df
+        
+        return data if data else None
+    
+    except Exception as e:
+        logger.error(f"Error cargando Excel: {str(e)}")
+        st.error("Error al procesar archivo")
+        return None
+
+def save_dataframe_local(
+    df: pd.DataFrame,
+    sheet_key: str,
+    year: int,
+    month: int
+) -> bool:
+    """Guarda un DataFrame en Excel preservando otras hojas."""
+    excel_path = get_excel_path(year, month)
     sheet_name = SHEET_NAMES.get(sheet_key)
+    
     if not sheet_name:
-        st.error(f"Hoja '{sheet_key}' no reconocida")
+        logger.error(f"Clave {sheet_key} no válida")
         return False
 
     try:
-        existing_sheets = pd.read_excel(EXCEL_FILE_PATH, sheet_name=None)
+        # Leer todas las hojas existentes
+        existing_sheets = pd.read_excel(excel_path, sheet_name=None)
+        
+        # Actualizar la hoja objetivo
         existing_sheets[sheet_name] = df
         
-        with pd.ExcelWriter(EXCEL_FILE_PATH, engine='openpyxl') as writer:
-            for sheet_name_to_write, df_to_write in existing_sheets.items():
-                df_to_write.to_excel(writer, sheet_name=sheet_name_to_write, index=False)
+        # Guardar todas las hojas
+        with pd.ExcelWriter(excel_path, engine='openpyxl') as writer:
+            for name, df_sheet in existing_sheets.items():
+                df_sheet.to_excel(writer, sheet_name=name, index=False)
+        
         return True
     except Exception as e:
-        st.error(f"Error al guardar Excel: {e}")
+        logger.error(f"Error guardando Excel: {str(e)}")
+        st.error("Error al guardar cambios")
         return False

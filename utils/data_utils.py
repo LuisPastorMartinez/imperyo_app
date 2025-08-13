@@ -2,52 +2,89 @@
 import re
 import pandas as pd
 from datetime import datetime
+from typing import Optional, Union
+import logging
 
-def limpiar_telefono(numero):
-    """Convierte el número a string y limpia formatos, manteniendo 9 dígitos"""
-    if pd.isna(numero) or numero == "":
+logger = logging.getLogger(__name__)
+
+def validar_telefono(numero: Union[str, int, float]) -> Optional[str]:
+    """Valida y limpia números de teléfono internacionales o nacionales.
+    
+    Args:
+        numero: Input que puede ser string, número o NaN
+        
+    Returns:
+        Número limpio o None si no es válido
+    """
+    if pd.isna(numero) or not str(numero).strip():
         return None
     
-    numero_limpio = re.sub(r'[^0-9]', '', str(numero))
+    numero_limpio = re.sub(r'[^\d+]', '', str(numero))
     
-    if len(numero_limpio) == 9:
-        return numero_limpio
-    elif len(numero_limpio) > 9:
-        return numero_limpio[:9]
+    # Validar formatos internacionales (+XX...) o nacionales (9 dígitos)
+    patron = (
+        r'^(\+?\d{1,3}?[-.\s]?)?'  # Código país
+        r'(\(?\d{1,4}\)?[-.\s]?)?'  # Prefijo
+        r'\d{3}[-.\s]?\d{3,4}$'     # Número principal
+    )
     
+    if re.match(patron, numero_limpio):
+        return numero_limpio[:15]  # Limitar longitud
     return None
 
-def limpiar_fecha(fecha):
-    """Convierte la fecha a formato date (sin hora)"""
-    if pd.isna(fecha) or fecha == "":
+def limpiar_fecha(fecha: Union[str, datetime, pd.Timestamp, date]) -> Optional[date]:
+    """Convierte múltiples formatos de fecha a objeto date.
+    
+    Formatos soportados:
+    - ISO (2023-12-31)
+    - Español (31/12/2023)
+    - Timestamps de pandas/datetime
+    - Fechas como strings con/sin hora
+    """
+    if pd.isna(fecha) or not fecha:
         return None
+
+    formatos = [
+        '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y',
+        '%d-%m-%Y', '%Y%m%d', '%d.%m.%Y',
+        '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S'
+    ]
     
     try:
-        if isinstance(fecha, str):
-            if 'T' in fecha:
-                return datetime.strptime(fecha.split('T')[0], '%Y-%m-%d').date()
-            elif ' ' in fecha:
-                return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
-            elif '/' in fecha:
-                return datetime.strptime(fecha, '%d/%m/%Y').date()
-            else:
-                return datetime.strptime(fecha, '%Y-%m-%d').date()
-        elif hasattr(fecha, 'date'):
+        if isinstance(fecha, (datetime, pd.Timestamp)):
             return fecha.date()
-    except:
-        return None
+        elif isinstance(fecha, date):
+            return fecha
+            
+        fecha_str = str(fecha).split('T')[0].split()[0]
+        
+        for fmt in formatos:
+            try:
+                return datetime.strptime(fecha_str, fmt).date()
+            except ValueError:
+                continue
+    except Exception as e:
+        logger.error(f"Error limpiando fecha {fecha}: {str(e)}")
     
     return None
 
-def get_next_id(df, id_column_name):
-    """
-    Encuentra el siguiente ID disponible buscando el máximo ID existente
-    en un DataFrame y sumando 1. Si el DataFrame está vacío, comienza desde 1.
+def get_next_id(df: pd.DataFrame, id_column_name: str) -> int:
+    """Obtiene el siguiente ID disponible en un DataFrame.
+    
+    Args:
+        df: DataFrame a analizar
+        id_column_name: Nombre de la columna de ID
+        
+    Returns:
+        Entero con el siguiente ID disponible
     """
     if df.empty or id_column_name not in df.columns:
         return 1
-    df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
-    df_clean = df.dropna(subset=[id_column_name])
-    if df_clean.empty:
+    
+    try:
+        df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
+        max_id = df[id_column_name].max()
+        return int(max_id) + 1 if not pd.isna(max_id) else 1
+    except Exception as e:
+        logger.error(f"Error calculando next ID: {str(e)}")
         return 1
-    return int(df_clean[id_column_name].max()) + 1
