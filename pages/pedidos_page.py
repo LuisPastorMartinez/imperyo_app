@@ -8,15 +8,11 @@ logger = logging.getLogger(__name__)
 
 def convert_to_firestore_type(value):
     """Convierte los valores a tipos compatibles con Firestore"""
-    # Importación local para evitar errores de tipos
-    from datetime import date, datetime
-
     if pd.isna(value) or value is None or value == "":
         return None
 
     # Manejo de fechas
-    if isinstance(value, (date, datetime)):
-        # Firestore espera datetime, no solo date
+    if isinstance(value, (datetime, date)):
         return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
 
     # Manejo de booleanos
@@ -31,7 +27,6 @@ def convert_to_firestore_type(value):
     return str(value)
 
 def show_pedidos_page(df_pedidos, df_listas):
-    # Configuración de pestañas
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
 
     # ===== Pestaña 1: Crear Pedido =====
@@ -164,7 +159,6 @@ def show_pedidos_page(df_pedidos, df_listas):
     # ===== Pestaña 2: Consultar Pedidos =====
     with tab2:
         st.subheader("Consultar Pedidos")
-        # Puedes filtrar por cliente, producto, estado, etc.
         st.dataframe(df_pedidos)
 
     # ===== Pestaña 3: Modificar Pedido =====
