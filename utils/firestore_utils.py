@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import firebase_admin
-from firebase_admin import credentials, firestore, firestore_async
+from firebase_admin import credentials, firestore
 from datetime import datetime, date
 import numpy as np
 import logging
