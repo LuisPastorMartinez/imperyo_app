@@ -7,84 +7,47 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def validar_telefono(numero: Union[str, int, float]) -> Optional[str]:
-    """Valida y limpia números de teléfono internacionales o nacionales.
-    
-    Args:
-        numero: Input que puede ser string, número o NaN
-        
-    Returns:
-        Número limpio o None si no es válido
-    """
-    if pd.isna(numero) or not str(numero).strip():
+def limpiar_telefono(numero: Union[str, int, float]) -> Optional[str]:
+    """Limpia y valida números telefónicos"""
+    if pd.isna(numero) or numero == "":
         return None
     
+    # Elimina todo excepto dígitos y signo +
     numero_limpio = re.sub(r'[^\d+]', '', str(numero))
     
-    # Validar formatos internacionales (+XX...) o nacionales (9 dígitos)
-    patron = (
-        r'^(\+?\d{1,3}?[-.\s]?)?'  # Código país
-        r'(\(?\d{1,4}\)?[-.\s]?)?'  # Prefijo
-        r'\d{3}[-.\s]?\d{3,4}$'     # Número principal
-    )
-    
-    if re.match(patron, numero_limpio):
-        return numero_limpio[:15]  # Limitar longitud
+    # Validación básica (ajusta según tu país)
+    if 8 <= len(numero_limpio) <= 15:
+        return numero_limpio
     return None
 
-def limpiar_fecha(fecha: Union[str, datetime, pd.Timestamp, date]) -> Optional[date]:
-    """Convierte múltiples formatos de fecha a objeto date.
-    
-    Formatos soportados:
-    - ISO (2023-12-31)
-    - Español (31/12/2023)
-    - Timestamps de pandas/datetime
-    - Fechas como strings con/sin hora
-    """
+def limpiar_fecha(fecha: Union[str, date, datetime, pd.Timestamp]) -> Optional[date]:
+    """Normaliza diferentes formatos de fecha a date"""
     if pd.isna(fecha) or not fecha:
         return None
 
-    formatos = [
-        '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y',
-        '%d-%m-%Y', '%Y%m%d', '%d.%m.%Y',
-        '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S'
-    ]
-    
     try:
         if isinstance(fecha, (datetime, pd.Timestamp)):
             return fecha.date()
-        elif isinstance(fecha, date):
+        if isinstance(fecha, date):
             return fecha
             
-        fecha_str = str(fecha).split('T')[0].split()[0]
-        
-        for fmt in formatos:
+        # Intenta parsear diferentes formatos
+        str_fecha = str(fecha).strip()
+        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y'):
             try:
-                return datetime.strptime(fecha_str, fmt).date()
+                return datetime.strptime(str_fecha, fmt).date()
             except ValueError:
                 continue
     except Exception as e:
-        logger.error(f"Error limpiando fecha {fecha}: {str(e)}")
+        logger.error(f"Error limpiando fecha: {str(e)}")
     
     return None
 
-def get_next_id(df: pd.DataFrame, id_column_name: str) -> int:
-    """Obtiene el siguiente ID disponible en un DataFrame.
-    
-    Args:
-        df: DataFrame a analizar
-        id_column_name: Nombre de la columna de ID
-        
-    Returns:
-        Entero con el siguiente ID disponible
-    """
-    if df.empty or id_column_name not in df.columns:
+def get_next_id(df: pd.DataFrame, id_column: str) -> int:
+    """Obtiene el próximo ID disponible"""
+    if df.empty or id_column not in df.columns:
         return 1
-    
     try:
-        df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
-        max_id = df[id_column_name].max()
-        return int(max_id) + 1 if not pd.isna(max_id) else 1
-    except Exception as e:
-        logger.error(f"Error calculando next ID: {str(e)}")
+        return int(df[id_column].max()) + 1
+    except:
         return 1
