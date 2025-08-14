@@ -1,53 +1,53 @@
 # utils/data_utils.py
 import re
 import pandas as pd
-from datetime import datetime, date
-from typing import Optional, Union
-import logging
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
-
-def limpiar_telefono(numero: Union[str, int, float]) -> Optional[str]:
-    """Limpia y valida números telefónicos"""
+def limpiar_telefono(numero):
+    """Convierte el número a string y limpia formatos, manteniendo 9 dígitos"""
     if pd.isna(numero) or numero == "":
         return None
     
-    # Elimina todo excepto dígitos y signo +
-    numero_limpio = re.sub(r'[^\d+]', '', str(numero))
+    numero_limpio = re.sub(r'[^0-9]', '', str(numero))
     
-    # Validación básica (ajusta según tu país)
-    if 8 <= len(numero_limpio) <= 15:
+    if len(numero_limpio) == 9:
         return numero_limpio
-    return None
-
-def limpiar_fecha(fecha: Union[str, date, datetime, pd.Timestamp]) -> Optional[date]:
-    """Normaliza diferentes formatos de fecha a date"""
-    if pd.isna(fecha) or not fecha:
-        return None
-
-    try:
-        if isinstance(fecha, (datetime, pd.Timestamp)):
-            return fecha.date()
-        if isinstance(fecha, date):
-            return fecha
-            
-        # Intenta parsear diferentes formatos
-        str_fecha = str(fecha).strip()
-        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d-%m-%Y'):
-            try:
-                return datetime.strptime(str_fecha, fmt).date()
-            except ValueError:
-                continue
-    except Exception as e:
-        logger.error(f"Error limpiando fecha: {str(e)}")
+    elif len(numero_limpio) > 9:
+        return numero_limpio[:9]
     
     return None
 
-def get_next_id(df: pd.DataFrame, id_column: str) -> int:
-    """Obtiene el próximo ID disponible"""
-    if df.empty or id_column not in df.columns:
-        return 1
+def limpiar_fecha(fecha):
+    """Convierte la fecha a formato date (sin hora)"""
+    if pd.isna(fecha) or fecha == "":
+        return None
+    
     try:
-        return int(df[id_column].max()) + 1
+        if isinstance(fecha, str):
+            if 'T' in fecha:
+                return datetime.strptime(fecha.split('T')[0], '%Y-%m-%d').date()
+            elif ' ' in fecha:
+                return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
+            elif '/' in fecha:
+                return datetime.strptime(fecha, '%d/%m/%Y').date()
+            else:
+                return datetime.strptime(fecha, '%Y-%m-%d').date()
+        elif hasattr(fecha, 'date'):
+            return fecha.date()
     except:
+        return None
+    
+    return None
+
+def get_next_id(df, id_column_name):
+    """
+    Encuentra el siguiente ID disponible buscando el máximo ID existente
+    en un DataFrame y sumando 1. Si el DataFrame está vacío, comienza desde 1.
+    """
+    if df.empty or id_column_name not in df.columns:
         return 1
+    df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
+    df_clean = df.dropna(subset=[id_column_name])
+    if df_clean.empty:
+        return 1
+    return int(df_clean[id_column_name].max()) + 1
