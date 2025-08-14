@@ -1,8 +1,7 @@
-# utils/__init__.py
 from .data_utils import (
     limpiar_telefono,
     limpiar_fecha,
-    get_next_id
+    get_next_id  # Asegúrate que esta función existe en data_utils.py
 )
 from .firestore_utils import (
     load_dataframes_firestore,
