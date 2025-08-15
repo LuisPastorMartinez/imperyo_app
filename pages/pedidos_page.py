@@ -15,7 +15,7 @@ def show_pedidos_page(df_pedidos, df_listas):
             return None
         elif isinstance(value, (int, float, str, bool)):
             return value
-        elif isinstance(value, (date, datetime)):  # Maneja tanto date como datetime
+        elif isinstance(value, (date, datetime)):
             return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
         elif isinstance(value, pd.Timestamp):
             return value.to_pydatetime()
