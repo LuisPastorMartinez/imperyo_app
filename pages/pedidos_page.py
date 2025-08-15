@@ -41,7 +41,11 @@ def show_pedidos_page(df_pedidos, df_listas):
                 )
                 cliente = st.text_input("Cliente*", key="new_cliente")
                 telefono = st.text_input("Teléfono*", key="new_telefono")
-                club = st.text_input("Club*", key="new_club")
+                club = st.selectbox(
+                    "Club*",
+                    [""] + df_listas['Club'].dropna().unique().tolist(),
+                    key="new_club"
+                )
                 talla = st.selectbox(
                     "Talla",
                     [""] + df_listas['Talla'].dropna().unique().tolist(),
@@ -223,7 +227,12 @@ def show_pedidos_page(df_pedidos, df_listas):
                     )
                     cliente = st.text_input("Cliente*", value=pedido['Cliente'], key="mod_cliente")
                     telefono = st.text_input("Teléfono*", value=pedido['Telefono'], key="mod_telefono")
-                    club = st.text_input("Club*", value=pedido['Club'], key="mod_club")
+                    club = st.selectbox(
+                        "Club*",
+                        [""] + df_listas['Club'].dropna().unique().tolist(),
+                        index=0 if pd.isna(pedido['Club']) else df_listas['Club'].tolist().index(pedido['Club']),
+                        key="mod_club"
+                    )
                     talla = st.selectbox(
                         "Talla",
                         [""] + df_listas['Talla'].dropna().unique().tolist(),
