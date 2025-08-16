@@ -41,7 +41,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                 )
                 cliente = st.text_input("Cliente*", key="new_cliente")
                 telefono = st.text_input("Teléfono*", key="new_telefono")
-                club = st.text_input("Club", key="new_club")
+                club = st.text_input("Club*", key="new_club")
                 talla = st.selectbox(
                     "Talla",
                     [""] + df_listas['Talla'].dropna().unique().tolist(),
@@ -56,7 +56,7 @@ def show_pedidos_page(df_pedidos, df_listas):
             
             with col2:
                 fecha_entrada = st.date_input(
-                    "Fecha entrada*", 
+                    "Fecha entrada", 
                     value=datetime.now(),
                     key="new_fecha_entrada"
                 )
@@ -65,7 +65,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                     value=None,
                     key="new_fecha_salida"
                 )
-                precio = st.number_input("Precio*", min_value=0.0, value=0.0, key="new_precio")
+                precio = st.number_input("Precio", min_value=0.0, value=0.0, key="new_precio")
                 precio_factura = st.number_input(
                     "Precio factura", 
                     min_value=0.0, 
@@ -97,10 +97,10 @@ def show_pedidos_page(df_pedidos, df_listas):
             with estado_cols[3]:
                 retirado = st.checkbox("Retirado", value=False, key="new_retirado")
             with estado_cols[4]:
-                pendiente = st.checkbox("Pendiente", value=True, key="new_pendiente")
+                pendiente = st.checkbox("Pendiente", value=False, key="new_pendiente")
             
             if st.form_submit_button("Guardar Nuevo Pedido"):
-                if not cliente or not telefono or not producto or precio <= 0:
+                if not cliente or not telefono or not producto or club <= 0:
                     st.error("Por favor complete los campos obligatorios (*)")
                 else:
                     new_id = get_next_id(df_pedidos, 'ID')
