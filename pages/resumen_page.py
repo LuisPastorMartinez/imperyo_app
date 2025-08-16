@@ -6,21 +6,19 @@ def highlight_pedidos_rows(row):
     """Función para resaltar filas según su estado"""
     styles = [''] * len(row)
     
-    empezado = row.get('Inicio Trabajo', False)
-    terminado = row.get('Trabajo Terminado', False)
-    cobrado = row.get('Cobrado', False)
-    retirado = row.get('Retirado', False)
     pendiente = row.get('Pendiente', False)
-
-    # Lógica de colores mejorada
+    terminado = row.get('Trabajo Terminado', False)
+    retirado = row.get('Retirado', False)
+    
+    # Lógica de colores priorizando pendientes
     if pendiente:
-        styles = ['background-color: #FF00FF'] * len(row)  # Morado para pendientes
-    elif empezado and not pendiente:
+        styles = ['background-color: #FF00FF'] * len(row)  # Morado siempre para pendientes
+    elif terminado and retirado:
+        styles = ['background-color: #00B050'] * len(row)  # Verde para terminados+retirados
+    elif terminado:
+        styles = ['background-color: #FFC000'] * len(row)  # Amarillo para solo terminados
+    elif row.get('Inicio Trabajo', False):
         styles = ['background-color: #0070C0'] * len(row)  # Azul para empezados no pendientes
-    elif terminado and not pendiente:
-        styles = ['background-color: #FFC000'] * len(row)  # Amarillo para terminados
-    elif cobrado and retirado:
-        styles = ['background-color: #00B050'] * len(row)  # Verde para completados
 
     return styles
 
@@ -28,25 +26,25 @@ def show_resumen_page(df_pedidos, current_view):
     """Muestra la página de resumen con filtros mejorados"""
     st.header("Resumen de Pedidos")
     
-    # Filtrado mejorado
+    # Filtrado mejorado con prioridad a pendientes
     if current_view == "Todos los Pedidos":
         filtered_df = df_pedidos.copy()
         st.subheader("Todos los Pedidos")
     elif current_view == "Trabajos Empezados":
         filtered_df = df_pedidos[
             (df_pedidos['Inicio Trabajo'] == True) & 
-            (df_pedidos['Pendiente'] == False)
+            (df_pedidos['Pendiente'] == False)  # Excluye pendientes
         ]
         st.subheader("Trabajos Empezados (no pendientes)")
     elif current_view == "Trabajos Terminados":
         filtered_df = df_pedidos[
             (df_pedidos['Trabajo Terminado'] == True) & 
-            (df_pedidos['Pendiente'] == False)
+            (df_pedidos['Pendiente'] == False)  # Excluye pendientes
         ]
         st.subheader("Trabajos Terminados (no pendientes)")
     elif current_view == "Pedidos Pendientes":
         filtered_df = df_pedidos[df_pedidos['Pendiente'] == True]
-        st.subheader("Pedidos Pendientes")
+        st.subheader("Pedidos Pendientes (morado siempre)")
     elif current_view == "Pedidos sin estado específico":
         filtered_df = df_pedidos[
             (df_pedidos['Inicio Trabajo'] == False) & 
@@ -60,29 +58,21 @@ def show_resumen_page(df_pedidos, current_view):
 
     # Mostrar resultados
     if not filtered_df.empty:
-        # Columnas a mostrar (en orden específico)
-        base_cols = [
+        # Columnas base + columnas de estado
+        column_order = [
             'ID', 'Producto', 'Cliente', 'Club', 'Telefono',
-            'Fecha entrada', 'Fecha Salida', 'Precio'
+            'Fecha entrada', 'Fecha Salida', 'Precio',
+            'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Pendiente'
         ]
         
-        # Columnas de estado (si existen)
-        estado_cols = [
-            'Inicio Trabajo', 'Trabajo Terminado', 
-            'Cobrado', 'Retirado', 'Pendiente'
-        ]
+        # Filtrar columnas existentes
+        cols_to_show = [col for col in column_order if col in filtered_df.columns]
         
-        # Asegurar que las columnas existan
-        cols_to_show = [col for col in base_cols if col in filtered_df.columns]
-        cols_to_show += [col for col in estado_cols if col in filtered_df.columns]
-        
-        # Ordenar y mostrar
-        filtered_df = filtered_df.sort_values('ID', ascending=False)
+        # Ordenar por ID descendente y mostrar
         st.dataframe(
-            filtered_df[cols_to_show].style.apply(
-                highlight_pedidos_rows,
-                axis=1
-            ),
+            filtered_df[cols_to_show]
+            .sort_values('ID', ascending=False)
+            .style.apply(highlight_pedidos_rows, axis=1),
             height=600
         )
     else:
