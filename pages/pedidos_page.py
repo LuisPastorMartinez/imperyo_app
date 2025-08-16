@@ -15,7 +15,7 @@ def show_pedidos_page(df_pedidos, df_listas):
             return None
         elif isinstance(value, (int, float, str, bool)):
             return value
-        elif isinstance(value, (date, datetime)):
+        elif isinstance(value, (date, datetime)):  # Maneja tanto date como datetime
             return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
         elif isinstance(value, pd.Timestamp):
             return value.to_pydatetime()
@@ -41,11 +41,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                 )
                 cliente = st.text_input("Cliente*", key="new_cliente")
                 telefono = st.text_input("Teléfono*", key="new_telefono")
-                club = st.selectbox(
-                    "Club*",
-                    [""] + df_listas['Club'].dropna().unique().tolist(),
-                    key="new_club"
-                )
+                club = st.text_input("Club", key="new_club")
                 talla = st.selectbox(
                     "Talla",
                     [""] + df_listas['Talla'].dropna().unique().tolist(),
@@ -69,7 +65,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                     value=None,
                     key="new_fecha_salida"
                 )
-                precio = st.number_input("Precio", min_value=0.0, value=0.0, key="new_precio")
+                precio = st.number_input("Precio*", min_value=0.0, value=0.0, key="new_precio")
                 precio_factura = st.number_input(
                     "Precio factura", 
                     min_value=0.0, 
@@ -104,7 +100,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                 pendiente = st.checkbox("Pendiente", value=True, key="new_pendiente")
             
             if st.form_submit_button("Guardar Nuevo Pedido"):
-                if not cliente or not telefono or not producto or not club:
+                if not cliente or not telefono or not producto or precio <= 0:
                     st.error("Por favor complete los campos obligatorios (*)")
                 else:
                     new_id = get_next_id(df_pedidos, 'ID')
@@ -227,12 +223,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                     )
                     cliente = st.text_input("Cliente*", value=pedido['Cliente'], key="mod_cliente")
                     telefono = st.text_input("Teléfono*", value=pedido['Telefono'], key="mod_telefono")
-                    club = st.selectbox(
-                        "Club*",
-                        [""] + df_listas['Club'].dropna().unique().tolist(),
-                        index=0 if pd.isna(pedido['Club']) else df_listas['Club'].tolist().index(pedido['Club']),
-                        key="mod_club"
-                    )
+                    club = st.text_input("Club", value=pedido['Club'], key="mod_club")
                     talla = st.selectbox(
                         "Talla",
                         [""] + df_listas['Talla'].dropna().unique().tolist(),
@@ -258,7 +249,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                         value=pedido['Fecha Salida'] if not pd.isna(pedido['Fecha Salida']) else None,
                         key="mod_fecha_salida"
                     )
-                    precio = st.number_input("Precio", min_value=0.0, value=float(pedido['Precio']), key="mod_precio")
+                    precio = st.number_input("Precio*", min_value=0.0, value=float(pedido['Precio']), key="mod_precio")
                     precio_factura = st.number_input(
                         "Precio factura", 
                         min_value=0.0, 
@@ -295,7 +286,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                 
                 if st.form_submit_button("Guardar Cambios"):
                     # Validación de campos obligatorios
-                    if not cliente or not telefono or not club:
+                    if not cliente or not telefono or precio <= 0:
                         st.error("Por favor complete los campos obligatorios (*)")
                     else:
                         # Actualizar los datos del pedido con conversión segura de tipos
