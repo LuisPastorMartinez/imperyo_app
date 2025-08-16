@@ -29,7 +29,8 @@ def clean_dataframe(df):
     date_cols = [col for col in df.columns if 'Fecha' in col]
     bool_cols = ['Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado', 'Pendiente']
     num_cols = ['Precio', 'Precio Factura', 'Adelanto']
-    str_cols = ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 'Breve Descripción', 'Tipo de pago', 'Observaciones']
+    str_cols = ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 
+               'Breve Descripción', 'Tipo de pago', 'Observaciones']
     
     for col in df.columns:
         if col in date_cols:
@@ -48,7 +49,12 @@ def show_pedidos_page(df_pedidos, df_listas):
     df_pedidos = clean_dataframe(df_pedidos)
     
     # Pestañas principales
-    tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Crear Pedido", 
+        "Consultar Pedidos", 
+        "Modificar Pedido", 
+        "Eliminar Pedido"
+    ])
 
     # ========== CREAR PEDIDO ==========
     with tab1:
@@ -58,31 +64,66 @@ def show_pedidos_page(df_pedidos, df_listas):
             col1, col2 = st.columns(2)
             
             with col1:
-                producto = st.selectbox("Producto*", [""] + df_listas['Producto'].dropna().unique().tolist())
+                producto = st.selectbox(
+                    "Producto*", 
+                    options=[""] + df_listas['Producto'].dropna().unique().tolist()
+                )
                 cliente = st.text_input("Cliente*")
                 telefono = st.text_input("Teléfono*")
                 club = st.text_input("Club*")
-                talla = st.selectbox("Talla", [""] + df_listas['Talla'].dropna().unique().tolist())
-                tela = st.selectbox("Tela", [""] + df_listas['Tela'].dropna().unique().tolist())
+                talla = st.selectbox(
+                    "Talla", 
+                    options=[""] + df_listas['Talla'].dropna().unique().tolist()
+                )
+                tela = st.selectbox(
+                    "Tela", 
+                    options=[""] + df_listas['Tela'].dropna().unique().tolist()
+                )
                 descripcion = st.text_area("Descripción")
             
             with col2:
-                fecha_entrada = st.date_input("Fecha entrada*", datetime.now())
+                fecha_entrada = st.date_input(
+                    "Fecha entrada*", 
+                    value=datetime.now()
+                )
                 fecha_salida = st.date_input("Fecha salida")
-                precio = st.number_input("Precio*", min_value=0.0, value=0.0, step=0.01)
-                precio_factura = st.number_input("Precio factura", min_value=0.0, value=0.0, step=0.01)
-                tipo_pago = st.selectbox("Tipo de pago", [""] + df_listas['Tipo de pago'].dropna().unique().tolist())
-                adelanto = st.number_input("Adelanto", min_value=0.0, value=0.0, step=0.01)
+                precio = st.number_input(
+                    "Precio*", 
+                    min_value=0.0, 
+                    value=0.0, 
+                    step=0.01
+                )
+                precio_factura = st.number_input(
+                    "Precio factura", 
+                    min_value=0.0, 
+                    value=0.0, 
+                    step=0.01
+                )
+                tipo_pago = st.selectbox(
+                    "Tipo de pago", 
+                    options=[""] + df_listas['Tipo de pago'].dropna().unique().tolist()
+                )
+                adelanto = st.number_input(
+                    "Adelanto", 
+                    min_value=0.0, 
+                    value=0.0, 
+                    step=0.01
+                )
                 observaciones = st.text_area("Observaciones")
             
             # Estado del pedido
             st.write("**Estado del pedido:**")
             cols_estado = st.columns(5)
-            with cols_estado[0]: empezado = st.checkbox("Empezado")
-            with cols_estado[1]: terminado = st.checkbox("Terminado")
-            with cols_estado[2]: cobrado = st.checkbox("Cobrado")
-            with cols_estado[3]: retirado = st.checkbox("Retirado")
-            with cols_estado[4]: pendiente = st.checkbox("Pendiente")
+            with cols_estado[0]: 
+                empezado = st.checkbox("Empezado")
+            with cols_estado[1]: 
+                terminado = st.checkbox("Terminado")
+            with cols_estado[2]: 
+                cobrado = st.checkbox("Cobrado")
+            with cols_estado[3]: 
+                retirado = st.checkbox("Retirado")
+            with cols_estado[4]: 
+                pendiente = st.checkbox("Pendiente")
             
             if st.form_submit_button("Guardar Pedido"):
                 if not all([cliente, telefono, producto, club, precio > 0]):
@@ -124,11 +165,13 @@ def show_pedidos_page(df_pedidos, df_listas):
                             st.success(f"✅ Pedido {new_id} creado!")
                             st.session_state.data['df_pedidos'] = df_pedidos
                             st.rerun()
-                        else:
-                            st.error("❌ Error al guardar")
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
 
+    # [Resto del código de las otras pestañas...]
+    # ... (las otras pestañas permanecen igual)
+
+    
     # ========== CONSULTAR PEDIDOS ==========
     with tab2:
         st.subheader("Consultar Pedidos")
