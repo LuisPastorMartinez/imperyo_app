@@ -65,7 +65,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                     value=None,
                     key="new_fecha_salida"
                 )
-                precio = st.number_input("Precio*", min_value=0.0, value=0.0, key="new_precio")
+                precio = st.number_input("Precio", min_value=0.0, value=0.0, key="new_precio")
                 precio_factura = st.number_input(
                     "Precio factura", 
                     min_value=0.0, 
@@ -100,7 +100,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                 pendiente = st.checkbox("Pendiente", value=True, key="new_pendiente")
             
             if st.form_submit_button("Guardar Nuevo Pedido"):
-                if not cliente or not telefono or not producto or not club or precio <= 0:
+                if not cliente or not telefono or not producto or not club <= 0:
                     st.error("Por favor complete los campos obligatorios (*)")
                 else:
                     new_id = get_next_id(df_pedidos, 'ID')
