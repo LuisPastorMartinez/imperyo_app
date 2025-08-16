@@ -143,51 +143,80 @@ def show_pedidos_page(df_pedidos, df_listas):
     # ==============================================
     # Pestaña 2: Consultar Pedidos
     # ==============================================
-    with tab2:
-        st.subheader("Consultar Pedidos")
-        
-        # Filtros de búsqueda
-        col_f1, col_f2, col_f3 = st.columns(3)
-        with col_f1:
-            filtro_cliente = st.text_input("Filtrar por cliente")
-        with col_f2:
-            filtro_producto = st.selectbox(
-                "Filtrar por producto",
-                [""] + df_listas['Producto'].dropna().unique().tolist()
-            )
-        with col_f3:
-            filtro_estado = st.selectbox(
-                "Filtrar por estado",
-                ["", "Pendiente", "Empezado", "Terminado", "Cobrado", "Retirado"]
-            )
-        
-        # Aplicar filtros
-        df_filtrado = df_pedidos.copy()
-        if filtro_cliente:
-            df_filtrado = df_filtrado[df_filtrado['Cliente'].str.contains(filtro_cliente, case=False, na=False)]
-        if filtro_producto:
-            df_filtrado = df_filtrado[df_filtrado['Producto'] == filtro_producto]
-        if filtro_estado:
-            if filtro_estado == "Pendiente":
-                df_filtrado = df_filtrado[df_filtrado['Pendiente'] == True]
-            elif filtro_estado == "Empezado":
-                df_filtrado = df_filtrado[df_filtrado['Inicio Trabajo'] == True]
-            elif filtro_estado == "Terminado":
-                df_filtrado = df_filtrado[df_filtrado['Trabajo Terminado'] == True]
-            elif filtro_estado == "Cobrado":
-                df_filtrado = df_filtrado[df_filtrado['Cobrado'] == True]
-            elif filtro_estado == "Retirado":
-                df_filtrado = df_filtrado[df_filtrado['Retirado'] == True]
-        
-        # Mostrar resultados
-        st.dataframe(
-            df_filtrado[[
-                'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 
-                'Fecha entrada', 'Fecha Salida', 'Precio', 'Pendiente',
-                'Inicio Trabajo', 'Trabajo Terminado', 'Cobrado', 'Retirado'
-            ]].sort_values('ID', ascending=False),
-            height=500
+ # Dentro de la función show_pedidos_page, en la pestaña "Consultar Pedidos":
+with tab2:
+    st.subheader("Consultar Pedidos")
+    
+    # Nuevos filtros organizados en columnas
+    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+    
+    with col_f1:
+        filtro_cliente = st.text_input("Filtrar por cliente")
+    with col_f2:
+        filtro_club = st.text_input("Filtrar por club")
+    with col_f3:
+        filtro_telefono = st.text_input("Filtrar por teléfono")
+    with col_f4:
+        filtro_estado = st.selectbox(
+            "Filtrar por estado",
+            options=["", "Pendiente", "Empezado", "Terminado", "Retirado"],
+            key="filtro_estado_consulta"
         )
+    
+    # Aplicar filtros
+    df_filtrado = df_pedidos.copy()
+    
+    # Filtro por cliente (búsqueda parcial sin distinguir mayúsculas)
+    if filtro_cliente:
+        df_filtrado = df_filtrado[
+            df_filtrado['Cliente'].str.contains(filtro_cliente, case=False, na=False)
+        ]
+    
+    # Filtro por club (búsqueda parcial sin distinguir mayúsculas)
+    if filtro_club:
+        df_filtrado = df_filtrado[
+            df_filtrado['Club'].str.contains(filtro_club, case=False, na=False)
+        ]
+    
+    # Filtro por teléfono (búsqueda exacta)
+    if filtro_telefono:
+        df_filtrado = df_filtrado[
+            df_filtrado['Telefono'].astype(str).str.contains(filtro_telefono, na=False)
+        ]
+    
+    # Filtro por estado
+    if filtro_estado:
+        if filtro_estado == "Pendiente":
+            df_filtrado = df_filtrado[df_filtrado['Pendiente'] == True]
+        elif filtro_estado == "Empezado":
+            df_filtrado = df_filtrado[df_filtrado['Inicio Trabajo'] == True]
+        elif filtro_estado == "Terminado":
+            df_filtrado = df_filtrado[df_filtrado['Trabajo Terminado'] == True]
+        elif filtro_estado == "Retirado":
+            df_filtrado = df_filtrado[df_filtrado['Retirado'] == True]
+    
+    # Mostrar resultados
+    if not df_filtrado.empty:
+        # Columnas a mostrar
+        columnas_mostrar = [
+            'ID', 'Producto', 'Cliente', 'Club', 'Telefono',
+            'Fecha entrada', 'Fecha Salida', 'Precio',
+            'Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado'
+        ]
+        
+        # Filtrar columnas existentes
+        columnas_disponibles = [col for col in columnas_mostrar if col in df_filtrado.columns]
+        
+        st.dataframe(
+            df_filtrado[columnas_disponibles].sort_values('ID', ascending=False),
+            height=600,
+            use_container_width=True
+        )
+        
+        # Mostrar conteo de resultados
+        st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
+    else:
+        st.info("No se encontraron pedidos con los filtros aplicados")
 
     # ==============================================
     # Pestaña 3: Modificar Pedido
