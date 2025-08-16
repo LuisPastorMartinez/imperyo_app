@@ -97,7 +97,7 @@ def show_pedidos_page(df_pedidos, df_listas):
             with estado_cols[3]:
                 retirado = st.checkbox("Retirado", value=False, key="new_retirado")
             with estado_cols[4]:
-                pendiente = st.checkbox("Pendiente", value=True, key="new_pendiente")
+                pendiente = st.checkbox("Pendiente", value=False, key="new_pendiente")
             
             if st.form_submit_button("Guardar Nuevo Pedido"):
                 if not cliente or not telefono or not producto or not club <= 0:
