@@ -65,7 +65,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                     value=None,
                     key="new_fecha_salida"
                 )
-                precio = st.number_input("Precio*", min_value=0.0, value=0.0, key="new_precio")
+                precio = st.number_input("Precio", min_value=0.0, value=0.0, key="new_precio")
                 precio_factura = st.number_input(
                     "Precio factura", 
                     min_value=0.0, 
