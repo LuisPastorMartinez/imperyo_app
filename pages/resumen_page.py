@@ -32,7 +32,7 @@ def show_resumen_page(df_pedidos, current_view):
         filtered_df = df_pedidos
         st.subheader("Todos los Pedidos")
     elif current_view == "Trabajos Empezados":
-        filtered_df = df_pedidos[df_pedidos['Inicio Trabajo'] == True]
+        filtered_df = df_pedidos[df_pedidos['Inicio Trabajo'] == True and ['Pendiente'] == false]
         st.subheader("Pedidos con 'Inicio Trabajo'")
     elif current_view == "Trabajos Terminados":
         filtered_df = df_pedidos[df_pedidos['Trabajo Terminado'] == True]
