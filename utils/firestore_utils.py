@@ -1,3 +1,4 @@
+# utils/firestore_utils.py
 import streamlit as st
 import pandas as pd
 import firebase_admin
@@ -34,111 +35,52 @@ def convert_to_firestore_types(value):
     Convierte tipos de Python a tipos compatibles con Firestore,
     incluyendo un manejo robusto de booleanos, fechas y valores nulos.
     """
-    # Maneja valores nulos (NaN, None, string vacío) primero para evitar errores
     if pd.isna(value) or value is None or (isinstance(value, str) and value.strip() == ''):
         return None
-
-    # Maneja los tipos de Pandas y NumPy
     if isinstance(value, pd.Timestamp):
         return value.to_pydatetime()
+    elif isinstance(value, datetime.date):
+        return datetime.combine(value, datetime.min.time())
+    elif isinstance(value, bool):
+        return bool(value)
     elif isinstance(value, (np.int64, np.int32)):
         return int(value)
     elif isinstance(value, (np.float64, np.float32)):
         return float(value)
-
-    # --- CAMBIO CLAVE: MANEJAR BOOLEANOS EXPLÍCITAMENTE ---
-    elif isinstance(value, bool):
-        return bool(value)
-
-    # Maneja los tipos nativos de Python
-    elif isinstance(value, (int, float, str)):
+    elif isinstance(value, (int, float, str, datetime)):
         return value
-    elif isinstance(value, datetime.date):
-        return datetime.combine(value, datetime.min.time())
-    elif isinstance(value, datetime):
-        return value
-    
-    # Intenta convertir a string como último recurso
     return str(value)
 
-def load_dataframes_firestore():
-    """Carga todos los DataFrames desde Firestore"""
-    if db is None:
-        return None
-
-    data = {}
-    try:
-        for key, collection_name in COLLECTION_NAMES.items():
-            docs = db.collection(collection_name).stream()
-            records = []
-            
-            for doc in docs:
-                doc_data = doc.to_dict()
-                doc_data['id_documento_firestore'] = doc.id
-                records.append(doc_data)
-
-            if records:
-                df = pd.DataFrame(records)
-                
-                # Conversión de tipos para pedidos
-                if key == 'pedidos':
-                    bool_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
-                    for col in bool_cols:
-                        if col in df.columns:
-                            df[col] = df[col].astype(bool)
-                    
-                    date_cols = ['Fecha entrada', 'Fecha Salida']
-                    for col in date_cols:
-                        if col in df.columns:
-                            df[col] = pd.to_datetime(df[col]).dt.date
-            else:
-                df = create_empty_dataframe(collection_name)
-            
-            data[f'df_{key}'] = df
-        return data
-    except Exception as e:
-        st.error(f"Error cargando datos: {e}")
-        return None
-
 def save_dataframe_firestore(df, collection_key):
-    """Guarda un DataFrame en Firestore con conversión de tipos"""
-    if db is None:
-        return False
+    """
+    Guarda un DataFrame en una colección de Firestore.
+    Esta función ahora maneja de forma más robusta la conversión de tipos
+    para evitar errores al guardar en Firestore.
+    """
+    if 'id_documento_firestore' not in df.columns:
+        df['id_documento_firestore'] = [None] * len(df)
 
+    db = firestore.client()
     collection_name = COLLECTION_NAMES.get(collection_key)
-    if not collection_name:
-        return False
 
     try:
-        # Convertir tipos antes de guardar
-        df = df.copy()
-        for col in df.columns:
-            df[col] = df[col].apply(convert_to_firestore_types)
+        for _, row in df.iterrows():
+            if pd.isna(row.get('id_documento_firestore')):
+                doc_ref = db.collection(collection_name).document()
+                row['id_documento_firestore'] = doc_ref.id
+            else:
+                doc_ref = db.collection(collection_name).document(row['id_documento_firestore'])
 
-        if collection_key == 'pedidos':
-            for _, row in df.iterrows():
-                record = row.drop('id_documento_firestore', errors='ignore').to_dict()
-                doc_id = row.get('id_documento_firestore')
-                
-                if doc_id:
-                    db.collection(collection_name).document(doc_id).set(record)
-                else:
-                    db.collection(collection_name).add(record)
-        else:
-            # Para otras colecciones (borrar y recrear)
-            batch = db.batch()
-            docs = db.collection(collection_name).stream()
-            
-            for doc in docs:
-                batch.delete(doc.reference)
-            
-            for _, row in df.iterrows():
-                record = row.to_dict()
-                new_doc = db.collection(collection_name).document()
-                batch.set(new_doc, record)
-            
-            batch.commit()
+            data_to_save = {}
+            for col_name, value in row.items():
+                if col_name != 'id_documento_firestore':
+                    data_to_save[col_name] = convert_to_firestore_types(value)
+
+            doc_ref.set(data_to_save)
+        
+        st.success(f"DataFrame guardado correctamente en la colección '{collection_name}'.")
         return True
+    
     except Exception as e:
         st.error(f"Error guardando en Firestore: {e}")
         return False
@@ -147,11 +89,9 @@ def delete_document_firestore(collection_key, doc_id):
     """Elimina un documento específico"""
     if db is None:
         return False
-
     collection_name = COLLECTION_NAMES.get(collection_key)
     if not collection_name:
         return False
-
     try:
         db.collection(collection_name).document(doc_id).delete()
         return True
@@ -178,5 +118,4 @@ def get_next_id(df, id_column_name):
     if df.empty or id_column_name not in df.columns:
         return 1
     df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
-    df_clean = df.dropna(subset=[id_column_name])
-    return 1 if df_clean.empty else int(df_clean[id_column_name].max()) + 1
+    return int(df[id_column_name].max()) + 1 if pd.notna(df[id_column_name].max()) else 1
