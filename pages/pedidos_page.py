@@ -5,24 +5,31 @@ from datetime import datetime, date
 from utils import get_next_id, save_dataframe_firestore, delete_document_firestore
 
 def show_pedidos_page(df_pedidos, df_listas):
+    df_pedidos['Club'] = df_pedidos['Club'].astype(str).replace('nan', '')
+
     # Definir las 4 pestañas
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
     
     # Función para conversión segura de tipos
-    def convert_to_firestore_type(value):
-        """Convierte los valores a tipos compatibles con Firestore"""
-        if pd.isna(value) or value is None or value == "":
-            return None
-        elif isinstance(value, (int, float, str, bool)):
-            return value
-        elif isinstance(value, (date, datetime)):  # Maneja tanto date como datetime
-            return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
-        elif isinstance(value, pd.Timestamp):
-            return value.to_pydatetime()
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            return str(value)
+    # pages/pedidos_page.py
+def convert_to_firestore_type(value):
+    """Convierte los valores a tipos compatibles con Firestore"""
+    if pd.isna(value) or value is None:
+        return None
+    elif isinstance(value, (int, float, bool)):
+        return value
+    elif isinstance(value, (date, datetime)):
+        return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
+    elif isinstance(value, pd.Timestamp):
+        return value.to_pydatetime()
+    # Esta es la mejora: si es un string vacío, o si no se puede convertir a float,
+    # simplemente se retorna el string.
+    try:
+        if isinstance(value, str) and value.strip() == "":
+            return ""  # Devuelve una cadena vacía para un string vacío
+        return float(value)
+    except (ValueError, TypeError):
+        return str(value) # Si la conversión falla, retorna el valor como string
     
     # ==============================================
     # Pestaña 1: Crear Pedido
