@@ -260,7 +260,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                                 st.session_state.pedido_a_eliminar = None
                                 st.rerun()
                             else:
-                                st.error("Error al guardar los cambios en Firestore")
+                                st.error("Error al guardar los cambios en Firestore.")
                         else:
                             st.error("Error al eliminar el pedido de Firestore")
                     except Exception as e:
