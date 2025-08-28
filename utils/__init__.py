@@ -4,7 +4,8 @@ from .excel_utils import load_dataframes_local, save_dataframe_local
 from .firestore_utils import (
     load_dataframes_firestore, 
     save_dataframe_firestore,
-    delete_document_firestore
+    delete_document_firestore,
+    create_empty_dataframe
 )
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     'save_dataframe_local',
     'load_dataframes_firestore',
     'save_dataframe_firestore',
-    'delete_document_firestore'
+    'delete_document_firestore',
+    'create_empty_dataframe'
 ]

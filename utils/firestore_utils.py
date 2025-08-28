@@ -112,10 +112,3 @@ def create_empty_dataframe(collection_name):
     elif collection_name == 'gastos':
         return pd.DataFrame(columns=['ID', 'Fecha', 'Concepto', 'Importe', 'Tipo', 'id_documento_firestore'])
     return pd.DataFrame()
-
-def get_next_id(df, id_column_name):
-    """Obtiene el próximo ID disponible"""
-    if df.empty or id_column_name not in df.columns:
-        return 1
-    df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
-    return int(df[id_column_name].max()) + 1 if pd.notna(df[id_column_name].max()) else 1
