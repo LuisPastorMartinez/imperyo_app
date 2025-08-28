@@ -30,18 +30,36 @@ def initialize_firestore():
 db = initialize_firestore()
 
 def convert_to_firestore_types(value):
-    """Convierte tipos de Python a tipos compatibles con Firestore"""
+    """
+    Convierte tipos de Python a tipos compatibles con Firestore,
+    incluyendo un manejo robusto de booleanos, fechas y valores nulos.
+    """
+    # Maneja valores nulos (NaN, None, string vacío) primero para evitar errores
+    if pd.isna(value) or value is None or (isinstance(value, str) and value.strip() == ''):
+        return None
+
+    # Maneja los tipos de Pandas y NumPy
     if isinstance(value, pd.Timestamp):
         return value.to_pydatetime()
-    elif isinstance(value, datetime.date):
-        return datetime.combine(value, datetime.min.time())
-    elif pd.isna(value) or value is None:
-        return None
     elif isinstance(value, (np.int64, np.int32)):
         return int(value)
     elif isinstance(value, (np.float64, np.float32)):
         return float(value)
-    return value
+
+    # --- CAMBIO CLAVE: MANEJAR BOOLEANOS EXPLÍCITAMENTE ---
+    elif isinstance(value, bool):
+        return bool(value)
+
+    # Maneja los tipos nativos de Python
+    elif isinstance(value, (int, float, str)):
+        return value
+    elif isinstance(value, datetime.date):
+        return datetime.combine(value, datetime.min.time())
+    elif isinstance(value, datetime):
+        return value
+    
+    # Intenta convertir a string como último recurso
+    return str(value)
 
 def load_dataframes_firestore():
     """Carga todos los DataFrames desde Firestore"""
