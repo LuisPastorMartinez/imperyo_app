@@ -35,7 +35,7 @@ def show_resumen_page(df_pedidos, current_view):
             (df_pedidos['Inicio Trabajo'] == True) & 
             (df_pedidos['Pendiente'] == False)  # Excluye pendientes
         ]
-        st.subheader("Trabajos Empezados (no pendientes)")
+        st.subheader("Trabajos Empezados (no pendientes)")  
     elif current_view == "Trabajos Terminados":
         filtered_df = df_pedidos[
             (df_pedidos['Trabajo Terminado'] == True) & 
