@@ -100,7 +100,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                 pendiente = st.checkbox("Pendiente", value=False, key="new_pendiente")
             
             if st.form_submit_button("Guardar Nuevo Pedido"):
-                if not cliente or not telefono or not producto or not club <= 0:
+                if not cliente or not telefono or not producto or not club:
                     st.error("Por favor complete los campos obligatorios (*)")
                 else:
                     new_id = get_next_id(df_pedidos, 'ID')
