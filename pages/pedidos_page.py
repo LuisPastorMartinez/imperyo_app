@@ -8,21 +8,7 @@ def show_pedidos_page(df_pedidos, df_listas):
     # Definir las 4 pestañas
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
     
-    # Función para conversión segura de tipos
-    def convert_to_firestore_type(value):
-        """Convierte los valores a tipos compatibles con Firestore"""
-        if pd.isna(value) or value is None or value == "":
-            return None
-        elif isinstance(value, (int, float, str, bool)):
-            return value
-        elif isinstance(value, (date, datetime)):  # Maneja tanto date como datetime
-            return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
-        elif isinstance(value, pd.Timestamp):
-            return value.to_pydatetime()
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            return str(value)
+    
     
     # ==============================================
     # Pestaña 1: Crear Pedido
