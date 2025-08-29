@@ -6,6 +6,16 @@ from utils import get_next_id, save_dataframe_firestore, delete_document_firesto
 
 def show_pedidos_page(df_pedidos, df_listas):
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
+    
+    # Verificación de datos
+    listas_productos = []
+    listas_clientes = []
+    listas_clubes = []
+    
+    if 'Tipo' in df_listas.columns:
+        listas_productos = list(df_listas[df_listas['Tipo'] == 'Producto']['Nombre'])
+        listas_clientes = list(df_listas[df_listas['Tipo'] == 'Cliente']['Nombre'])
+        listas_clubes = list(df_listas[df_listas['Tipo'] == 'Club']['Nombre'])
 
     # ==============================================
     # Pestaña 1: Crear Pedido
@@ -16,9 +26,9 @@ def show_pedidos_page(df_pedidos, df_listas):
         with st.form("nuevo_pedido_form"):
             col1, col2 = st.columns(2)
             with col1:
-                producto = st.selectbox("Producto", df_listas[df_listas['Tipo'] == 'Producto']['Nombre'], key="np_producto")
-                cliente = st.selectbox("Cliente", df_listas[df_listas['Tipo'] == 'Cliente']['Nombre'], key="np_cliente")
-                club = st.selectbox("Club", df_listas[df_listas['Tipo'] == 'Club']['Nombre'], key="np_club")
+                producto = st.selectbox("Producto", listas_productos, key="np_producto")
+                cliente = st.selectbox("Cliente", listas_clientes, key="np_cliente")
+                club = st.selectbox("Club", listas_clubes, key="np_club")
                 telefono = st.text_input("Teléfono", key="np_telefono")
                 talla = st.text_input("Talla", key="np_talla")
                 tela = st.text_input("Tela", key="np_tela")
@@ -35,9 +45,6 @@ def show_pedidos_page(df_pedidos, df_listas):
 
             submitted = st.form_submit_button("Crear Pedido")
             if submitted:
-                # CORRECCIÓN: Se eliminan las llamadas a la función de conversión aquí.
-                # La función save_dataframe_firestore() se encarga de la conversión.
-                
                 next_id = get_next_id(df_pedidos, 'ID')
                 new_row = pd.DataFrame([{
                     'ID': next_id,
@@ -82,9 +89,13 @@ def show_pedidos_page(df_pedidos, df_listas):
             with col_filt1:
                 filtro_id = st.text_input("Filtrar por ID")
             with col_filt2:
-                filtro_cliente = st.selectbox("Filtrar por Cliente", ["Todos"] + list(df_pedidos['Cliente'].unique()))
+                # Modificar para manejar un df_pedidos vacío
+                clientes_unicos = ["Todos"] + list(df_pedidos['Cliente'].unique()) if 'Cliente' in df_pedidos.columns and not df_pedidos.empty else ["Todos"]
+                filtro_cliente = st.selectbox("Filtrar por Cliente", clientes_unicos)
             with col_filt3:
-                filtro_club = st.selectbox("Filtrar por Club", ["Todos"] + list(df_pedidos['Club'].unique()))
+                # Modificar para manejar un df_pedidos vacío
+                clubes_unicos = ["Todos"] + list(df_pedidos['Club'].unique()) if 'Club' in df_pedidos.columns and not df_pedidos.empty else ["Todos"]
+                filtro_club = st.selectbox("Filtrar por Club", clubes_unicos)
 
         df_filtrado = df_pedidos.copy()
         if filtro_id:
@@ -120,9 +131,9 @@ def show_pedidos_page(df_pedidos, df_listas):
                 
                 col_mod1, col_mod2 = st.columns(2)
                 with col_mod1:
-                    mod_producto = st.selectbox("Producto", [""] + list(df_listas[df_listas['Tipo'] == 'Producto']['Nombre']), index=[""] + list(df_listas[df_listas['Tipo'] == 'Producto']['Nombre']).index(pedido['Producto']) if pedido['Producto'] in list(df_listas[df_listas['Tipo'] == 'Producto']['Nombre']) else 0, key="mod_producto")
-                    mod_cliente = st.selectbox("Cliente", [""] + list(df_listas[df_listas['Tipo'] == 'Cliente']['Nombre']), index=[""] + list(df_listas[df_listas['Tipo'] == 'Cliente']['Nombre']).index(pedido['Cliente']) if pedido['Cliente'] in list(df_listas[df_listas['Tipo'] == 'Cliente']['Nombre']) else 0, key="mod_cliente")
-                    mod_club = st.selectbox("Club", [""] + list(df_listas[df_listas['Tipo'] == 'Club']['Nombre']), index=[""] + list(df_listas[df_listas['Tipo'] == 'Club']['Nombre']).index(pedido['Club']) if pedido['Club'] in list(df_listas[df_listas['Tipo'] == 'Club']['Nombre']) else 0, key="mod_club")
+                    mod_producto = st.selectbox("Producto", [""] + listas_productos, index=[""] + listas_productos.index(pedido['Producto']) if pedido['Producto'] in listas_productos else 0, key="mod_producto")
+                    mod_cliente = st.selectbox("Cliente", [""] + listas_clientes, index=[""] + listas_clientes.index(pedido['Cliente']) if pedido['Cliente'] in listas_clientes else 0, key="mod_cliente")
+                    mod_club = st.selectbox("Club", [""] + listas_clubes, index=[""] + listas_clubes.index(pedido['Club']) if pedido['Club'] in listas_clubes else 0, key="mod_club")
                     mod_telefono = st.text_input("Teléfono", value=pedido['Telefono'], key="mod_telefono")
                     mod_talla = st.text_input("Talla", value=pedido['Talla'], key="mod_talla")
                     mod_tela = st.text_input("Tela", value=pedido['Tela'], key="mod_tela")
@@ -150,9 +161,6 @@ def show_pedidos_page(df_pedidos, df_listas):
 
                 modified_submitted = st.form_submit_button("Guardar Cambios")
                 if modified_submitted:
-                    # CORRECCIÓN: Se eliminan las llamadas a la función de conversión aquí.
-                    # La función save_dataframe_firestore() se encarga de la conversión.
-                    
                     df_pedidos.loc[df_pedidos['ID'] == edit_id, 'Producto'] = mod_producto
                     df_pedidos.loc[df_pedidos['ID'] == edit_id, 'Cliente'] = mod_cliente
                     df_pedidos.loc[df_pedidos['ID'] == edit_id, 'Club'] = mod_club
