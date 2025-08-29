@@ -34,19 +34,14 @@ def convert_to_firestore_types(value):
     Convierte tipos de Python a tipos compatibles con Firestore.
     Corrige el manejo de datetime.date y NaT.
     """
-    # CORRECCIÓN CLAVE: Convertir NaT y None a None para Firestore
     if pd.isna(value) or value is None:
         return None
-    
-    # Manejar los tipos de pandas y numpy
     elif isinstance(value, pd.Timestamp):
         return value.to_pydatetime()
     elif isinstance(value, (np.int64, np.int32)):
         return int(value)
     elif isinstance(value, (np.float64, np.float32)):
         return float(value)
-    
-    # Convertir datetime.date a datetime.datetime
     elif isinstance(value, date) and not isinstance(value, datetime):
         return datetime.combine(value, datetime.min.time())
     
@@ -70,15 +65,12 @@ def load_dataframes_firestore():
 
             if records:
                 df = pd.DataFrame(records)
-                
-                # Conversión de tipos para pedidos
                 if key == 'pedidos':
                     bool_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
                     for col in bool_cols:
                         if col in df.columns:
                             df[col] = df[col].astype(bool)
                     
-                    # Asegurar que las columnas de fecha tengan un tipo de dato consistente
                     date_cols = ['Fecha entrada', 'Fecha Salida']
                     for col in date_cols:
                         if col in df.columns:
@@ -102,7 +94,6 @@ def save_dataframe_firestore(df, collection_key):
         return False
 
     try:
-        # Convertir tipos antes de guardar
         df = df.copy()
         for col in df.columns:
             df[col] = df[col].apply(convert_to_firestore_types)
@@ -111,7 +102,6 @@ def save_dataframe_firestore(df, collection_key):
             for _, row in df.iterrows():
                 record = row.drop('id_documento_firestore', errors='ignore').to_dict()
                 doc_id = row.get('id_documento_firestore')
-                
                 if doc_id:
                     db.collection(collection_name).document(doc_id).set(record)
                 else:
