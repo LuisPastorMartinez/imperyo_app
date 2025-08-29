@@ -32,22 +32,23 @@ db = initialize_firestore()
 def convert_to_firestore_types(value):
     """
     Convierte tipos de Python a tipos compatibles con Firestore.
-    Corrige el manejo de datetime.date.
+    Corrige el manejo de datetime.date y NaT.
     """
+    # CORRECCIÓN CLAVE: Convertir NaT y None a None para Firestore
     if pd.isna(value) or value is None:
         return None
     
-    # CORRECCIÓN CLAVE: Convertir datetime.date a datetime.datetime
-    elif isinstance(value, date) and not isinstance(value, datetime):
-        return datetime.combine(value, datetime.min.time())
-    
-    # Manejar otros tipos comunes
+    # Manejar los tipos de pandas y numpy
+    elif isinstance(value, pd.Timestamp):
+        return value.to_pydatetime()
     elif isinstance(value, (np.int64, np.int32)):
         return int(value)
     elif isinstance(value, (np.float64, np.float32)):
         return float(value)
-    elif isinstance(value, pd.Timestamp):
-        return value.to_pydatetime()
+    
+    # Convertir datetime.date a datetime.datetime
+    elif isinstance(value, date) and not isinstance(value, datetime):
+        return datetime.combine(value, datetime.min.time())
     
     return value
 
@@ -104,7 +105,6 @@ def save_dataframe_firestore(df, collection_key):
         # Convertir tipos antes de guardar
         df = df.copy()
         for col in df.columns:
-            # Aplicar la función de conversión a cada elemento de la columna
             df[col] = df[col].apply(convert_to_firestore_types)
 
         if collection_key == 'pedidos':
@@ -117,7 +117,6 @@ def save_dataframe_firestore(df, collection_key):
                 else:
                     db.collection(collection_name).add(record)
         else:
-            # Para otras colecciones (borrar y recrear)
             batch = db.batch()
             docs = db.collection(collection_name).stream()
             
