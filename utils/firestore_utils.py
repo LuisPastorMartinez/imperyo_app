@@ -30,18 +30,25 @@ def initialize_firestore():
 db = initialize_firestore()
 
 def convert_to_firestore_types(value):
-    """Convierte tipos de Python a tipos compatibles con Firestore"""
+    """
+    Convierte tipos de Python a tipos compatibles con Firestore.
+    Corrige el manejo de datetime.date.
+    """
     if pd.isna(value) or value is None:
         return None
+    
+    # CORRECCIÓN CLAVE: Convertir datetime.date a datetime.datetime
+    elif isinstance(value, date) and not isinstance(value, datetime):
+        return datetime.combine(value, datetime.min.time())
+    
+    # Manejar otros tipos comunes
     elif isinstance(value, (np.int64, np.int32)):
         return int(value)
     elif isinstance(value, (np.float64, np.float32)):
         return float(value)
     elif isinstance(value, pd.Timestamp):
         return value.to_pydatetime()
-    # Modificación: Manejar objetos date y datetime de manera unificada
-    elif isinstance(value, (date, datetime)):
-        return value
+    
     return value
 
 def load_dataframes_firestore():
@@ -70,11 +77,10 @@ def load_dataframes_firestore():
                         if col in df.columns:
                             df[col] = df[col].astype(bool)
                     
-                    # CORRECCIÓN CLAVE: Convertir a tipo datetime para compatibilidad con Streamlit/PyArrow
+                    # Asegurar que las columnas de fecha tengan un tipo de dato consistente
                     date_cols = ['Fecha entrada', 'Fecha Salida']
                     for col in date_cols:
                         if col in df.columns:
-                            # Asegurar que la columna sea de tipo datetime64[ns]
                             df[col] = pd.to_datetime(df[col], errors='coerce').dt.date
             else:
                 df = create_empty_dataframe(collection_name)
@@ -98,7 +104,7 @@ def save_dataframe_firestore(df, collection_key):
         # Convertir tipos antes de guardar
         df = df.copy()
         for col in df.columns:
-            # CORRECCIÓN: Aplicar la función de conversión a cada elemento de la columna
+            # Aplicar la función de conversión a cada elemento de la columna
             df[col] = df[col].apply(convert_to_firestore_types)
 
         if collection_key == 'pedidos':
