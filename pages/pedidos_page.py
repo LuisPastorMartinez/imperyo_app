@@ -314,7 +314,7 @@ def show_pedidos_page(df_pedidos, df_listas):
                 
                 if st.form_submit_button("Guardar Cambios"):
                     # Validación de campos obligatorios
-                    if not cliente or not telefono or not producto or not club or precio <= 0:
+                    if not cliente or not telefono or not producto or not club:
                         st.error("Por favor complete los campos obligatorios (*)")
                     else:
                         # Actualizar los datos del pedido con conversión segura de tipos
