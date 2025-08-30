@@ -1,14 +1,11 @@
 # utils/data_utils.py
 import re
 import pandas as pd
-from datetime import datetime
 
 def limpiar_telefono(numero):
     """
     Convierte el número a string y limpia formatos, devolviendo solo los dígitos.
-    
-    Se ha corregido para que siempre devuelva una cadena, lo que permite
-    una validación de longitud robusta en el código de entrada de datos.
+    Se ha corregido para que siempre devuelva una cadena.
     """
     if pd.isna(numero) or str(numero).strip() == "":
         return ""
@@ -16,7 +13,6 @@ def limpiar_telefono(numero):
     numero_limpio = re.sub(r'[^0-9]', '', str(numero))
     
     return numero_limpio
-
 def limpiar_fecha(fecha):
     """Convierte la fecha a formato date (sin hora)"""
     if pd.isna(fecha) or fecha == "":
