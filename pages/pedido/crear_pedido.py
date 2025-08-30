@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 from utils import get_next_id, save_dataframe_firestore
 from .helpers import convert_to_firestore_type
+import time # AÑADIDO: Importar la librería time
 
 def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
@@ -84,9 +85,28 @@ def show_create(df_pedidos, df_listas):
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                st.success(f"Pedido {new_id} creado correctamente!")
+                # AÑADIDO: CSS para centrar el mensaje
+                st.markdown(
+                    """
+                    <style>
+                    .centered-message {
+                        position: fixed;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        z-index: 1000;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True
+                )
                 
-                # AÑADIDO: Establecer una bandera para la redirección
+                # AÑADIDO: Mensaje de éxito con duración de 3 segundos
+                with st.container():
+                    st.info(f"¡Pedido {new_id} guardado correctamente!", icon="🎉")
+                
+                time.sleep(3)  # AÑADIDO: Pausa la ejecución por 3 segundos
+                
                 st.session_state['redirect_to_consult'] = True
                 st.rerun() 
 
