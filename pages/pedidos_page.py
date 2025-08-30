@@ -22,24 +22,27 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
             df_listas = data['df_listas']
             st.session_state['data'] = data
 
-    # AÑADIDO: Lógica para la redirección de pestañas
-    redirect_to_consult = st.session_state.get('redirect_to_consult', False)
-    if redirect_to_consult:
-        tab_index = 1  # 1 es el índice de la pestaña "Consultar Pedidos"
-        st.session_state['redirect_to_consult'] = False # Limpia la bandera
-    else:
-        tab_index = 0 # 0 es el índice de la pestaña "Crear Pedido"
+    # INICIALIZACIÓN: Inicializar la pestaña activa en 'Crear Pedido' si no existe
+    if 'active_tab' not in st.session_state:
+        st.session_state['active_tab'] = "Crear Pedido"
 
+    # COMPROBAR REDIRECCIÓN: Si la bandera 'redirect_to_consult' está activa, cambiar la pestaña
+    if st.session_state.get('redirect_to_consult'):
+        st.session_state['active_tab'] = "Consultar Pedidos"
+        del st.session_state['redirect_to_consult'] # Limpiar la bandera para el siguiente ciclo
+
+    # Mostrar las pestañas y el contenido basado en la variable de estado
     tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
 
-    with tab1:
-        show_create(df_pedidos, df_listas)
-
-    with tab2:
-        show_consult(df_pedidos, df_listas)
-
-    with tab3:
-        show_modify(df_pedidos, df_listas)
-
-    with tab4:
-        show_delete(df_pedidos, df_listas)
+    if st.session_state['active_tab'] == "Crear Pedido":
+        with tab1:
+            show_create(df_pedidos, df_listas)
+    elif st.session_state['active_tab'] == "Consultar Pedidos":
+        with tab2:
+            show_consult(df_pedidos, df_listas)
+    elif st.session_state['active_tab'] == "Modificar Pedido":
+        with tab3:
+            show_modify(df_pedidos, df_listas)
+    elif st.session_state['active_tab'] == "Eliminar Pedido":
+        with tab4:
+            show_delete(df_pedidos, df_listas)
