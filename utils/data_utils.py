@@ -4,18 +4,18 @@ import pandas as pd
 from datetime import datetime
 
 def limpiar_telefono(numero):
-    """Convierte el número a string y limpia formatos, manteniendo 9 dígitos"""
-    if pd.isna(numero) or numero == "":
-        return None
+    """
+    Convierte el número a string y limpia formatos, devolviendo solo los dígitos.
+    
+    Se ha corregido para que siempre devuelva una cadena, lo que permite
+    una validación de longitud robusta en el código de entrada de datos.
+    """
+    if pd.isna(numero) or str(numero).strip() == "":
+        return ""
     
     numero_limpio = re.sub(r'[^0-9]', '', str(numero))
     
-    if len(numero_limpio) == 9:
-        return numero_limpio
-    elif len(numero_limpio) > 9:
-        return numero_limpio[:9]
-    
-    return None
+    return numero_limpio
 
 def limpiar_fecha(fecha):
     """Convierte la fecha a formato date (sin hora)"""
@@ -46,8 +46,11 @@ def get_next_id(df, id_column_name):
     """
     if df.empty or id_column_name not in df.columns:
         return 1
+    # Asegura que la columna ID sea numérica, forzando errores a NaN
     df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
-    df_clean = df.dropna(subset=[id_column_name])
-    if df_clean.empty:
+    # Elimina cualquier fila donde el ID se convirtió en NaN (ej., IDs no numéricos)
+    df_numeric = df.dropna(subset=[id_column_name])
+    if df_numeric.empty:
         return 1
-    return int(df_clean[id_column_name].max()) + 1
+    # Encuentra el ID máximo y le suma 1 para el nuevo ID
+    return int(df_numeric[id_column_name].max()) + 1
