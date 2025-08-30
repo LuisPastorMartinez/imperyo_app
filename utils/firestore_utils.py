@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import firebase_admin
@@ -19,7 +20,7 @@ def initialize_firestore():
     """Inicializa la conexión con Firestore"""
     try:
         if not firebase_admin._apps:
-            cred_dict = dict(st.secrets["firestore"])
+            cred_dict = dict(st.secrets["firestore"])  # requiere st.secrets configurado
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
         return firestore.client()
@@ -30,30 +31,66 @@ def initialize_firestore():
 db = initialize_firestore()
 
 def convert_to_firestore_types(value):
-    """Convierte tipos de Python a tipos compatibles con Firestore"""
-    if value is None or pd.isna(value) or str(value) in ["NaT", "nan", ""]:
+    """Convierte tipos de Python a tipos compatibles con Firestore (sin NaT)."""
+    # 1) Vacíos / NaN / NaT / None / ""
+    if value is None:
+        return None
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    if isinstance(value, str) and value.strip() in ("", "NaT", "nan", "None"):
+        return None
+    if value is pd.NaT:
         return None
 
+    # 2) pandas.Timestamp
     if isinstance(value, pd.Timestamp):
-        if pd.isna(value) or str(value) == "NaT":
+        # proteger doble por si acaso
+        if pd.isna(value) or value is pd.NaT:
             return None
-        return value.to_pydatetime()
+        try:
+            return value.to_pydatetime()
+        except Exception:
+            return None
 
+    # 3) datetime.date (de st.date_input)
     if isinstance(value, date) and not isinstance(value, datetime):
         return datetime.combine(value, datetime.min.time())
 
+    # 4) datetime.datetime
     if isinstance(value, datetime):
-        return value
+        return value  # naive OK
 
+    # 5) NumPy numéricos
+    if isinstance(value, (np.integer, )):
+        return int(value)
+    if isinstance(value, (np.floating, )):
+        # Si es NaN, ya habría salido arriba con pd.isna
+        return float(value)
+
+    # 6) Tipos básicos
     if isinstance(value, (int, float, bool, str)):
         return value
 
-    if isinstance(value, (np.int64, np.int32)):
-        return int(value)
-    if isinstance(value, (np.float64, np.float32)):
-        return float(value)
-
+    # 7) Fallback: string
     return str(value)
+
+def _sanitize_dataframe_for_firestore(df: pd.DataFrame) -> pd.DataFrame:
+    """Aplica conversión celda a celda y elimina cualquier NaT remanente."""
+    if df is None or df.empty:
+        return df
+    # Aplicación celda a celda
+    df = df.copy()
+    for col in df.columns:
+        df[col] = df[col].apply(convert_to_firestore_types)
+    # Reemplazo final de NaT/NaN por None por si algo se coló
+    df = df.where(pd.notna(df), None)
+    # Doble pasada por tipos especiales que puedan haber quedado en object
+    for col in df.columns:
+        df[col] = df[col].apply(lambda x: None if x is pd.NaT else x)
+    return df
 
 def load_dataframes_firestore():
     """Carga todos los DataFrames desde Firestore"""
@@ -65,7 +102,6 @@ def load_dataframes_firestore():
         for key, collection_name in COLLECTION_NAMES.items():
             docs = db.collection(collection_name).stream()
             records = []
-            
             for doc in docs:
                 doc_data = doc.to_dict()
                 doc_data['id_documento_firestore'] = doc.id
@@ -73,48 +109,53 @@ def load_dataframes_firestore():
 
             if records:
                 df = pd.DataFrame(records)
-                
-                # Conversión de tipos para pedidos
+
                 if key == 'pedidos':
-                    bool_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
-                    for col in bool_cols:
+                    # Bools
+                    for col in ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']:
                         if col in df.columns:
                             df[col] = df[col].fillna(False).astype(bool)
-                    
-                    date_cols = ['Fecha entrada', 'Fecha Salida']
-                    for col in date_cols:
+
+                    # Fechas -> string para visualización estable en Streamlit
+                    for col in ['Fecha entrada', 'Fecha Salida']:
                         if col in df.columns:
-                            df[col] = df[col].apply(lambda x: 
-                                x.strftime('%Y-%m-%d') if pd.notna(x) and hasattr(x, 'strftime') 
-                                else str(x)[:10] if pd.notna(x) and str(x) != 'NaT' 
-                                else ''
-                            )
-                    
-                    numeric_cols = ['ID', 'Precio', 'Precio Factura', 'Adelanto']
-                    for col in numeric_cols:
+                            def _fmt(x):
+                                if pd.isna(x) or x is None or x is pd.NaT:
+                                    return ''
+                                if hasattr(x, 'strftime'):
+                                    try:
+                                        return x.strftime('%Y-%m-%d')
+                                    except Exception:
+                                        pass
+                                s = str(x)
+                                return s[:10] if s and s != 'NaT' else ''
+                            df[col] = df[col].apply(_fmt)
+
+                    # Números
+                    for col in ['ID', 'Precio', 'Precio Factura', 'Adelanto']:
                         if col in df.columns:
                             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                            if col in ['ID']:
+                            if col == 'ID':
                                 df[col] = df[col].astype('int64')
                             else:
                                 df[col] = df[col].astype('float64')
-                    
-                    text_cols = ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 
-                                'Breve Descripción', 'Tipo de pago', 'Observaciones']
-                    for col in text_cols:
+
+                    # Textos
+                    for col in ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 
+                                'Breve Descripción', 'Tipo de pago', 'Observaciones']:
                         if col in df.columns:
                             df[col] = df[col].fillna('').astype(str)
             else:
                 df = create_empty_dataframe(collection_name)
-            
+
             data[f'df_{key}'] = df
         return data
     except Exception as e:
         st.error(f"Error cargando datos: {e}")
         return None
 
-def save_dataframe_firestore(df, collection_key):
-    """Guarda un DataFrame en Firestore con conversión de tipos"""
+def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
+    """Guarda un DataFrame en Firestore con conversión de tipos y limpieza anti-NaT."""
     if db is None:
         return False
 
@@ -123,15 +164,29 @@ def save_dataframe_firestore(df, collection_key):
         return False
 
     try:
-        df = df.copy()
-        for col in df.columns:
-            df[col] = df[col].apply(convert_to_firestore_types)
+        # Limpieza y conversión robusta
+        df = _sanitize_dataframe_for_firestore(df)
+
+        # Última comprobación por si acaso (diagnóstico)
+        def _has_nat(obj):
+            return obj is pd.NaT or (isinstance(obj, pd.Timestamp) and (pd.isna(obj) or obj is pd.NaT))
+
+        if df.applymap(_has_nat).any().any():
+            # Reemplazar cualquier NaT rezagado
+            df = df.applymap(lambda x: None if _has_nat(x) else x)
 
         if collection_key == 'pedidos':
             for _, row in df.iterrows():
                 record = row.drop('id_documento_firestore', errors='ignore').to_dict()
+
+                # Limpieza final del dict (defensiva)
+                for k, v in list(record.items()):
+                    if v is pd.NaT:
+                        record[k] = None
+                    elif isinstance(v, pd.Timestamp):
+                        record[k] = v.to_pydatetime()
+
                 doc_id = row.get('id_documento_firestore')
-                
                 if doc_id:
                     db.collection(collection_name).document(doc_id).set(record)
                 else:
@@ -139,16 +194,20 @@ def save_dataframe_firestore(df, collection_key):
         else:
             batch = db.batch()
             docs = db.collection(collection_name).stream()
-            
             for doc in docs:
                 batch.delete(doc.reference)
-            
             for _, row in df.iterrows():
                 record = row.to_dict()
+                # Limpieza final por si acaso
+                for k, v in list(record.items()):
+                    if v is pd.NaT:
+                        record[k] = None
+                    elif isinstance(v, pd.Timestamp):
+                        record[k] = v.to_pydatetime()
                 new_doc = db.collection(collection_name).document()
                 batch.set(new_doc, record)
-            
             batch.commit()
+
         return True
     except Exception as e:
         st.error(f"Error guardando en Firestore: {e}")
