@@ -24,9 +24,9 @@ def show_create(df_pedidos, df_listas):
             descripcion = st.text_area("Descripción", key="new_descripcion")
         
         with col2:
-            fecha_entrada = st.date_input("Fecha de entrada*", datetime.now(), key="new_fecha_entrada")
+            fecha_entrada = st.date_input("Fecha de entrada", datetime.now(), key="new_fecha_entrada")
             fecha_salida = st.date_input("Fecha de Salida", key="new_fecha_salida")
-            precio = st.number_input("Precio*", min_value=0.0, key="new_precio")
+            precio = st.number_input("Precio", min_value=0.0, key="new_precio")
             precio_factura = st.number_input("Precio Factura", min_value=0.0, key="new_precio_factura")
             tipo_pago = st.selectbox("Tipo de Pago", ["", "Efectivo", "Transferencia", "Bizum"], key="new_tipo_pago")
             adelanto = st.number_input("Adelanto", min_value=0.0, key="new_adelanto")
@@ -49,7 +49,7 @@ def show_create(df_pedidos, df_listas):
         submitted = st.form_submit_button("Guardar Pedido")
 
     if submitted:
-        if not all([producto, cliente, telefono, club, fecha_entrada, precio]):
+        if not all([producto, cliente, telefono, club]):
             st.warning("Por favor, rellene todos los campos obligatorios marcados con *.")
         else:
             new_id = get_next_id(df_pedidos, 'ID')
