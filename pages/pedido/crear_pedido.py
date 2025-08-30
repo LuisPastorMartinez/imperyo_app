@@ -9,6 +9,12 @@ import time
 def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
 
+    # Si se creó un pedido con éxito en el run anterior, muestra el mensaje de éxito
+    if 'pedido_creado_con_exito' in st.session_state and st.session_state.pedido_creado_con_exito:
+        st.success("¡Pedido creado correctamente!")
+        # Borra la bandera para que el mensaje no se muestre de nuevo
+        del st.session_state.pedido_creado_con_exito
+
     with st.form("nuevo_pedido_form"):
         col1, col2 = st.columns(2)
         with col1:
@@ -94,33 +100,7 @@ def show_create(df_pedidos, df_listas):
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                # Mostrar mensaje de éxito temporal
-                success_placeholder = st.empty()
-                success_placeholder.success(f"Pedido {new_id} creado correctamente!")
-                time.sleep(5)
-                success_placeholder.empty()
-
-                # Limpiar los campos del formulario
-                st.session_state.new_producto = ""
-                st.session_state.new_cliente = ""
-                st.session_state.new_telefono = ""
-                st.session_state.new_club = ""
-                st.session_state.new_talla = ""
-                st.session_state.new_tela = ""
-                st.session_state.new_descripcion = ""
-                st.session_state.new_fecha_entrada = datetime.now().date()
-                st.session_state.new_tiene_fecha_salida = False
-                st.session_state.new_precio = 0.0
-                st.session_state.new_precio_factura = 0.0
-                st.session_state.new_tipo_pago = ""
-                st.session_state.new_adelanto = 0.0
-                st.session_state.new_observaciones = ""
-                st.session_state.new_empezado = False
-                st.session_state.new_terminado = False
-                st.session_state.new_cobrado = False
-                st.session_state.new_retirado = False
-                st.session_state.new_pendiente = False
-
+                st.session_state.pedido_creado_con_exito = True
                 if 'data' not in st.session_state:
                     st.session_state['data'] = {}
                 st.session_state.data['df_pedidos'] = df_pedidos
