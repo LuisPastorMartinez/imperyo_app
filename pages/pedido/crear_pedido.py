@@ -1,19 +1,12 @@
+# pages/pedido/crear_pedido.py
 import streamlit as st
 import pandas as pd
-import time
 from datetime import datetime
 from utils import get_next_id, save_dataframe_firestore
 from .helpers import convert_to_firestore_type
 
 def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
-
-    # Mostrar mensaje de éxito si existe
-    if "pedido_guardado_ok" in st.session_state:
-        if time.time() - st.session_state["pedido_guardado_ok"]["timestamp"] < 5:
-            st.success(st.session_state["pedido_guardado_ok"]["mensaje"])
-        else:
-            del st.session_state["pedido_guardado_ok"]
 
     with st.form("nuevo_pedido_form"):
         col1, col2 = st.columns(2)
@@ -94,16 +87,16 @@ def show_create(df_pedidos, df_listas):
             new_pedido_df = pd.DataFrame([new_pedido])
             df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
 
+            # Saneado previo al guardado
             df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
             for c in df_pedidos.columns:
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                st.session_state["pedido_guardado_ok"] = {
-                    "mensaje": f"Pedido {new_id} creado correctamente!",
-                    "timestamp": time.time()
-                }
-                st.session_state["active_tab"] = "Consultar"
+                st.success(f"Pedido {new_id} creado correctamente!")
+                if 'data' not in st.session_state:
+                    st.session_state['data'] = {}
+                st.session_state.data['df_pedidos'] = df_pedidos
                 st.rerun()
             else:
                 st.error("Error al crear el pedido")
