@@ -11,7 +11,8 @@ def show_pedidos_page(df_pedidos, df_listas):
     # Función para conversión segura de tipos
     def convert_to_firestore_type(value):
         """Convierte los valores a tipos compatibles con Firestore"""
-        if pd.isna(value) or value is None or value == "":
+        # Verificar primero si es NaN/None/NaT/vacío
+        if pd.isna(value) or value is None or value == "" or str(value) == 'NaT':
             return None
         elif isinstance(value, (int, float, str, bool)):
             return value
@@ -25,14 +26,13 @@ def show_pedidos_page(df_pedidos, df_listas):
                 return datetime.combine(value, datetime.min.time())
             except (ValueError, AttributeError):
                 return None
-        elif str(type(value).__name__) == 'date':
-            return datetime.combine(value, datetime.min.time())
         elif isinstance(value, datetime):
             return value
         elif isinstance(value, pd.Timestamp):
-            if pd.isna(value):
+            try:
+                return value.to_pydatetime()
+            except (ValueError, AttributeError):
                 return None
-            return value.to_pydatetime()
         try:
             return float(value)
         except (ValueError, TypeError):
@@ -210,6 +210,29 @@ def show_pedidos_page(df_pedidos, df_listas):
         
         # Mostrar resultados
         if not df_filtrado.empty:
+            # Limpiar el DataFrame antes de mostrarlo para evitar errores de PyArrow
+            df_display = df_filtrado.copy()
+            
+            # Convertir fechas a strings de forma segura
+            date_cols = ['Fecha entrada', 'Fecha Salida']
+            for col in date_cols:
+                if col in df_display.columns:
+                    df_display[col] = df_display[col].apply(lambda x: 
+                        str(x)[:10] if pd.notna(x) and str(x) != 'NaT' else ''
+                    )
+            
+            # Asegurar tipos correctos para columnas numéricas
+            if 'ID' in df_display.columns:
+                df_display['ID'] = pd.to_numeric(df_display['ID'], errors='coerce').fillna(0).astype('int64')
+            if 'Precio' in df_display.columns:
+                df_display['Precio'] = pd.to_numeric(df_display['Precio'], errors='coerce').fillna(0.0)
+            
+            # Asegurar que las columnas booleanas sean bool
+            bool_cols = ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado']
+            for col in bool_cols:
+                if col in df_display.columns:
+                    df_display[col] = df_display[col].fillna(False).astype(bool)
+            
             # Columnas a mostrar
             columnas_mostrar = [
                 'ID', 'Producto', 'Cliente', 'Club', 'Telefono',
@@ -218,10 +241,10 @@ def show_pedidos_page(df_pedidos, df_listas):
             ]
             
             # Filtrar columnas existentes
-            columnas_disponibles = [col for col in columnas_mostrar if col in df_filtrado.columns]
+            columnas_disponibles = [col for col in columnas_mostrar if col in df_display.columns]
             
             st.dataframe(
-                df_filtrado[columnas_disponibles].sort_values('ID', ascending=False),
+                df_display[columnas_disponibles].sort_values('ID', ascending=False),
                 height=600,
                 use_container_width=True
             )
