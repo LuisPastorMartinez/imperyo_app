@@ -21,39 +21,36 @@ def show_create(df_pedidos, df_listas):
             telas = [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""]
             tela = st.selectbox("Tela", telas, key="new_tela")
             descripcion = st.text_area("Descripción", key="new_descripcion")
-
+        
         with col2:
-            fecha_entrada = st.date_input("Fecha entrada", value=datetime.now().date(), key="new_fecha_entrada")
-            tiene_fecha_salida = st.checkbox("Establecer fecha de salida", value=False, key="new_tiene_fecha_salida")
-            if tiene_fecha_salida:
-                fecha_salida = st.date_input("Fecha salida", value=datetime.now().date(), key="new_fecha_salida")
-            else:
-                fecha_salida = None
-            precio = st.number_input("Precio", min_value=0.0, value=0.0, key="new_precio")
-            precio_factura = st.number_input("Precio factura", min_value=0.0, value=0.0, key="new_precio_factura")
-            tipos_pago = [""] + df_listas['Tipo de pago'].dropna().unique().tolist() if 'Tipo de pago' in df_listas.columns else [""]
-            tipo_pago = st.selectbox("Tipo de pago", tipos_pago, key="new_tipo_pago")
-            adelanto = st.number_input("Adelanto", min_value=0.0, value=0.0, key="new_adelanto")
+            fecha_entrada = st.date_input("Fecha de entrada*", datetime.now(), key="new_fecha_entrada")
+            fecha_salida = st.date_input("Fecha de Salida", key="new_fecha_salida")
+            precio = st.number_input("Precio*", min_value=0.0, key="new_precio")
+            precio_factura = st.number_input("Precio Factura", min_value=0.0, key="new_precio_factura")
+            tipo_pago = st.selectbox("Tipo de Pago", ["", "Efectivo", "Transferencia", "Bizum"], key="new_tipo_pago")
+            adelanto = st.number_input("Adelanto", min_value=0.0, key="new_adelanto")
             observaciones = st.text_area("Observaciones", key="new_observaciones")
+            
+        st.markdown("---")
+        col_checkbox1, col_checkbox2, col_checkbox3, col_checkbox4, col_checkbox5 = st.columns(5)
+        with col_checkbox1:
+            empezado = st.checkbox("Empezado", key="new_empezado")
+        with col_checkbox2:
+            terminado = st.checkbox("Terminado", key="new_terminado")
+        with col_checkbox3:
+            cobrado = st.checkbox("Cobrado", key="new_cobrado")
+        with col_checkbox4:
+            retirado = st.checkbox("Retirado", key="new_retirado")
+        with col_checkbox5:
+            pendiente = st.checkbox("Pendiente", key="new_pendiente")
 
-        st.write("**Estado del pedido:**")
-        estado_cols = st.columns(5)
-        with estado_cols[0]:
-            empezado = st.checkbox("Empezado", value=False, key="new_empezado")
-        with estado_cols[1]:
-            terminado = st.checkbox("Terminado", value=False, key="new_terminado")
-        with estado_cols[2]:
-            cobrado = st.checkbox("Cobrado", value=False, key="new_cobrado")
-        with estado_cols[3]:
-            retirado = st.checkbox("Retirado", value=False, key="new_retirado")
-        with estado_cols[4]:
-            pendiente = st.checkbox("Pendiente", value=False, key="new_pendiente")
+        st.markdown("---")
+        submitted = st.form_submit_button("Guardar Pedido")
 
-        if st.form_submit_button("Guardar Nuevo Pedido"):
-            if not cliente or not telefono or not producto or not club:
-                st.error("Por favor complete los campos obligatorios (*)")
-                return
-
+    if submitted:
+        if not all([producto, cliente, telefono, club, fecha_entrada, precio]):
+            st.warning("Por favor, rellene todos los campos obligatorios marcados con *.")
+        else:
             new_id = get_next_id(df_pedidos, 'ID')
             new_pedido = {
                 'ID': new_id,
@@ -82,16 +79,16 @@ def show_create(df_pedidos, df_listas):
             new_pedido_df = pd.DataFrame([new_pedido])
             df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
 
-            # Saneado previo al guardado
             df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
             for c in df_pedidos.columns:
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
                 st.success(f"Pedido {new_id} creado correctamente!")
-                if 'data' not in st.session_state:
-                    st.session_state['data'] = {}
-                st.session_state.data['df_pedidos'] = df_pedidos
-                st.rerun()
+                
+                # AÑADIDO: Establecer una bandera para la redirección
+                st.session_state['redirect_to_consult'] = True
+                st.rerun() 
+
             else:
-                st.error("Error al crear el pedido")
+                st.error("Error al crear el pedido.")
