@@ -75,10 +75,14 @@ def show_modify(df_pedidos, df_listas):
             with estado_cols[4]:
                 pendiente = st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), key="mod_pendiente")
 
-            # 🚨 AHORA el submit button está dentro del formulario
             if st.form_submit_button("Guardar Cambios"):
                 if not cliente or not telefono or not producto or not club:
                     st.error("Por favor complete los campos obligatorios (*)")
+                    return
+
+                # ✅ Validación de teléfono
+                if not telefono.isdigit() or len(telefono) != 9:
+                    st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                     return
 
                 updated_pedido = {
