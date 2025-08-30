@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime
+from datetime import datetime, date
 import numpy as np
 
 # Configuración de colecciones
@@ -31,35 +31,29 @@ db = initialize_firestore()
 
 def convert_to_firestore_types(value):
     """Convierte tipos de Python a tipos compatibles con Firestore"""
-    # Verificar primero si es NaN/None/NaT
-    if pd.isna(value) or value is None or str(value) == 'NaT':
+    if value is None or pd.isna(value) or str(value) in ["NaT", "nan", ""]:
         return None
-    elif isinstance(value, pd.Timestamp):
-        try:
-            # Check if it's NaT before conversion
-            if pd.isna(value):
-                return None
-            return value.to_pydatetime()
-        except (ValueError, AttributeError, TypeError):
+
+    if isinstance(value, pd.Timestamp):
+        if pd.isna(value) or str(value) == "NaT":
             return None
-    elif hasattr(value, 'date') and callable(getattr(value, 'date')):
-        try:
-            # Additional check for NaT-like objects
-            if str(value) == 'NaT' or pd.isna(value):
-                return None
-            return datetime.combine(value.date(), datetime.min.time())
-        except (ValueError, AttributeError, TypeError):
-            return None
-    elif str(type(value).__name__) == 'date':
-        try:
-            return datetime.combine(value, datetime.min.time())
-        except (ValueError, AttributeError, TypeError):
-            return None
-    elif isinstance(value, (np.int64, np.int32)):
+        return value.to_pydatetime()
+
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return datetime.combine(value, datetime.min.time())
+
+    if isinstance(value, datetime):
+        return value
+
+    if isinstance(value, (int, float, bool, str)):
+        return value
+
+    if isinstance(value, (np.int64, np.int32)):
         return int(value)
-    elif isinstance(value, (np.float64, np.float32)):
+    if isinstance(value, (np.float64, np.float32)):
         return float(value)
-    return value
+
+    return str(value)
 
 def load_dataframes_firestore():
     """Carga todos los DataFrames desde Firestore"""
@@ -90,25 +84,21 @@ def load_dataframes_firestore():
                     date_cols = ['Fecha entrada', 'Fecha Salida']
                     for col in date_cols:
                         if col in df.columns:
-                            # Convertir fechas a string de forma segura para PyArrow
                             df[col] = df[col].apply(lambda x: 
                                 x.strftime('%Y-%m-%d') if pd.notna(x) and hasattr(x, 'strftime') 
                                 else str(x)[:10] if pd.notna(x) and str(x) != 'NaT' 
                                 else ''
                             )
                     
-                    # Asegurar que las columnas numéricas sean del tipo correcto
                     numeric_cols = ['ID', 'Precio', 'Precio Factura', 'Adelanto']
                     for col in numeric_cols:
                         if col in df.columns:
                             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-                            # Convertir a int solo si no hay decimales
                             if col in ['ID']:
                                 df[col] = df[col].astype('int64')
                             else:
                                 df[col] = df[col].astype('float64')
                     
-                    # Asegurar que las columnas de texto sean strings
                     text_cols = ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 
                                 'Breve Descripción', 'Tipo de pago', 'Observaciones']
                     for col in text_cols:
@@ -133,7 +123,6 @@ def save_dataframe_firestore(df, collection_key):
         return False
 
     try:
-        # Convertir tipos antes de guardar
         df = df.copy()
         for col in df.columns:
             df[col] = df[col].apply(convert_to_firestore_types)
@@ -148,7 +137,6 @@ def save_dataframe_firestore(df, collection_key):
                 else:
                     db.collection(collection_name).add(record)
         else:
-            # Para otras colecciones (borrar y recrear)
             batch = db.batch()
             docs = db.collection(collection_name).stream()
             
