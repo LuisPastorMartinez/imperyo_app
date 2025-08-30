@@ -1,9 +1,20 @@
 # pages/pedido/modificar_pedido.py
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
 from utils import save_dataframe_firestore
 from .helpers import convert_to_firestore_type, safe_select_index
+
+def safe_to_date(value):
+    """Convierte un valor a datetime.date de forma segura."""
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str) and value.strip() != "":
+        try:
+            return datetime.strptime(value[:10], "%Y-%m-%d").date()
+        except Exception:
+            return datetime.now().date()
+    return datetime.now().date()
 
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
@@ -39,14 +50,10 @@ def show_modify(df_pedidos, df_listas):
                 descripcion = st.text_area("Descripción", value=pedido.get('Breve Descripción',''), key="mod_descripcion")
 
             with col2:
-                fe_in = pedido.get('Fecha entrada', '')
-                fe_out = pedido.get('Fecha Salida', '')
-                fe_in_val = datetime.strptime(fe_in, '%Y-%m-%d').date() if fe_in else datetime.now().date()
-                fe_out_val = datetime.strptime(fe_out, '%Y-%m-%d').date() if fe_out else datetime.now().date()
-                fecha_entrada = st.date_input("Fecha entrada*", value=fe_in_val, key="mod_fecha_entrada")
-                tiene_fecha_salida = st.checkbox("Establecer fecha de salida", value=bool(fe_out), key="mod_tiene_fecha_salida")
+                fecha_entrada = st.date_input("Fecha entrada*", value=safe_to_date(pedido.get('Fecha entrada')), key="mod_fecha_entrada")
+                tiene_fecha_salida = st.checkbox("Establecer fecha de salida", value=bool(pedido.get('Fecha Salida')), key="mod_tiene_fecha_salida")
                 if tiene_fecha_salida:
-                    fecha_salida = st.date_input("Fecha salida", value=fe_out_val, key="mod_fecha_salida")
+                    fecha_salida = st.date_input("Fecha salida", value=safe_to_date(pedido.get('Fecha Salida')), key="mod_fecha_salida")
                 else:
                     fecha_salida = None
                 precio = st.number_input("Precio*", min_value=0.0, value=float(pedido.get('Precio',0) or 0), key="mod_precio")
@@ -68,6 +75,7 @@ def show_modify(df_pedidos, df_listas):
             with estado_cols[4]:
                 pendiente = st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), key="mod_pendiente")
 
+            # 🚨 AHORA el submit button está dentro del formulario
             if st.form_submit_button("Guardar Cambios"):
                 if not cliente or not telefono or not producto or not club:
                     st.error("Por favor complete los campos obligatorios (*)")
