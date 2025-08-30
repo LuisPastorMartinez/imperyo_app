@@ -33,7 +33,9 @@ def convert_to_firestore_types(value):
     """Convierte tipos de Python a tipos compatibles con Firestore"""
     if isinstance(value, pd.Timestamp):
         return value.to_pydatetime()
-    elif isinstance(value, datetime.date):
+    elif hasattr(value, 'date') and callable(getattr(value, 'date')):
+        return datetime.combine(value.date(), datetime.min.time())
+    elif str(type(value).__name__) == 'date':
         return datetime.combine(value, datetime.min.time())
     elif pd.isna(value) or value is None:
         return None
@@ -67,12 +69,27 @@ def load_dataframes_firestore():
                     bool_cols = ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']
                     for col in bool_cols:
                         if col in df.columns:
-                            df[col] = df[col].astype(bool)
+                            df[col] = df[col].fillna(False).astype(bool)
                     
                     date_cols = ['Fecha entrada', 'Fecha Salida']
                     for col in date_cols:
                         if col in df.columns:
-                            df[col] = pd.to_datetime(df[col]).dt.date
+                            df[col] = pd.to_datetime(df[col], errors='coerce')
+                            # Convertir a string para evitar problemas con PyArrow
+                            df[col] = df[col].dt.strftime('%Y-%m-%d').fillna('')
+                    
+                    # Asegurar que las columnas numéricas sean del tipo correcto
+                    numeric_cols = ['ID', 'Precio', 'Precio Factura', 'Adelanto']
+                    for col in numeric_cols:
+                        if col in df.columns:
+                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                    
+                    # Asegurar que las columnas de texto sean strings
+                    text_cols = ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 
+                                'Breve Descripción', 'Tipo de pago', 'Observaciones']
+                    for col in text_cols:
+                        if col in df.columns:
+                            df[col] = df[col].astype(str).fillna('')
             else:
                 df = create_empty_dataframe(collection_name)
             
