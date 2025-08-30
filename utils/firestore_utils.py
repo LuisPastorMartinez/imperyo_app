@@ -32,11 +32,19 @@ db = initialize_firestore()
 def convert_to_firestore_types(value):
     """Convierte tipos de Python a tipos compatibles con Firestore"""
     if isinstance(value, pd.Timestamp):
+        if pd.isna(value):
+            return None
         return value.to_pydatetime()
     elif hasattr(value, 'date') and callable(getattr(value, 'date')):
-        return datetime.combine(value.date(), datetime.min.time())
+        try:
+            return datetime.combine(value.date(), datetime.min.time())
+        except (ValueError, AttributeError):
+            return None
     elif str(type(value).__name__) == 'date':
-        return datetime.combine(value, datetime.min.time())
+        try:
+            return datetime.combine(value, datetime.min.time())
+        except (ValueError, AttributeError):
+            return None
     elif pd.isna(value) or value is None:
         return None
     elif isinstance(value, (np.int64, np.int32)):
@@ -74,22 +82,22 @@ def load_dataframes_firestore():
                     date_cols = ['Fecha entrada', 'Fecha Salida']
                     for col in date_cols:
                         if col in df.columns:
+                            # Convertir fechas a datetime y luego a string para PyArrow
                             df[col] = pd.to_datetime(df[col], errors='coerce')
-                            # Convertir a string para evitar problemas con PyArrow
-                            df[col] = df[col].dt.strftime('%Y-%m-%d').fillna('')
+                            df[col] = df[col].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else '')
                     
                     # Asegurar que las columnas numéricas sean del tipo correcto
                     numeric_cols = ['ID', 'Precio', 'Precio Factura', 'Adelanto']
                     for col in numeric_cols:
                         if col in df.columns:
-                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype('int64')
                     
                     # Asegurar que las columnas de texto sean strings
                     text_cols = ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 
                                 'Breve Descripción', 'Tipo de pago', 'Observaciones']
                     for col in text_cols:
                         if col in df.columns:
-                            df[col] = df[col].astype(str).fillna('')
+                            df[col] = df[col].fillna('').astype(str)
             else:
                 df = create_empty_dataframe(collection_name)
             
