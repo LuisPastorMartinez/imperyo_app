@@ -16,23 +16,29 @@ def show_pedidos_page(df_pedidos, df_listas):
             return None
         elif isinstance(value, (int, float, str, bool)):
             return value
+        elif isinstance(value, pd.Timestamp):
+            try:
+                # Additional NaT check for pandas Timestamp
+                if pd.isna(value):
+                    return None
+                return value.to_pydatetime()
+            except (ValueError, AttributeError, TypeError):
+                return None
         elif hasattr(value, 'date') and callable(getattr(value, 'date')):
             try:
+                # Check for NaT-like objects before date conversion
+                if str(value) == 'NaT' or pd.isna(value):
+                    return None
                 return datetime.combine(value.date(), datetime.min.time())
-            except (ValueError, AttributeError):
+            except (ValueError, AttributeError, TypeError):
                 return None
         elif str(type(value).__name__) == 'date':
             try:
                 return datetime.combine(value, datetime.min.time())
-            except (ValueError, AttributeError):
+            except (ValueError, AttributeError, TypeError):
                 return None
         elif isinstance(value, datetime):
             return value
-        elif isinstance(value, pd.Timestamp):
-            try:
-                return value.to_pydatetime()
-            except (ValueError, AttributeError):
-                return None
         try:
             return float(value)
         except (ValueError, TypeError):
