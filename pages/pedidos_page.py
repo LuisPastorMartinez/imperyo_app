@@ -16,12 +16,22 @@ def show_pedidos_page(df_pedidos, df_listas):
         elif isinstance(value, (int, float, str, bool)):
             return value
         elif hasattr(value, 'date') and callable(getattr(value, 'date')):
-            return datetime.combine(value.date(), datetime.min.time())
+            try:
+                return datetime.combine(value.date(), datetime.min.time())
+            except (ValueError, AttributeError):
+                return None
+        elif str(type(value).__name__) == 'date':
+            try:
+                return datetime.combine(value, datetime.min.time())
+            except (ValueError, AttributeError):
+                return None
         elif str(type(value).__name__) == 'date':
             return datetime.combine(value, datetime.min.time())
         elif isinstance(value, datetime):
             return value
         elif isinstance(value, pd.Timestamp):
+            if pd.isna(value):
+                return None
             return value.to_pydatetime()
         try:
             return float(value)
