@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime
 from utils import get_next_id, save_dataframe_firestore
 from .helpers import convert_to_firestore_type
+import time
 
 def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
@@ -93,7 +94,11 @@ def show_create(df_pedidos, df_listas):
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                st.success(f"Pedido {new_id} creado correctamente!")
+                success_placeholder = st.empty()
+                success_placeholder.success(f"Pedido {new_id} creado correctamente!")
+                time.sleep(5)
+                success_placeholder.empty()
+
                 if 'data' not in st.session_state:
                     st.session_state['data'] = {}
                 st.session_state.data['df_pedidos'] = df_pedidos
