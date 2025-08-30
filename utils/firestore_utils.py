@@ -32,22 +32,28 @@ db = initialize_firestore()
 def convert_to_firestore_types(value):
     """Convierte tipos de Python a tipos compatibles con Firestore"""
     # Verificar primero si es NaN/None/NaT
-    if pd.isna(value) or value is None:
+    if pd.isna(value) or value is None or str(value) == 'NaT':
         return None
     elif isinstance(value, pd.Timestamp):
         try:
+            # Check if it's NaT before conversion
+            if pd.isna(value):
+                return None
             return value.to_pydatetime()
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, TypeError):
             return None
     elif hasattr(value, 'date') and callable(getattr(value, 'date')):
         try:
+            # Additional check for NaT-like objects
+            if str(value) == 'NaT' or pd.isna(value):
+                return None
             return datetime.combine(value.date(), datetime.min.time())
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, TypeError):
             return None
     elif str(type(value).__name__) == 'date':
         try:
             return datetime.combine(value, datetime.min.time())
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, TypeError):
             return None
     elif isinstance(value, (np.int64, np.int32)):
         return int(value)
