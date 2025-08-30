@@ -15,8 +15,12 @@ def show_pedidos_page(df_pedidos, df_listas):
             return None
         elif isinstance(value, (int, float, str, bool)):
             return value
-        elif isinstance(value, (date, datetime)):  # Maneja tanto date como datetime
-            return datetime.combine(value, datetime.min.time()) if isinstance(value, date) else value
+        elif hasattr(value, 'date') and callable(getattr(value, 'date')):
+            return datetime.combine(value.date(), datetime.min.time())
+        elif str(type(value).__name__) == 'date':
+            return datetime.combine(value, datetime.min.time())
+        elif isinstance(value, datetime):
+            return value
         elif isinstance(value, pd.Timestamp):
             return value.to_pydatetime()
         try:
@@ -269,12 +273,12 @@ def show_pedidos_page(df_pedidos, df_listas):
                 with col2:
                     fecha_entrada = st.date_input(
                         "Fecha entrada*", 
-                        value=pedido['Fecha entrada'].date() if not pd.isna(pedido['Fecha entrada']) else datetime.now(),
+                        value=datetime.strptime(pedido['Fecha entrada'], '%Y-%m-%d').date() if pedido['Fecha entrada'] and pedido['Fecha entrada'] != '' else datetime.now().date(),
                         key="mod_fecha_entrada"
                     )
                     fecha_salida = st.date_input(
                         "Fecha salida", 
-                        value=pedido['Fecha Salida'].date() if not pd.isna(pedido['Fecha Salida']) else None,
+                        value=datetime.strptime(pedido['Fecha Salida'], '%Y-%m-%d').date() if pedido['Fecha Salida'] and pedido['Fecha Salida'] != '' else None,
                         key="mod_fecha_salida"
                     )
                     precio = st.number_input("Precio*", min_value=0.0, value=float(pedido['Precio']), key="mod_precio")
