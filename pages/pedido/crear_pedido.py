@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime
 from utils import get_next_id, save_dataframe_firestore
 from .helpers import convert_to_firestore_type
-import time # AÑADIDO: Importar la librería time
+import time
 
 def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
@@ -24,9 +24,9 @@ def show_create(df_pedidos, df_listas):
             descripcion = st.text_area("Descripción", key="new_descripcion")
         
         with col2:
-            fecha_entrada = st.date_input("Fecha de entrada", datetime.now(), key="new_fecha_entrada")
+            fecha_entrada = st.date_input("Fecha de entrada*", datetime.now(), key="new_fecha_entrada")
             fecha_salida = st.date_input("Fecha de Salida", key="new_fecha_salida")
-            precio = st.number_input("Precio", min_value=0.0, key="new_precio")
+            precio = st.number_input("Precio*", min_value=0.0, key="new_precio")
             precio_factura = st.number_input("Precio Factura", min_value=0.0, key="new_precio_factura")
             tipo_pago = st.selectbox("Tipo de Pago", ["", "Efectivo", "Transferencia", "Bizum"], key="new_tipo_pago")
             adelanto = st.number_input("Adelanto", min_value=0.0, key="new_adelanto")
@@ -49,7 +49,7 @@ def show_create(df_pedidos, df_listas):
         submitted = st.form_submit_button("Guardar Pedido")
 
     if submitted:
-        if not all([producto, cliente, telefono, club]):
+        if not all([producto, cliente, telefono, club, fecha_entrada, precio]):
             st.warning("Por favor, rellene todos los campos obligatorios marcados con *.")
         else:
             new_id = get_next_id(df_pedidos, 'ID')
@@ -85,7 +85,6 @@ def show_create(df_pedidos, df_listas):
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                # AÑADIDO: CSS para centrar el mensaje
                 st.markdown(
                     """
                     <style>
@@ -101,14 +100,14 @@ def show_create(df_pedidos, df_listas):
                     unsafe_allow_html=True
                 )
                 
-                # AÑADIDO: Mensaje de éxito con duración de 3 segundos
                 with st.container():
-                    st.info(f"¡Pedido {new_id} guardado correctamente!", icon="🎉")
+                    st.success(f"¡Pedido {new_id} guardado correctamente!", icon="✅")
                 
-                time.sleep(3)  # AÑADIDO: Pausa la ejecución por 3 segundos
+                time.sleep(5)
                 
-                st.session_state['redirect_to_consult'] = True
-                st.rerun() 
+                # AÑADIDO: Guardar el nombre de la pestaña a la que se quiere redirigir
+                st.session_state['active_tab'] = "Consultar Pedidos"
+                st.rerun()
 
             else:
                 st.error("Error al crear el pedido.")
