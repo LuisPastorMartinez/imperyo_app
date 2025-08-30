@@ -31,10 +31,14 @@ db = initialize_firestore()
 
 def convert_to_firestore_types(value):
     """Convierte tipos de Python a tipos compatibles con Firestore"""
-    if isinstance(value, pd.Timestamp):
-        if pd.isna(value):
+    # Verificar primero si es NaN/None/NaT
+    if pd.isna(value) or value is None:
+        return None
+    elif isinstance(value, pd.Timestamp):
+        try:
+            return value.to_pydatetime()
+        except (ValueError, AttributeError):
             return None
-        return value.to_pydatetime()
     elif hasattr(value, 'date') and callable(getattr(value, 'date')):
         try:
             return datetime.combine(value.date(), datetime.min.time())
@@ -45,8 +49,6 @@ def convert_to_firestore_types(value):
             return datetime.combine(value, datetime.min.time())
         except (ValueError, AttributeError):
             return None
-    elif pd.isna(value) or value is None:
-        return None
     elif isinstance(value, (np.int64, np.int32)):
         return int(value)
     elif isinstance(value, (np.float64, np.float32)):
@@ -82,15 +84,23 @@ def load_dataframes_firestore():
                     date_cols = ['Fecha entrada', 'Fecha Salida']
                     for col in date_cols:
                         if col in df.columns:
-                            # Convertir fechas a datetime y luego a string para PyArrow
-                            df[col] = pd.to_datetime(df[col], errors='coerce')
-                            df[col] = df[col].apply(lambda x: x.strftime('%Y-%m-%d') if pd.notna(x) else '')
+                            # Convertir fechas a string de forma segura para PyArrow
+                            df[col] = df[col].apply(lambda x: 
+                                x.strftime('%Y-%m-%d') if pd.notna(x) and hasattr(x, 'strftime') 
+                                else str(x)[:10] if pd.notna(x) and str(x) != 'NaT' 
+                                else ''
+                            )
                     
                     # Asegurar que las columnas numéricas sean del tipo correcto
                     numeric_cols = ['ID', 'Precio', 'Precio Factura', 'Adelanto']
                     for col in numeric_cols:
                         if col in df.columns:
-                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype('int64')
+                            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+                            # Convertir a int solo si no hay decimales
+                            if col in ['ID']:
+                                df[col] = df[col].astype('int64')
+                            else:
+                                df[col] = df[col].astype('float64')
                     
                     # Asegurar que las columnas de texto sean strings
                     text_cols = ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 
