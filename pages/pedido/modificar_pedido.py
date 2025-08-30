@@ -1,12 +1,11 @@
-# pages/pedido/modificar_pedido.py
 import streamlit as st
 import pandas as pd
+import time
 from datetime import datetime, date
 from utils import save_dataframe_firestore
 from .helpers import convert_to_firestore_type, safe_select_index
 
 def safe_to_date(value):
-    """Convierte un valor a datetime.date de forma segura."""
     if isinstance(value, date):
         return value
     if isinstance(value, str) and value.strip() != "":
@@ -18,6 +17,13 @@ def safe_to_date(value):
 
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
+
+    # Mostrar mensaje de éxito si existe
+    if "pedido_guardado_ok" in st.session_state:
+        if time.time() - st.session_state["pedido_guardado_ok"]["timestamp"] < 5:
+            st.success(st.session_state["pedido_guardado_ok"]["mensaje"])
+        else:
+            del st.session_state["pedido_guardado_ok"]
 
     mod_id = st.number_input("ID del pedido a modificar:", min_value=1, key="modify_id_input")
     if st.button("Cargar Pedido", key="load_pedido_button"):
@@ -112,17 +118,16 @@ def show_modify(df_pedidos, df_listas):
                 idx_list = df_pedidos.index[df_pedidos['ID'] == mod_id].tolist()
                 if idx_list:
                     df_pedidos.loc[idx_list[0]] = updated_pedido
-
                     df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
                     for c in df_pedidos.columns:
                         df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
                     if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                        st.success(f"Pedido {mod_id} actualizado correctamente!")
-                        st.session_state.pedido_a_modificar = None
-                        if 'data' not in st.session_state:
-                            st.session_state['data'] = {}
-                        st.session_state.data['df_pedidos'] = df_pedidos
+                        st.session_state["pedido_guardado_ok"] = {
+                            "mensaje": f"Pedido {mod_id} actualizado correctamente!",
+                            "timestamp": time.time()
+                        }
+                        st.session_state["active_tab"] = "Consultar"
                         st.rerun()
                     else:
                         st.error("Error al actualizar el pedido")
