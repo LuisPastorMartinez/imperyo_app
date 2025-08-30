@@ -45,7 +45,9 @@ def get_next_id(df, id_column_name):
     """
     if df.empty or id_column_name not in df.columns:
         return 1
+    # Asegura que la columna ID sea numérica, forzando errores a NaN
     df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
+    # Elimina cualquier fila donde el ID se convirtió en NaN (ej., IDs no numéricos)
     df_clean = df.dropna(subset=[id_column_name])
     if df_clean.empty:
         return 1
