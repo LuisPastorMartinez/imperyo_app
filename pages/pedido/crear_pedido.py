@@ -19,7 +19,7 @@ def show_create(df_pedidos, df_listas):
             productos = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
             producto = st.selectbox("Producto*", productos, key="new_producto")
             cliente = st.text_input("Cliente*", key="new_cliente")
-            telefono = st.text_input("Teléfono*", key="new_telefono", max_chars=15)
+            telefono = st.text_input("Teléfono*", key="new_telefono", max_chars=9)
             club = st.text_input("Club*", key="new_club")
             tallas = [""] + df_listas['Talla'].dropna().unique().tolist() if 'Talla' in df_listas.columns else [""]
             talla = st.selectbox("Talla", tallas, key="new_talla")
