@@ -1,11 +1,3 @@
-# pages/pedido/crear_pedido.py
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-from utils import get_next_id, save_dataframe_firestore
-from .helpers import convert_to_firestore_type
-import time
-
 def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
 
@@ -65,7 +57,6 @@ def show_create(df_pedidos, df_listas):
                 return
 
             new_pedido = {
-                # Se utiliza el ID que ya ha sido calculado y mostrado.
                 'ID': next_id,
                 'Producto': convert_to_firestore_type(producto),
                 'Cliente': convert_to_firestore_type(cliente),
@@ -100,12 +91,18 @@ def show_create(df_pedidos, df_listas):
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
                 success_placeholder = st.empty()
                 success_placeholder.success(f"Pedido {next_id} creado correctamente!")
-                time.sleep(5)
+                time.sleep(2)
                 success_placeholder.empty()
 
                 if 'data' not in st.session_state:
                     st.session_state['data'] = {}
                 st.session_state.data['df_pedidos'] = df_pedidos
+
+                # 🔹 Resetear los campos del formulario
+                for key in list(st.session_state.keys()):
+                    if key.startswith("new_"):
+                        del st.session_state[key]
+
                 st.rerun()
             else:
                 st.error("Error al crear el pedido")
