@@ -9,7 +9,7 @@ import time
 def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
 
-    # Se inicializa el estado de la sesión si no existe.
+    # Se inicializa el estado del formulario en la sesión
     if 'form_state' not in st.session_state:
         st.session_state.form_state = {
             "new_producto": "",
@@ -34,7 +34,7 @@ def show_create(df_pedidos, df_listas):
             "new_pendiente": False
         }
 
-    # Función para resetear el formulario.
+    # Función para resetear los valores del formulario
     def reset_form_state():
         st.session_state.form_state = {
             "new_producto": "",
@@ -58,7 +58,7 @@ def show_create(df_pedidos, df_listas):
             "new_retirado": False,
             "new_pendiente": False
         }
-
+        
     with st.form("nuevo_pedido_form"):
         next_id = get_next_id(df_pedidos, 'ID')
         st.info(f"El próximo ID de pedido será: **{next_id}**")
@@ -150,6 +150,6 @@ def show_create(df_pedidos, df_listas):
                 reset_form_state()
                 
                 st.session_state.data['df_pedidos'] = df_pedidos
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Error al crear el pedido")
