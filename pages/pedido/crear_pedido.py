@@ -10,6 +10,10 @@ def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
 
     with st.form("nuevo_pedido_form"):
+        # Se calcula el próximo ID y se muestra al usuario.
+        next_id = get_next_id(df_pedidos, 'ID')
+        st.info(f"El próximo ID de pedido será: **{next_id}**")
+        
         col1, col2 = st.columns(2)
         with col1:
             productos = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
@@ -60,9 +64,9 @@ def show_create(df_pedidos, df_listas):
                 st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                 return
 
-            new_id = get_next_id(df_pedidos, 'ID')
             new_pedido = {
-                'ID': new_id,
+                # Se utiliza el ID que ya ha sido calculado y mostrado.
+                'ID': next_id,
                 'Producto': convert_to_firestore_type(producto),
                 'Cliente': convert_to_firestore_type(cliente),
                 'Telefono': convert_to_firestore_type(telefono),
@@ -95,7 +99,7 @@ def show_create(df_pedidos, df_listas):
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
                 success_placeholder = st.empty()
-                success_placeholder.success(f"Pedido {new_id} creado correctamente!")
+                success_placeholder.success(f"Pedido {next_id} creado correctamente!")
                 time.sleep(5)
                 success_placeholder.empty()
 
