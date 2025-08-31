@@ -127,11 +127,12 @@ def show_modify(df_pedidos, df_listas):
                         success_placeholder.empty()
 
                         # 🔹 Resetear estado para volver a “cero”
+                        keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
+                        for k in keys_to_delete:
+                            del st.session_state[k]
+
                         if 'pedido_a_modificar' in st.session_state:
                             del st.session_state['pedido_a_modificar']
-                        for key in list(st.session_state.keys()):
-                            if key.startswith("mod_"):
-                                del st.session_state[key]
 
                         if 'data' not in st.session_state:
                             st.session_state['data'] = {}
