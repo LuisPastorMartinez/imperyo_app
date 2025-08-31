@@ -9,12 +9,6 @@ import time
 def show_create(df_pedidos, df_listas):
     st.subheader("Crear Nuevo Pedido")
 
-    # Si se creó un pedido con éxito en el run anterior, muestra el mensaje de éxito
-    if 'pedido_creado_con_exito' in st.session_state and st.session_state.pedido_creado_con_exito:
-        st.success("¡Pedido creado correctamente!")
-        # Borra la bandera para que el mensaje no se muestre de nuevo
-        del st.session_state.pedido_creado_con_exito
-
     with st.form("nuevo_pedido_form"):
         col1, col2 = st.columns(2)
         with col1:
@@ -100,21 +94,10 @@ def show_create(df_pedidos, df_listas):
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                # Establece una bandera para mostrar el mensaje de éxito en el próximo run
-                st.session_state.pedido_creado_con_exito = True
-
-                # --- Lógica para eliminar las claves del formulario para que se reinicie ---
-                keys_to_delete = [
-                    "new_producto", "new_cliente", "new_telefono", "new_club", "new_talla",
-                    "new_tela", "new_descripcion", "new_fecha_entrada", "new_tiene_fecha_salida",
-                    "new_precio", "new_precio_factura", "new_tipo_pago", "new_adelanto",
-                    "new_observaciones", "new_empezado", "new_terminado", "new_cobrado",
-                    "new_retirado", "new_pendiente"
-                ]
-                for key in keys_to_delete:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                # --- Fin de la lógica de limpieza ---
+                success_placeholder = st.empty()
+                success_placeholder.success(f"Pedido {new_id} creado correctamente!")
+                time.sleep(5)
+                success_placeholder.empty()
 
                 if 'data' not in st.session_state:
                     st.session_state['data'] = {}
