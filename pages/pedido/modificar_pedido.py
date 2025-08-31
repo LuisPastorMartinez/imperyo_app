@@ -1,9 +1,11 @@
 # pages/pedido/modificar_pedido.py
 import streamlit as st
 import pandas as pd
+import time
 from datetime import datetime, date
 from utils import save_dataframe_firestore
 from .helpers import convert_to_firestore_type, safe_select_index
+
 
 def safe_to_date(value):
     """Convierte un valor a datetime.date de forma segura."""
@@ -15,6 +17,7 @@ def safe_to_date(value):
         except Exception:
             return datetime.now().date()
     return datetime.now().date()
+
 
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
@@ -118,11 +121,22 @@ def show_modify(df_pedidos, df_listas):
                         df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
                     if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                        st.success(f"Pedido {mod_id} actualizado correctamente!")
-                        st.session_state.pedido_a_modificar = None
+                        success_placeholder = st.empty()
+                        success_placeholder.success(f"Pedido {mod_id} actualizado correctamente!")
+                        time.sleep(5)  # ⏱ Mostrar 5 segundos el mensaje
+                        success_placeholder.empty()
+
+                        # 🔹 Resetear estado para volver a “cero”
+                        if 'pedido_a_modificar' in st.session_state:
+                            del st.session_state['pedido_a_modificar']
+                        for key in list(st.session_state.keys()):
+                            if key.startswith("mod_"):
+                                del st.session_state[key]
+
                         if 'data' not in st.session_state:
                             st.session_state['data'] = {}
                         st.session_state.data['df_pedidos'] = df_pedidos
+
                         st.rerun()
                     else:
                         st.error("Error al actualizar el pedido")
