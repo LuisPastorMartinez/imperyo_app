@@ -109,7 +109,12 @@ def show_create(df_pedidos, df_listas):
                 # 🔹 Resetear los campos del formulario
                 for key in list(st.session_state.keys()):
                     if key.startswith("new_"):
-                        del st.session_state[key]
+                        if isinstance(st.session_state[key], bool):
+                            st.session_state[key] = False
+                        elif isinstance(st.session_state[key], (int, float)):
+                            st.session_state[key] = 0.0
+                        else:
+                            st.session_state[key] = ""
 
                 st.rerun()
             else:
