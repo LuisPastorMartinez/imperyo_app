@@ -5,6 +5,13 @@ import time
 from utils import delete_document_firestore, save_dataframe_firestore
 
 
+def reindex_pedidos(df_pedidos):
+    """Reordena los IDs de los pedidos para que sean consecutivos desde 1 hasta N."""
+    df_pedidos = df_pedidos.sort_values(by="ID").reset_index(drop=True)
+    df_pedidos["ID"] = range(1, len(df_pedidos) + 1)
+    return df_pedidos
+
+
 def show_delete(df_pedidos, df_listas):
     st.subheader("Eliminar Pedido")
 
@@ -56,7 +63,6 @@ def show_delete(df_pedidos, df_listas):
             with estado_cols[4]:
                 st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), disabled=True)
 
-            # Botón de confirmación doble
             eliminar = st.form_submit_button("🗑️ Eliminar Definitivamente", type="primary")
 
             if eliminar:
@@ -68,11 +74,15 @@ def show_delete(df_pedidos, df_listas):
                     # Segunda pulsación → ejecutar borrado
                     try:
                         df_pedidos = df_pedidos[df_pedidos['ID'] != del_id]
+
+                        # 🔹 Reindexar IDs después de eliminar
+                        df_pedidos = reindex_pedidos(df_pedidos)
+
                         doc_id = pedido['id_documento_firestore']
                         if delete_document_firestore('pedidos', doc_id):
                             if save_dataframe_firestore(df_pedidos, 'pedidos'):
                                 success_placeholder = st.empty()
-                                success_placeholder.success(f"Pedido {del_id} eliminado correctamente!")
+                                success_placeholder.success(f"Pedido {del_id} eliminado y IDs reindexados correctamente!")
                                 time.sleep(5)  # ⏱ Mostrar 5 segundos
                                 success_placeholder.empty()
 
