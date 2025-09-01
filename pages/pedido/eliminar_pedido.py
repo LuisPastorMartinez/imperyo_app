@@ -23,7 +23,6 @@ def show_delete(df_pedidos, df_listas):
 
         st.markdown(f"### ⚠️ Pedido a eliminar: **{pedido['ID']}**")
 
-        # Mostrar formulario solo de lectura con todos los campos
         with st.form("eliminar_pedido_form"):
             col1, col2 = st.columns(2)
             with col1:
@@ -57,9 +56,16 @@ def show_delete(df_pedidos, df_listas):
             with estado_cols[4]:
                 st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), disabled=True)
 
-            confirmacion = st.checkbox("Confirmo que deseo eliminar este pedido permanentemente", key="confirm_delete")
-            if confirmacion:
-                if st.form_submit_button("🗑️ Eliminar Definitivamente"):
+            # Botón de confirmación doble
+            eliminar = st.form_submit_button("🗑️ Eliminar Definitivamente", type="primary")
+
+            if eliminar:
+                if "delete_confirm_step" not in st.session_state:
+                    # Primera pulsación → pedir confirmación
+                    st.session_state.delete_confirm_step = True
+                    st.warning("⚠️ Pulsa de nuevo 'Eliminar Definitivamente' para confirmar la eliminación.")
+                else:
+                    # Segunda pulsación → ejecutar borrado
                     try:
                         df_pedidos = df_pedidos[df_pedidos['ID'] != del_id]
                         doc_id = pedido['id_documento_firestore']
@@ -71,11 +77,13 @@ def show_delete(df_pedidos, df_listas):
                                 success_placeholder.empty()
 
                                 # 🔹 Limpiar estado
-                                keys_to_delete = [k for k in st.session_state.keys() if k.startswith("delete_") or k.startswith("confirm_")]
+                                keys_to_delete = [k for k in st.session_state.keys() if k.startswith("delete_")]
                                 for k in keys_to_delete:
                                     del st.session_state[k]
                                 if 'pedido_a_eliminar' in st.session_state:
                                     del st.session_state['pedido_a_eliminar']
+                                if "delete_confirm_step" in st.session_state:
+                                    del st.session_state["delete_confirm_step"]
 
                                 if 'data' not in st.session_state:
                                     st.session_state['data'] = {}
