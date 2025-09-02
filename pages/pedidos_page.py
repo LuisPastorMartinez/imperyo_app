@@ -25,22 +25,29 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
             df_listas = data['df_listas']
             st.session_state['data'] = data
 
-    tab1, tab2, tab3, tab4 = st.tabs(["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"])
+    # Tab activo por defecto (si venimos desde consultar)
+    default_tab = st.session_state.get("active_pedido_tab", "Crear Pedido")
+
+    tab1, tab2, tab3, tab4 = st.tabs(
+        ["Crear Pedido", "Consultar Pedidos", "Modificar Pedido", "Eliminar Pedido"]
+    )
 
     with tab1:
-        show_create(df_pedidos, df_listas)
+        if default_tab == "Crear Pedido":
+            show_create(df_pedidos, df_listas)
 
     with tab2:
-        show_consult(df_pedidos, df_listas)
+        if default_tab == "Consultar Pedidos":
+            show_consult(df_pedidos, df_listas)
 
     with tab3:
-        show_modify(df_pedidos, df_listas)
+        if default_tab == "Modificar":
+            show_modify(df_pedidos, df_listas)
 
     with tab4:
-        show_delete(df_pedidos, df_listas)
+        if default_tab == "Eliminar":
+            show_delete(df_pedidos, df_listas)
 
 # Cuando Streamlit ejecute este fichero, mostramos la página:
 if __name__ == "__main__" or True:
-    # si otra parte del proyecto importa show_pedidos_page con args, se respetará;
-    # en ejecución directa garantizamos que la página se muestre
     show_pedidos_page()
