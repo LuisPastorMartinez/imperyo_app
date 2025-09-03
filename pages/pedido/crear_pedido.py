@@ -1,129 +1,140 @@
 # pages/pedido/crear_pedido.py
 import streamlit as st
 import pandas as pd
-import time
 from datetime import datetime
-from utils import save_dataframe_firestore
-
-
-def init_create_state():
-    """Inicializa claves para crear pedido si no existen"""
-    defaults = {
-        "new_cliente": "",
-        "new_producto": "",
-        "new_telefono": "",
-        "new_club": "",
-        "new_talla": "",
-        "new_tela": "",
-        "new_descripcion": "",
-        "new_fecha_entrada": datetime.now().date(),
-        "new_tiene_fecha_salida": False,
-        "new_fecha_salida": datetime.now().date(),
-        "new_precio": 0.0,
-        "new_precio_factura": 0.0,
-        "new_tipo_pago": "",
-        "new_adelanto": 0.0,
-        "new_observaciones": "",
-        "new_empezado": False,
-        "new_terminado": False,
-        "new_cobrado": False,
-        "new_retirado": False,
-        "new_pendiente": False,
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+from utils import get_next_id, save_dataframe_firestore
+from .helpers import convert_to_firestore_type
+import time
 
 
 def show_create(df_pedidos, df_listas):
-    st.subheader("➕ Crear Pedido")
+    st.subheader("Crear Nuevo Pedido")
 
-    # Inicializar estado
-    init_create_state()
+    # 🔹 Inicializar estado limpio si no existe
+    if "new_cliente" not in st.session_state:
+        st.session_state["new_producto"] = ""
+        st.session_state["new_cliente"] = ""
+        st.session_state["new_telefono"] = ""
+        st.session_state["new_club"] = ""
+        st.session_state["new_talla"] = ""
+        st.session_state["new_tela"] = ""
+        st.session_state["new_descripcion"] = ""
+        st.session_state["new_fecha_entrada"] = datetime.now().date()
+        st.session_state["new_tiene_fecha_salida"] = False
+        st.session_state["new_fecha_salida"] = datetime.now().date()
+        st.session_state["new_precio"] = 0.0
+        st.session_state["new_precio_factura"] = 0.0
+        st.session_state["new_tipo_pago"] = ""
+        st.session_state["new_adelanto"] = 0.0
+        st.session_state["new_observaciones"] = ""
+        st.session_state["new_empezado"] = False
+        st.session_state["new_terminado"] = False
+        st.session_state["new_cobrado"] = False
+        st.session_state["new_retirado"] = False
+        st.session_state["new_pendiente"] = False
 
-    with st.form("crear_pedido_form"):
+    with st.form("nuevo_pedido_form"):
+        # Se calcula el próximo ID y se muestra al usuario.
+        next_id = get_next_id(df_pedidos, 'ID')
+        st.info(f"El próximo ID de pedido será: **{next_id}**")
+        
         col1, col2 = st.columns(2)
         with col1:
-            st.text_input("Cliente*", key="new_cliente")
-            st.text_input("Teléfono*", key="new_telefono")
-            st.text_input("Club*", key="new_club")
-            st.text_input("Producto*", key="new_producto")
-            st.text_input("Talla", key="new_talla")
-            st.text_input("Tela", key="new_tela")
-            st.text_area("Descripción", key="new_descripcion")
+            productos = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
+            producto = st.selectbox("Producto*", productos, key="new_producto")
+            cliente = st.text_input("Cliente*", key="new_cliente")
+            telefono = st.text_input("Teléfono*", key="new_telefono", max_chars=9)
+            club = st.text_input("Club*", key="new_club")
+            tallas = [""] + df_listas['Talla'].dropna().unique().tolist() if 'Talla' in df_listas.columns else [""]
+            talla = st.selectbox("Talla", tallas, key="new_talla")
+            telas = [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""]
+            tela = st.selectbox("Tela", telas, key="new_tela")
+            descripcion = st.text_area("Descripción", key="new_descripcion")
 
         with col2:
-            st.date_input("Fecha entrada*", key="new_fecha_entrada")
-            if st.checkbox("¿Tiene fecha de salida?", key="new_tiene_fecha_salida"):
-                st.date_input("Fecha salida", key="new_fecha_salida")
-            st.number_input("Precio*", min_value=0.0, key="new_precio")
-            st.number_input("Precio factura", min_value=0.0, key="new_precio_factura")
-            st.text_input("Tipo de pago", key="new_tipo_pago")
-            st.number_input("Adelanto", min_value=0.0, key="new_adelanto")
-            st.text_area("Observaciones", key="new_observaciones")
+            fecha_entrada = st.date_input("Fecha entrada", value=st.session_state["new_fecha_entrada"], key="new_fecha_entrada")
+            tiene_fecha_salida = st.checkbox("Establecer fecha de salida", value=st.session_state["new_tiene_fecha_salida"], key="new_tiene_fecha_salida")
+            if tiene_fecha_salida:
+                fecha_salida = st.date_input("Fecha salida", value=st.session_state["new_fecha_salida"], key="new_fecha_salida")
+            else:
+                fecha_salida = None
+            precio = st.number_input("Precio", min_value=0.0, value=st.session_state["new_precio"], key="new_precio")
+            precio_factura = st.number_input("Precio factura", min_value=0.0, value=st.session_state["new_precio_factura"], key="new_precio_factura")
+            tipos_pago = [""] + df_listas['Tipo de pago'].dropna().unique().tolist() if 'Tipo de pago' in df_listas.columns else [""]
+            tipo_pago = st.selectbox("Tipo de pago", tipos_pago, key="new_tipo_pago")
+            adelanto = st.number_input("Adelanto", min_value=0.0, value=st.session_state["new_adelanto"], key="new_adelanto")
+            observaciones = st.text_area("Observaciones", key="new_observaciones")
 
         st.write("**Estado del pedido:**")
         estado_cols = st.columns(5)
         with estado_cols[0]:
-            st.checkbox("Empezado", key="new_empezado")
+            empezado = st.checkbox("Empezado", value=st.session_state["new_empezado"], key="new_empezado")
         with estado_cols[1]:
-            st.checkbox("Terminado", key="new_terminado")
+            terminado = st.checkbox("Terminado", value=st.session_state["new_terminado"], key="new_terminado")
         with estado_cols[2]:
-            st.checkbox("Cobrado", key="new_cobrado")
+            cobrado = st.checkbox("Cobrado", value=st.session_state["new_cobrado"], key="new_cobrado")
         with estado_cols[3]:
-            st.checkbox("Retirado", key="new_retirado")
+            retirado = st.checkbox("Retirado", value=st.session_state["new_retirado"], key="new_retirado")
         with estado_cols[4]:
-            st.checkbox("Pendiente", key="new_pendiente")
+            pendiente = st.checkbox("Pendiente", value=st.session_state["new_pendiente"], key="new_pendiente")
 
-        guardar = st.form_submit_button("💾 Guardar Pedido", type="primary")
-
-        if guardar:
-            if not st.session_state.new_cliente or not st.session_state.new_telefono or not st.session_state.new_producto or not st.session_state.new_club:
-                st.error("Por favor completa todos los campos obligatorios (*)")
+        if st.form_submit_button("Guardar Nuevo Pedido"):
+            if not cliente or not telefono or not producto or not club:
+                st.error("Por favor complete los campos obligatorios (*)")
                 return
 
-            if not st.session_state.new_telefono.isdigit() or len(st.session_state.new_telefono) != 9:
+            # ✅ Validación de teléfono
+            if not telefono.isdigit() or len(telefono) != 9:
                 st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                 return
 
-            nuevo_pedido = {
-                "ID": int(df_pedidos["ID"].max() + 1) if not df_pedidos.empty else 1,
-                "Cliente": st.session_state.new_cliente,
-                "Telefono": st.session_state.new_telefono,
-                "Club": st.session_state.new_club,
-                "Producto": st.session_state.new_producto,
-                "Talla": st.session_state.new_talla,
-                "Tela": st.session_state.new_tela,
-                "Breve Descripción": st.session_state.new_descripcion,
-                "Fecha entrada": st.session_state.new_fecha_entrada,
-                "Fecha Salida": st.session_state.new_fecha_salida if st.session_state.new_tiene_fecha_salida else None,
-                "Precio": st.session_state.new_precio,
-                "Precio Factura": st.session_state.new_precio_factura,
-                "Tipo de pago": st.session_state.new_tipo_pago,
-                "Adelanto": st.session_state.new_adelanto,
-                "Observaciones": st.session_state.new_observaciones,
-                "Inicio Trabajo": st.session_state.new_empezado,
-                "Trabajo Terminado": st.session_state.new_terminado,
-                "Cobrado": st.session_state.new_cobrado,
-                "Retirado": st.session_state.new_retirado,
-                "Pendiente": st.session_state.new_pendiente,
+            new_pedido = {
+                'ID': next_id,
+                'Producto': convert_to_firestore_type(producto),
+                'Cliente': convert_to_firestore_type(cliente),
+                'Telefono': convert_to_firestore_type(telefono),
+                'Club': convert_to_firestore_type(club),
+                'Talla': convert_to_firestore_type(talla),
+                'Tela': convert_to_firestore_type(tela),
+                'Breve Descripción': convert_to_firestore_type(descripcion),
+                'Fecha entrada': convert_to_firestore_type(fecha_entrada),
+                'Fecha Salida': convert_to_firestore_type(fecha_salida),
+                'Precio': convert_to_firestore_type(precio),
+                'Precio Factura': convert_to_firestore_type(precio_factura),
+                'Tipo de pago': convert_to_firestore_type(tipo_pago),
+                'Adelanto': convert_to_firestore_type(adelanto),
+                'Observaciones': convert_to_firestore_type(observaciones),
+                'Inicio Trabajo': convert_to_firestore_type(empezado),
+                'Trabajo Terminado': convert_to_firestore_type(terminado),
+                'Cobrado': convert_to_firestore_type(cobrado),
+                'Retirado': convert_to_firestore_type(retirado),
+                'Pendiente': convert_to_firestore_type(pendiente),
+                'id_documento_firestore': None
             }
 
-            df_pedidos = pd.concat([df_pedidos, pd.DataFrame([nuevo_pedido])], ignore_index=True)
+            new_pedido_df = pd.DataFrame([new_pedido])
+            df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
 
-            if save_dataframe_firestore(df_pedidos, "pedidos"):
+            # Saneado previo al guardado
+            df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
+            for c in df_pedidos.columns:
+                df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
+
+            if save_dataframe_firestore(df_pedidos, 'pedidos'):
                 success_placeholder = st.empty()
-                success_placeholder.success("Pedido guardado correctamente ✅")
-                time.sleep(5)
+                success_placeholder.success(f"Pedido {next_id} creado correctamente!")
+                time.sleep(2)
                 success_placeholder.empty()
 
-                # Limpiar estado
-                keys_to_delete = [k for k in st.session_state.keys() if k.startswith("new_")]
-                for k in keys_to_delete:
-                    del st.session_state[k]
+                if 'data' not in st.session_state:
+                    st.session_state['data'] = {}
+                st.session_state.data['df_pedidos'] = df_pedidos
 
-                st.session_state.data["df_pedidos"] = df_pedidos
-                st.session_state.active_pedido_tab = "Consultar Pedidos"
+                # 🔹 Borrar claves del formulario para que se limpien en el rerun
+                for key in list(st.session_state.keys()):
+                    if key.startswith("new_"):
+                        del st.session_state[key]
+
                 st.rerun()
             else:
-                st.error("❌ Error al guardar el pedido en Firestore")
+                st.error("Error al crear el pedido")

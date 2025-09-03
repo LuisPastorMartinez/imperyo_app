@@ -13,20 +13,14 @@ def reindex_pedidos(df_pedidos):
 
 
 def show_delete(df_pedidos, df_listas):
-    st.subheader("🗑️ Eliminar Pedido")
+    st.subheader("Eliminar Pedido")
 
-    # Cargar ID automáticamente si viene desde consultar
-    del_id = st.session_state.get("delete_id_input", None)
-    if del_id is None:
-        del_id = st.number_input("ID del pedido a eliminar:", min_value=1, key="delete_id_input")
-
-    if st.button("Buscar Pedido", key="search_pedido_button") or (
-        "pedido_a_eliminar" not in st.session_state and del_id
-    ):
+    del_id = st.number_input("ID del pedido a eliminar:", min_value=1, key="delete_id_input")
+    if st.button("Buscar Pedido", key="search_pedido_button"):
         pedido = df_pedidos[df_pedidos['ID'] == del_id]
         if not pedido.empty:
             st.session_state.pedido_a_eliminar = pedido.iloc[0].to_dict()
-            st.success(f"Pedido {del_id} cargado para eliminar")
+            st.success(f"Pedido {del_id} cargado para eliminación")
         else:
             st.warning(f"No existe un pedido con ID {del_id}")
             st.session_state.pedido_a_eliminar = None
@@ -75,8 +69,9 @@ def show_delete(df_pedidos, df_listas):
                 if "delete_confirm_step" not in st.session_state:
                     # Primera pulsación → pedir confirmación
                     st.session_state.delete_confirm_step = True
-                    st.warning("⚠️ Pulsa de nuevo 'Eliminar Definitivamente' para confirmar.")
+                    st.warning("⚠️ Pulsa de nuevo 'Eliminar Definitivamente' para confirmar la eliminación.")
                 else:
+                    # Segunda pulsación → ejecutar borrado
                     try:
                         df_pedidos = df_pedidos[df_pedidos['ID'] != del_id]
 
@@ -88,10 +83,10 @@ def show_delete(df_pedidos, df_listas):
                             if save_dataframe_firestore(df_pedidos, 'pedidos'):
                                 success_placeholder = st.empty()
                                 success_placeholder.success(f"Pedido {del_id} eliminado y IDs reindexados correctamente!")
-                                time.sleep(5)
+                                time.sleep(5)  # ⏱ Mostrar 5 segundos
                                 success_placeholder.empty()
 
-                                # 🔹 Limpiar session_state
+                                # 🔹 Limpiar estado
                                 keys_to_delete = [k for k in st.session_state.keys() if k.startswith("delete_")]
                                 for k in keys_to_delete:
                                     del st.session_state[k]
@@ -100,15 +95,11 @@ def show_delete(df_pedidos, df_listas):
                                 if "delete_confirm_step" in st.session_state:
                                     del st.session_state["delete_confirm_step"]
 
-                                # Actualizar datos en cache
                                 if 'data' not in st.session_state:
                                     st.session_state['data'] = {}
                                 st.session_state.data['df_pedidos'] = df_pedidos
 
-                                # 🔹 Volver a "Consultar Pedidos"
-                                st.session_state.active_pedido_tab = "Consultar Pedidos"
                                 st.rerun()
-
                             else:
                                 st.error("Error al guardar los cambios en Firestore")
                         else:
