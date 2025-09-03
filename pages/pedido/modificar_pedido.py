@@ -1,11 +1,9 @@
-# pages/pedido/modificar_pedido.py
 import streamlit as st
 import pandas as pd
 import time
 from datetime import datetime, date
 from utils import save_dataframe_firestore
 from .helpers import convert_to_firestore_type, safe_select_index
-
 
 def safe_to_date(value):
     """Convierte un valor a datetime.date de forma segura."""
@@ -17,7 +15,6 @@ def safe_to_date(value):
         except Exception:
             return datetime.now().date()
     return datetime.now().date()
-
 
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
@@ -35,21 +32,66 @@ def show_modify(df_pedidos, df_listas):
     if 'pedido_a_modificar' in st.session_state and st.session_state.pedido_a_modificar:
         pedido = st.session_state.pedido_a_modificar
 
-        productos = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
-        tallas = [""] + df_listas['Talla'].dropna().unique().tolist() if 'Talla' in df_listas.columns else [""]
-        telas = [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""]
-        tipos_pago = [""] + df_listas['Tipo de pago'].dropna().unique().tolist() if 'Tipo de pago' in df_listas.columns else [""]
+        # ✅ Inicializar productos en session_state
+        if "productos" not in st.session_state:
+            if "Productos" in pedido and isinstance(pedido["Productos"], list):
+                st.session_state.productos = pedido["Productos"]
+            else:
+                st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
 
+        # --- BLOQUE DE PRODUCTOS (FUERA DEL FORM) ---
+        st.markdown("### Productos del pedido")
+        productos_lista = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
+        telas_lista = [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""]
+
+        total_productos = 0.0
+        for i, p in enumerate(st.session_state.productos):
+            cols = st.columns([3, 3, 2, 2])
+            with cols[0]:
+                st.session_state.productos[i]["Producto"] = st.selectbox(
+                    f"Producto {i+1}",
+                    productos_lista,
+                    index=productos_lista.index(p["Producto"]) if p["Producto"] in productos_lista else 0,
+                    key=f"mod_producto_{i}"
+                )
+            with cols[1]:
+                st.session_state.productos[i]["Tela"] = st.selectbox(
+                    f"Tela {i+1}",
+                    telas_lista,
+                    index=telas_lista.index(p["Tela"]) if p["Tela"] in telas_lista else 0,
+                    key=f"mod_tela_{i}"
+                )
+            with cols[2]:
+                st.session_state.productos[i]["PrecioUnitario"] = st.number_input(
+                    f"Precio {i+1}", min_value=0.0, value=float(p.get("PrecioUnitario", 0.0)), key=f"mod_precio_unit_{i}"
+                )
+            with cols[3]:
+                st.session_state.productos[i]["Cantidad"] = st.number_input(
+                    f"Cantidad {i+1}", min_value=1, value=int(p.get("Cantidad", 1)), key=f"mod_cantidad_{i}"
+                )
+
+            total_productos += st.session_state.productos[i]["PrecioUnitario"] * st.session_state.productos[i]["Cantidad"]
+
+        st.markdown(f"**💰 Total productos: {total_productos:.2f} €**")
+
+        add_col, remove_col = st.columns([1, 1])
+        with add_col:
+            if st.button("➕ Añadir otro producto"):
+                st.session_state.productos.append({"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1})
+
+        with remove_col:
+            if len(st.session_state.productos) > 1:
+                if st.button("➖ Quitar último producto"):
+                    st.session_state.productos.pop()
+
+        # --- FORMULARIO PRINCIPAL ---
         with st.form("modificar_pedido_form"):
             col1, col2 = st.columns(2)
             with col1:
                 st.text_input("ID", value=pedido['ID'], disabled=True, key="mod_id")
-                producto = st.selectbox("Producto*", productos, index=safe_select_index(productos, pedido.get('Producto','')), key="mod_producto")
                 cliente = st.text_input("Cliente*", value=pedido.get('Cliente',''), key="mod_cliente")
                 telefono = st.text_input("Teléfono*", value=pedido.get('Telefono',''), key="mod_telefono")
                 club = st.text_input("Club*", value=pedido.get('Club',''), key="mod_club")
-                talla = st.selectbox("Talla", tallas, index=safe_select_index(tallas, pedido.get('Talla','')), key="mod_talla")
-                tela = st.selectbox("Tela", telas, index=safe_select_index(telas, pedido.get('Tela','')), key="mod_tela")
                 descripcion = st.text_area("Descripción", value=pedido.get('Breve Descripción',''), key="mod_descripcion")
 
             with col2:
@@ -59,10 +101,12 @@ def show_modify(df_pedidos, df_listas):
                     fecha_salida = st.date_input("Fecha salida", value=safe_to_date(pedido.get('Fecha Salida')), key="mod_fecha_salida")
                 else:
                     fecha_salida = None
-                precio = st.number_input("Precio*", min_value=0.0, value=float(pedido.get('Precio',0) or 0), key="mod_precio")
-                precio_factura = st.number_input("Precio factura", min_value=0.0, value=float(pedido.get('Precio Factura',0) or 0), key="mod_precio_factura")
+
+                precio = st.number_input("Precio total", min_value=0.0, value=total_productos, key="mod_precio")
+                precio_factura = st.number_input("Precio factura", min_value=0.0, value=float(pedido.get('Precio Factura', 0) or 0), key="mod_precio_factura")
+                tipos_pago = [""] + df_listas['Tipo de pago'].dropna().unique().tolist() if 'Tipo de pago' in df_listas.columns else [""]
                 tipo_pago = st.selectbox("Tipo de pago", tipos_pago, index=safe_select_index(tipos_pago, pedido.get('Tipo de pago','')), key="mod_tipo_pago")
-                adelanto = st.number_input("Adelanto", min_value=0.0, value=float(pedido.get('Adelanto',0) or 0), key="mod_adelanto")
+                adelanto = st.number_input("Adelanto", min_value=0.0, value=float(pedido.get('Adelanto', 0) or 0), key="mod_adelanto")
                 observaciones = st.text_area("Observaciones", value=pedido.get('Observaciones',''), key="mod_observaciones")
 
             st.write("**Estado del pedido:**")
@@ -79,23 +123,20 @@ def show_modify(df_pedidos, df_listas):
                 pendiente = st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), key="mod_pendiente")
 
             if st.form_submit_button("Guardar Cambios"):
-                if not cliente or not telefono or not producto or not club:
+                if not cliente or not telefono or not club:
                     st.error("Por favor complete los campos obligatorios (*)")
                     return
 
-                # ✅ Validación de teléfono
                 if not telefono.isdigit() or len(telefono) != 9:
                     st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                     return
 
                 updated_pedido = {
                     'ID': mod_id,
-                    'Producto': convert_to_firestore_type(producto),
+                    'Productos': st.session_state.productos,
                     'Cliente': convert_to_firestore_type(cliente),
                     'Telefono': convert_to_firestore_type(telefono),
                     'Club': convert_to_firestore_type(club),
-                    'Talla': convert_to_firestore_type(talla),
-                    'Tela': convert_to_firestore_type(tela),
                     'Breve Descripción': convert_to_firestore_type(descripcion),
                     'Fecha entrada': convert_to_firestore_type(fecha_entrada),
                     'Fecha Salida': convert_to_firestore_type(fecha_salida),
@@ -115,7 +156,6 @@ def show_modify(df_pedidos, df_listas):
                 idx_list = df_pedidos.index[df_pedidos['ID'] == mod_id].tolist()
                 if idx_list:
                     df_pedidos.loc[idx_list[0]] = updated_pedido
-
                     df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
                     for c in df_pedidos.columns:
                         df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
@@ -123,10 +163,9 @@ def show_modify(df_pedidos, df_listas):
                     if save_dataframe_firestore(df_pedidos, 'pedidos'):
                         success_placeholder = st.empty()
                         success_placeholder.success(f"Pedido {mod_id} actualizado correctamente!")
-                        time.sleep(5)  # ⏱ Mostrar 5 segundos el mensaje
+                        time.sleep(3)
                         success_placeholder.empty()
 
-                        # 🔹 Resetear estado para volver a “cero”
                         keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
                         for k in keys_to_delete:
                             del st.session_state[k]
@@ -137,7 +176,6 @@ def show_modify(df_pedidos, df_listas):
                         if 'data' not in st.session_state:
                             st.session_state['data'] = {}
                         st.session_state.data['df_pedidos'] = df_pedidos
-
                         st.rerun()
                     else:
                         st.error("Error al actualizar el pedido")
