@@ -33,31 +33,54 @@ def show_create(df_pedidos, df_listas):
         next_id = get_next_id(df_pedidos, 'ID')
         st.info(f"El próximo ID de pedido será: **{next_id}**")
 
+        # --- BLOQUE DINÁMICO DE PRODUCTOS ---
         st.markdown("### Productos del pedido")
+        productos_lista = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
+        telas_lista = [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""]
+
         total_productos = 0.0
         for i, p in enumerate(st.session_state.productos):
             cols = st.columns([3, 3, 2, 2])
             with cols[0]:
-                st.session_state.productos[i]["Producto"] = st.text_input(f"Producto {i+1}", value=p["Producto"], key=f"producto_{i}")
+                st.session_state.productos[i]["Producto"] = st.selectbox(
+                    f"Producto {i+1}",
+                    productos_lista,
+                    index=productos_lista.index(p["Producto"]) if p["Producto"] in productos_lista else 0,
+                    key=f"producto_{i}"
+                )
             with cols[1]:
-                st.session_state.productos[i]["Tela"] = st.text_input(f"Tela {i+1}", value=p["Tela"], key=f"tela_{i}")
+                st.session_state.productos[i]["Tela"] = st.selectbox(
+                    f"Tela {i+1}",
+                    telas_lista,
+                    index=telas_lista.index(p["Tela"]) if p["Tela"] in telas_lista else 0,
+                    key=f"tela_{i}"
+                )
             with cols[2]:
-                st.session_state.productos[i]["PrecioUnitario"] = st.number_input(f"Precio {i+1}", min_value=0.0, value=float(p["PrecioUnitario"]), key=f"precio_unit_{i}")
+                st.session_state.productos[i]["PrecioUnitario"] = st.number_input(
+                    f"Precio {i+1}", min_value=0.0, value=float(p["PrecioUnitario"]), key=f"precio_unit_{i}"
+                )
             with cols[3]:
-                st.session_state.productos[i]["Cantidad"] = st.number_input(f"Cantidad {i+1}", min_value=1, value=int(p["Cantidad"]), key=f"cantidad_{i}")
+                st.session_state.productos[i]["Cantidad"] = st.number_input(
+                    f"Cantidad {i+1}", min_value=1, value=int(p["Cantidad"]), key=f"cantidad_{i}"
+                )
+
             total_productos += st.session_state.productos[i]["PrecioUnitario"] * st.session_state.productos[i]["Cantidad"]
 
         st.markdown(f"**💰 Total productos: {total_productos:.2f} €**")
 
-        if st.form_submit_button("➕ Añadir otro producto"):
-            st.session_state.productos.append({"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1})
-            st.experimental_rerun()
-
-        if len(st.session_state.productos) > 1:
-            if st.form_submit_button("➖ Quitar último producto"):
-                st.session_state.productos.pop()
+        add_col, remove_col = st.columns([1, 1])
+        with add_col:
+            if st.form_submit_button("➕ Añadir otro producto"):
+                st.session_state.productos.append({"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1})
                 st.experimental_rerun()
 
+        with remove_col:
+            if len(st.session_state.productos) > 1:
+                if st.form_submit_button("➖ Quitar último producto"):
+                    st.session_state.productos.pop()
+                    st.experimental_rerun()
+
+        # --- RESTO DEL FORMULARIO ---
         col1, col2 = st.columns(2)
         with col1:
             cliente = st.text_input("Cliente*", key="new_cliente")
@@ -132,14 +155,15 @@ def show_create(df_pedidos, df_listas):
                 success_placeholder.success(f"Pedido {next_id} creado correctamente!")
                 time.sleep(2)
                 success_placeholder.empty()
+
                 if 'data' not in st.session_state:
                     st.session_state['data'] = {}
                 st.session_state.data['df_pedidos'] = df_pedidos
 
+                # Resetear formulario
                 for key in list(st.session_state.keys()):
                     if key.startswith("new_") or key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_"):
                         del st.session_state[key]
-
                 st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
                 st.rerun()
             else:
