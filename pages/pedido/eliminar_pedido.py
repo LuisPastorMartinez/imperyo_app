@@ -1,108 +1,97 @@
-# pages/pedido/eliminar_pedido.py
 import streamlit as st
 import pandas as pd
+import json
 import time
-from utils import delete_document_firestore, save_dataframe_firestore
+from utils import save_dataframe_firestore
 
+def show_delete(df_pedidos):
+    st.subheader("Eliminar Pedido por ID")
 
-def reindex_pedidos(df_pedidos):
-    """Reordena los IDs de los pedidos para que sean consecutivos desde 1 hasta N."""
-    df_pedidos = df_pedidos.sort_values(by="ID").reset_index(drop=True)
-    df_pedidos["ID"] = range(1, len(df_pedidos) + 1)
-    return df_pedidos
+    # Inicializar estado de control
+    if "delete_step" not in st.session_state:
+        st.session_state.delete_step = 0
+        st.session_state.delete_id = None
 
+    delete_id = st.number_input("ID del pedido a eliminar:", min_value=1, key="delete_id_input")
+    pedido = df_pedidos[df_pedidos['ID'] == delete_id]
 
-def show_delete(df_pedidos, df_listas):
-    st.subheader("Eliminar Pedido")
+    if pedido.empty:
+        st.warning("No existe un pedido con ese ID.")
+        return
 
-    del_id = st.number_input("ID del pedido a eliminar:", min_value=1, key="delete_id_input")
-    if st.button("Buscar Pedido", key="search_pedido_button"):
-        pedido = df_pedidos[df_pedidos['ID'] == del_id]
-        if not pedido.empty:
-            st.session_state.pedido_a_eliminar = pedido.iloc[0].to_dict()
-            st.success(f"Pedido {del_id} cargado para eliminación")
-        else:
-            st.warning(f"No existe un pedido con ID {del_id}")
-            st.session_state.pedido_a_eliminar = None
+    pedido_data = pedido.iloc[0].to_dict()
 
-    if 'pedido_a_eliminar' in st.session_state and st.session_state.pedido_a_eliminar:
-        pedido = st.session_state.pedido_a_eliminar
+    # --- Mostrar datos del pedido ---
+    st.markdown(f"### 📦 Pedido {delete_id}")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**Cliente:** {pedido_data.get('Cliente', '')}")
+        st.write(f"**Teléfono:** {pedido_data.get('Telefono', '')}")
+        st.write(f"**Club:** {pedido_data.get('Club', '')}")
+        st.write(f"**Descripción:** {pedido_data.get('Breve Descripción', '')}")
+    with col2:
+        st.write(f"**Fecha Entrada:** {pedido_data.get('Fecha entrada', '')}")
+        st.write(f"**Fecha Salida:** {pedido_data.get('Fecha Salida', '')}")
+        st.write(f"**Precio Total:** {pedido_data.get('Precio', 0)} €")
+        st.write(f"**Precio Factura:** {pedido_data.get('Precio Factura', 0)} €")
+        st.write(f"**Tipo de pago:** {pedido_data.get('Tipo de pago', '')}")
+        st.write(f"**Adelanto:** {pedido_data.get('Adelanto', 0)} €")
 
-        st.markdown(f"### ⚠️ Pedido a eliminar: **{pedido['ID']}**")
+    st.write(f"**Observaciones:** {pedido_data.get('Observaciones', '')}")
 
-        with st.form("eliminar_pedido_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.text_input("Cliente", value=str(pedido.get('Cliente','')), disabled=True)
-                st.text_input("Teléfono", value=str(pedido.get('Telefono','')), disabled=True)
-                st.text_input("Club", value=str(pedido.get('Club','')), disabled=True)
-                st.text_input("Producto", value=str(pedido.get('Producto','')), disabled=True)
-                st.text_input("Talla", value=str(pedido.get('Talla','')), disabled=True)
-                st.text_input("Tela", value=str(pedido.get('Tela','')), disabled=True)
-                st.text_area("Descripción", value=str(pedido.get('Breve Descripción','')), disabled=True)
+    # --- Mostrar productos ---
+    st.markdown("### 🛍️ Productos del pedido")
+    productos_data = []
+    if "Productos" in pedido_data:
+        productos_raw = pedido_data["Productos"]
+        if isinstance(productos_raw, list):
+            productos_data = productos_raw
+        elif isinstance(productos_raw, str) and productos_raw.strip():
+            try:
+                productos_data = json.loads(productos_raw)
+            except json.JSONDecodeError:
+                productos_data = []
 
-            with col2:
-                st.text_input("Fecha entrada", value=str(pedido.get('Fecha entrada','')), disabled=True)
-                st.text_input("Fecha salida", value=str(pedido.get('Fecha Salida','')), disabled=True)
-                st.text_input("Precio", value=str(pedido.get('Precio','')), disabled=True)
-                st.text_input("Precio factura", value=str(pedido.get('Precio Factura','')), disabled=True)
-                st.text_input("Tipo de pago", value=str(pedido.get('Tipo de pago','')), disabled=True)
-                st.text_input("Adelanto", value=str(pedido.get('Adelanto','')), disabled=True)
-                st.text_area("Observaciones", value=str(pedido.get('Observaciones','')), disabled=True)
+    if productos_data:
+        total = 0.0
+        for i, prod in enumerate(productos_data, start=1):
+            producto = prod.get("Producto", "")
+            tela = prod.get("Tela", "")
+            precio = float(prod.get("PrecioUnitario", 0))
+            cantidad = int(prod.get("Cantidad", 1))
+            subtotal = precio * cantidad
+            total += subtotal
 
-            st.write("**Estado del pedido:**")
-            estado_cols = st.columns(5)
-            with estado_cols[0]:
-                st.checkbox("Empezado", value=bool(pedido.get('Inicio Trabajo', False)), disabled=True)
-            with estado_cols[1]:
-                st.checkbox("Terminado", value=bool(pedido.get('Trabajo Terminado', False)), disabled=True)
-            with estado_cols[2]:
-                st.checkbox("Cobrado", value=bool(pedido.get('Cobrado', False)), disabled=True)
-            with estado_cols[3]:
-                st.checkbox("Retirado", value=bool(pedido.get('Retirado', False)), disabled=True)
-            with estado_cols[4]:
-                st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), disabled=True)
+            st.write(f"**Producto {i}:** {producto}")
+            st.write(f"• Tela: {tela}")
+            st.write(f"• Precio Unitario: {precio:.2f} €")
+            st.write(f"• Cantidad: {cantidad}")
+            st.write(f"• Subtotal: {subtotal:.2f} €")
+            st.markdown("---")
 
-            eliminar = st.form_submit_button("🗑️ Eliminar Definitivamente", type="primary")
+        st.markdown(f"**💰 Total Productos: {total:.2f} €**")
+    else:
+        st.info("Este pedido no tiene productos registrados.")
 
-            if eliminar:
-                if "delete_confirm_step" not in st.session_state:
-                    # Primera pulsación → pedir confirmación
-                    st.session_state.delete_confirm_step = True
-                    st.warning("⚠️ Pulsa de nuevo 'Eliminar Definitivamente' para confirmar la eliminación.")
-                else:
-                    # Segunda pulsación → ejecutar borrado
-                    try:
-                        df_pedidos = df_pedidos[df_pedidos['ID'] != del_id]
+    # --- Botón de eliminación en 2 pasos ---
+    if st.session_state.delete_step == 0:
+        if st.button("🟢 Eliminar Pedido", key="delete_step_1"):
+            st.session_state.delete_step = 1
+            st.experimental_rerun()
 
-                        # 🔹 Reindexar IDs después de eliminar
-                        df_pedidos = reindex_pedidos(df_pedidos)
+    elif st.session_state.delete_step == 1:
+        if st.button(f"🔴 Confirmar eliminación del pedido N°{delete_id}", key="delete_step_2"):
+            # Proceder a eliminar el pedido
+            df_pedidos = df_pedidos[df_pedidos['ID'] != delete_id]
+            df_pedidos.reset_index(drop=True, inplace=True)
 
-                        doc_id = pedido['id_documento_firestore']
-                        if delete_document_firestore('pedidos', doc_id):
-                            if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                                success_placeholder = st.empty()
-                                success_placeholder.success(f"Pedido {del_id} eliminado y IDs reindexados correctamente!")
-                                time.sleep(5)  # ⏱ Mostrar 5 segundos
-                                success_placeholder.empty()
-
-                                # 🔹 Limpiar estado
-                                keys_to_delete = [k for k in st.session_state.keys() if k.startswith("delete_")]
-                                for k in keys_to_delete:
-                                    del st.session_state[k]
-                                if 'pedido_a_eliminar' in st.session_state:
-                                    del st.session_state['pedido_a_eliminar']
-                                if "delete_confirm_step" in st.session_state:
-                                    del st.session_state["delete_confirm_step"]
-
-                                if 'data' not in st.session_state:
-                                    st.session_state['data'] = {}
-                                st.session_state.data['df_pedidos'] = df_pedidos
-
-                                st.rerun()
-                            else:
-                                st.error("Error al guardar los cambios en Firestore")
-                        else:
-                            st.error("Error al eliminar el pedido de Firestore")
-                    except Exception as e:
-                        st.error(f"Error al eliminar el pedido: {str(e)}")
+            if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                success_placeholder = st.empty()
+                success_placeholder.success(f"✅ Pedido {delete_id} eliminado correctamente.")
+                time.sleep(5)
+                success_placeholder.empty()
+                # Reiniciar el estado
+                st.session_state.delete_step = 0
+                st.experimental_rerun()
+            else:
+                st.error("❌ Error al eliminar el pedido.")
