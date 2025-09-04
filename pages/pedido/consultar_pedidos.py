@@ -1,56 +1,81 @@
-# pages/pedido/consultar_pedidos.py
 import streamlit as st
 import pandas as pd
-from .helpers import convert_to_firestore_type
+import json
+from datetime import datetime
 
-def show_consult(df_pedidos, df_listas):
-    st.subheader("Consultar Pedidos")
+def show_consult(df_pedidos):
+    st.subheader("Consultar Pedido por ID")
 
-    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-    with col_f1:
-        filtro_cliente = st.text_input("Filtrar por cliente")
-    with col_f2:
-        filtro_club = st.text_input("Filtrar por club")
-    with col_f3:
-        filtro_telefono = st.text_input("Filtrar por teléfono")
-    with col_f4:
-        filtro_estado = st.selectbox("Filtrar por estado", options=["", "Pendiente", "Empezado", "Terminado", "Retirado"], key="filtro_estado_consulta")
+    consult_id = st.number_input("ID del pedido a consultar:", min_value=1, key="consult_id_input")
+    if st.button("Buscar Pedido", key="consult_pedido_button"):
+        pedido = df_pedidos[df_pedidos['ID'] == consult_id]
+        if not pedido.empty:
+            pedido = pedido.iloc[0].to_dict()
 
-    df_filtrado = df_pedidos.copy()
+            st.markdown(f"### 📦 Pedido {consult_id}")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Cliente:** {pedido.get('Cliente', '')}")
+                st.write(f"**Teléfono:** {pedido.get('Telefono', '')}")
+                st.write(f"**Club:** {pedido.get('Club', '')}")
+                st.write(f"**Descripción:** {pedido.get('Breve Descripción', '')}")
+            with col2:
+                st.write(f"**Fecha Entrada:** {pedido.get('Fecha entrada', '')}")
+                st.write(f"**Fecha Salida:** {pedido.get('Fecha Salida', '')}")
+                st.write(f"**Precio Total:** {pedido.get('Precio', 0)} €")
+                st.write(f"**Precio Factura:** {pedido.get('Precio Factura', 0)} €")
+                st.write(f"**Tipo de pago:** {pedido.get('Tipo de pago', '')}")
+                st.write(f"**Adelanto:** {pedido.get('Adelanto', 0)} €")
 
-    if filtro_cliente:
-        df_filtrado = df_filtrado[df_filtrado['Cliente'].str.contains(filtro_cliente, case=False, na=False)]
-    if filtro_club:
-        df_filtrado = df_filtrado[df_filtrado['Club'].str.contains(filtro_club, case=False, na=False)]
-    if filtro_telefono:
-        df_filtrado = df_filtrado[df_filtrado['Telefono'].astype(str).str.contains(filtro_telefono, na=False)]
-    if filtro_estado:
-        if filtro_estado == "Pendiente":
-            df_filtrado = df_filtrado[df_filtrado['Pendiente'] == True]
-        elif filtro_estado == "Empezado":
-            df_filtrado = df_filtrado[df_filtrado['Inicio Trabajo'] == True]
-        elif filtro_estado == "Terminado":
-            df_filtrado = df_filtrado[df_filtrado['Trabajo Terminado'] == True]
-        elif filtro_estado == "Retirado":
-            df_filtrado = df_filtrado[df_filtrado['Retirado'] == True]
+            st.write(f"**Observaciones:** {pedido.get('Observaciones', '')}")
 
-    if not df_filtrado.empty:
-        df_display = df_filtrado.copy()
-        for col in ['Fecha entrada', 'Fecha Salida']:
-            if col in df_display.columns:
-                df_display[col] = df_display[col].apply(lambda x: str(x)[:10] if pd.notna(x) and str(x) != 'NaT' else '')
-        if 'ID' in df_display.columns:
-            df_display['ID'] = pd.to_numeric(df_display['ID'], errors='coerce').fillna(0).astype('int64')
-        if 'Precio' in df_display.columns:
-            df_display['Precio'] = pd.to_numeric(df_display['Precio'], errors='coerce').fillna(0.0)
-        for col in ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado']:
-            if col in df_display.columns:
-                df_display[col] = df_display[col].fillna(False).astype(bool)
+            # --- PRODUCTOS ---
+            st.markdown("### 🛍️ Productos")
+            productos_data = []
+            if "Productos" in pedido:
+                productos_raw = pedido["Productos"]
+                if isinstance(productos_raw, list):
+                    productos_data = productos_raw
+                elif isinstance(productos_raw, str) and productos_raw.strip():
+                    try:
+                        productos_data = json.loads(productos_raw)
+                    except json.JSONDecodeError:
+                        productos_data = []
+            
+            if productos_data:
+                total = 0.0
+                for i, prod in enumerate(productos_data, start=1):
+                    producto = prod.get("Producto", "")
+                    tela = prod.get("Tela", "")
+                    precio = float(prod.get("PrecioUnitario", 0))
+                    cantidad = int(prod.get("Cantidad", 1))
+                    subtotal = precio * cantidad
+                    total += subtotal
 
-        columnas_mostrar = ['ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Fecha entrada', 'Fecha Salida', 'Precio', 'Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado']
-        columnas_disponibles = [col for col in columnas_mostrar if col in df_display.columns]
+                    st.write(f"**Producto {i}:** {producto}")
+                    st.write(f"• Tela: {tela}")
+                    st.write(f"• Precio Unitario: {precio:.2f} €")
+                    st.write(f"• Cantidad: {cantidad}")
+                    st.write(f"• Subtotal: {subtotal:.2f} €")
+                    st.markdown("---")
 
-        st.dataframe(df_display[columnas_disponibles].sort_values('ID', ascending=False), height=600, use_container_width=True)
-        st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
-    else:
-        st.info("No se encontraron pedidos con los filtros aplicados")
+                st.markdown(f"**💰 Total Productos: {total:.2f} €**")
+            else:
+                st.info("Este pedido no tiene productos registrados.")
+
+            # --- ESTADOS ---
+            st.markdown("### 📊 Estado del pedido")
+            estado_cols = st.columns(5)
+            with estado_cols[0]:
+                st.checkbox("Empezado", value=bool(pedido.get('Inicio Trabajo', False)), disabled=True)
+            with estado_cols[1]:
+                st.checkbox("Terminado", value=bool(pedido.get('Trabajo Terminado', False)), disabled=True)
+            with estado_cols[2]:
+                st.checkbox("Cobrado", value=bool(pedido.get('Cobrado', False)), disabled=True)
+            with estado_cols[3]:
+                st.checkbox("Retirado", value=bool(pedido.get('Retirado', False)), disabled=True)
+            with estado_cols[4]:
+                st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), disabled=True)
+
+        else:
+            st.warning(f"No se encontró un pedido con ID {consult_id}")
