@@ -76,12 +76,12 @@ def show_modify(df_pedidos, df_listas):
 
         add_col, remove_col = st.columns([1, 1])
         with add_col:
-            if st.button("➕ Añadir otro producto"):
+            if st.button("➕ Añadir otro producto", key="mod_add_producto"):
                 st.session_state.productos.append({"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1})
 
         with remove_col:
             if len(st.session_state.productos) > 1:
-                if st.button("➖ Quitar último producto"):
+                if st.button("➖ Quitar último producto", key="mod_remove_producto"):
                     st.session_state.productos.pop()
 
         # --- FORMULARIO PRINCIPAL ---
