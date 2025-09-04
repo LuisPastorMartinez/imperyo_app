@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import json
 from datetime import datetime, date
 from utils import save_dataframe_firestore
 from .helpers import convert_to_firestore_type, safe_select_index
@@ -32,12 +33,19 @@ def show_modify(df_pedidos, df_listas):
     if 'pedido_a_modificar' in st.session_state and st.session_state.pedido_a_modificar:
         pedido = st.session_state.pedido_a_modificar
 
-        # ✅ Inicializar productos en session_state
-        if "productos" not in st.session_state:
-            if "Productos" in pedido and isinstance(pedido["Productos"], list):
+        # ✅ Cargar productos desde JSON si es necesario
+        if "Productos" in pedido:
+            if isinstance(pedido["Productos"], list):
                 st.session_state.productos = pedido["Productos"]
+            elif isinstance(pedido["Productos"], str) and pedido["Productos"].strip():
+                try:
+                    st.session_state.productos = json.loads(pedido["Productos"])
+                except json.JSONDecodeError:
+                    st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
             else:
                 st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
+        else:
+            st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
 
         # --- BLOQUE DE PRODUCTOS (FUERA DEL FORM) ---
         st.markdown("### Productos del pedido")
@@ -97,10 +105,7 @@ def show_modify(df_pedidos, df_listas):
             with col2:
                 fecha_entrada = st.date_input("Fecha entrada*", value=safe_to_date(pedido.get('Fecha entrada')), key="mod_fecha_entrada")
                 tiene_fecha_salida = st.checkbox("Establecer fecha de salida", value=bool(pedido.get('Fecha Salida')), key="mod_tiene_fecha_salida")
-                if tiene_fecha_salida:
-                    fecha_salida = st.date_input("Fecha salida", value=safe_to_date(pedido.get('Fecha Salida')), key="mod_fecha_salida")
-                else:
-                    fecha_salida = None
+                fecha_salida = st.date_input("Fecha salida", value=safe_to_date(pedido.get('Fecha Salida')), key="mod_fecha_salida") if tiene_fecha_salida else None
 
                 precio = st.number_input("Precio total", min_value=0.0, value=total_productos, key="mod_precio")
                 precio_factura = st.number_input("Precio factura", min_value=0.0, value=float(pedido.get('Precio Factura', 0) or 0), key="mod_precio_factura")
@@ -131,9 +136,12 @@ def show_modify(df_pedidos, df_listas):
                     st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                     return
 
+                # Guardar productos como JSON
+                productos_json = json.dumps(st.session_state.productos)
+
                 updated_pedido = {
                     'ID': mod_id,
-                    'Productos': st.session_state.productos,
+                    'Productos': productos_json,
                     'Cliente': convert_to_firestore_type(cliente),
                     'Telefono': convert_to_firestore_type(telefono),
                     'Club': convert_to_firestore_type(club),

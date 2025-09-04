@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import json
 from datetime import datetime
 from utils import get_next_id, save_dataframe_firestore
 from .helpers import convert_to_firestore_type
@@ -29,7 +30,7 @@ def show_create(df_pedidos, df_listas):
         st.session_state["new_pendiente"] = False
         st.session_state["productos"] = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
 
-    # --- BLOQUE DE PRODUCTOS (FUERA DEL FORM) ---
+    # --- BLOQUE DE PRODUCTOS ---
     st.markdown("### Productos del pedido")
     productos_lista = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
     telas_lista = [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""]
@@ -66,12 +67,12 @@ def show_create(df_pedidos, df_listas):
 
     add_col, remove_col = st.columns([1, 1])
     with add_col:
-        if st.button("➕ Añadir otro producto"):
+        if st.button("➕ Añadir otro producto", key="crear_add_producto"):
             st.session_state.productos.append({"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1})
 
     with remove_col:
         if len(st.session_state.productos) > 1:
-            if st.button("➖ Quitar último producto"):
+            if st.button("➖ Quitar último producto", key="crear_remove_producto"):
                 st.session_state.productos.pop()
 
     # --- RESTO DEL FORMULARIO ---
@@ -119,9 +120,12 @@ def show_create(df_pedidos, df_listas):
                 st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                 return
 
+            # Guardar productos como JSON string
+            productos_json = json.dumps(st.session_state.productos)
+
             new_pedido = {
                 'ID': next_id,
-                'Productos': st.session_state.productos,
+                'Productos': productos_json,
                 'Cliente': convert_to_firestore_type(cliente),
                 'Telefono': convert_to_firestore_type(telefono),
                 'Club': convert_to_firestore_type(club),
