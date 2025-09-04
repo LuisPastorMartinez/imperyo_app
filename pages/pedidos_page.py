@@ -39,8 +39,10 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
     with tab4:
         show_delete(df_pedidos, df_listas)
 
-# Cuando Streamlit ejecute este fichero, mostramos la página:
-if __name__ == "__main__" or True:
-    # si otra parte del proyecto importa show_pedidos_page con args, se respetará;
-    # en ejecución directa garantizamos que la página se muestre
-    show_pedidos_page()
+# Solo ejecutar si se corre este archivo directamente, no al importarlo desde app.py
+if __name__ == "__main__":
+    # Cargar datos de prueba si quieres usarlo de forma aislada
+    import pandas as pd
+    df_pedidos = pd.DataFrame()
+    df_listas = pd.DataFrame()
+    show_pedidos_page(df_pedidos, df_listas)
