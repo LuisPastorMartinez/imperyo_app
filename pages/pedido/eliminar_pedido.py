@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
-from utils import save_dataframe_firestore
+from utils import save_dataframe_firestore, load_dataframe_firestore
 
 def show_delete(df_pedidos):
     st.subheader("Eliminar Pedido por ID")
@@ -20,38 +20,57 @@ def show_delete(df_pedidos):
 
     # --- Mostrar datos del pedido ---
     st.markdown(f"### 📦 Pedido {delete_id}")
-    st.write(f"**Cliente:** {pedido_data.get('Cliente', '')}")
-    st.write(f"**Descripción:** {pedido_data.get('Breve Descripción', '')}")
-    st.write(f"**Precio Total:** {pedido_data.get('Precio', 0)} €")
-    st.write(f"**Precio Factura:** {pedido_data.get('Precio Factura', 0)} €")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write(f"**Cliente:** {pedido_data.get('Cliente', '')}")
+        st.write(f"**Teléfono:** {pedido_data.get('Telefono', '')}")
+        st.write(f"**Club:** {pedido_data.get('Club', '')}")
+        st.write(f"**Descripción:** {pedido_data.get('Breve Descripción', '')}")
+    with col2:
+        st.write(f"**Fecha Entrada:** {pedido_data.get('Fecha entrada', '')}")
+        st.write(f"**Fecha Salida:** {pedido_data.get('Fecha Salida', '')}")
+        st.write(f"**Precio Total:** {pedido_data.get('Precio', 0)} €")
+        st.write(f"**Precio Factura:** {pedido_data.get('Precio Factura', 0)} €")
+        st.write(f"**Tipo de pago:** {pedido_data.get('Tipo de pago', '')}")
+        st.write(f"**Adelanto:** {pedido_data.get('Adelanto', 0)} €")
 
-    # --- Mostrar productos (si existen) ---
+    st.write(f"**Observaciones:** {pedido_data.get('Observaciones', '')}")
+
+    # --- Mostrar productos ---
+    st.markdown("### 🛍️ Productos del pedido")
+    productos_data = []
     if "Productos" in pedido_data:
-        try:
-            productos = (
-                pedido_data["Productos"]
-                if isinstance(pedido_data["Productos"], list)
-                else json.loads(pedido_data["Productos"])
-            )
-        except json.JSONDecodeError:
-            productos = []
-    else:
-        productos = []
+        productos_raw = pedido_data["Productos"]
+        if isinstance(productos_raw, list):
+            productos_data = productos_raw
+        elif isinstance(productos_raw, str) and productos_raw.strip():
+            try:
+                productos_data = json.loads(productos_raw)
+            except json.JSONDecodeError:
+                productos_data = []
 
-    if productos:
-        total = 0
-        st.markdown("### 🛍️ Productos del pedido")
-        for i, prod in enumerate(productos, start=1):
+    if productos_data:
+        total = 0.0
+        for i, prod in enumerate(productos_data, start=1):
+            producto = prod.get("Producto", "")
+            tela = prod.get("Tela", "")
             precio = float(prod.get("PrecioUnitario", 0))
             cantidad = int(prod.get("Cantidad", 1))
             subtotal = precio * cantidad
             total += subtotal
-            st.write(f"**Producto {i}:** {prod.get('Producto', '')}")
-            st.write(f"• Cantidad: {cantidad}  • Precio: {precio:.2f} €  • Subtotal: {subtotal:.2f} €")
-            st.markdown("---")
-        st.markdown(f"**💰 Total Productos: {total:.2f} €**")
 
-    # --- Botón de confirmación en 2 pasos ---
+            st.write(f"**Producto {i}:** {producto}")
+            st.write(f"• Tela: {tela}")
+            st.write(f"• Precio Unitario: {precio:.2f} €")
+            st.write(f"• Cantidad: {cantidad}")
+            st.write(f"• Subtotal: {subtotal:.2f} €")
+            st.markdown("---")
+
+        st.markdown(f"**💰 Total Productos: {total:.2f} €**")
+    else:
+        st.info("Este pedido no tiene productos registrados.")
+
+    # --- Botón de eliminación en dos pasos ---
     if st.session_state.delete_step == 0:
         if st.button("🟢 Eliminar Pedido", key="delete_step_1"):
             st.session_state.delete_step = 1
@@ -59,13 +78,27 @@ def show_delete(df_pedidos):
 
     elif st.session_state.delete_step == 1:
         if st.button(f"🔴 Confirmar eliminación del pedido N°{delete_id}", key="delete_step_2"):
-            # 1. Eliminar el pedido del DataFrame
-            df_filtrado = df_pedidos[df_pedidos["ID"] != delete_id].reset_index(drop=True)
+            cliente = pedido_data.get("Cliente", "")
 
-            # 2. Guardar en Firestore
-            if save_dataframe_firestore(df_filtrado, "pedidos"):
+            # 1. Eliminar pedido
+            df_pedidos = df_pedidos[df_pedidos['ID'] != delete_id]
+            df_pedidos.reset_index(drop=True, inplace=True)
+            save_ok = save_dataframe_firestore(df_pedidos, 'pedidos')
+
+            # 2. Comprobar si el cliente tiene más pedidos
+            pedidos_cliente = df_pedidos[df_pedidos["Cliente"] == cliente]
+            if pedidos_cliente.empty:
+                try:
+                    df_clientes = load_dataframe_firestore("clientes")
+                    df_clientes = df_clientes[df_clientes["Cliente"] != cliente]
+                    df_clientes.reset_index(drop=True, inplace=True)
+                    save_dataframe_firestore(df_clientes, "clientes")
+                except Exception as e:
+                    st.warning(f"El pedido fue eliminado, pero no se pudo actualizar la lista de clientes: {e}")
+
+            if save_ok:
                 st.session_state.delete_step = 0
                 st.success(f"✅ Pedido {delete_id} eliminado correctamente.")
                 st.rerun()
             else:
-                st.error("❌ Error al guardar los cambios.")
+                st.error("❌ Error al eliminar el pedido.")
