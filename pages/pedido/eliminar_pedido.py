@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
-from utils import save_dataframe_firestore, load_dataframe_firestore
+from utils.firestore_utils import save_dataframe_firestore, load_dataframe_firestore
 
 def show_delete(df_pedidos):
     st.subheader("Eliminar Pedido por ID")
