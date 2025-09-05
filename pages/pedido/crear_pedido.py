@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime
-from ..utils.firestore_utils import get_next_id, save_dataframe_firestore
+from utils import get_next_id, save_dataframe_firestore
 from .helpers import convert_to_firestore_type
 import time
 

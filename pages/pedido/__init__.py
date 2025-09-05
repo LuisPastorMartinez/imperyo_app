@@ -1,6 +1,6 @@
 # pages/pedido/__init__.py
 from .crear_pedido import show_create
-from .consultar_pedido import show_consult
+from .consultar_pedidos import show_consult
 from .modificar_pedido import show_modify
 from .eliminar_pedido import show_delete
 
