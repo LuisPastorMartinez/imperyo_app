@@ -46,13 +46,13 @@ def show_create(df_pedidos, df_listas):
     with add_col:
         if st.button("➕ Añadir otro producto", key="crear_add_producto"):
             st.session_state.num_productos += 1
-            st.experimental_rerun()
+            st.rerun()  # ✅ ahora usa st.rerun()
 
     with remove_col:
         if st.session_state.num_productos > 1:
             if st.button("➖ Quitar último producto", key="crear_remove_producto"):
                 st.session_state.num_productos -= 1
-                st.experimental_rerun()
+                st.rerun()
 
     # --- RESTO DEL FORMULARIO ---
     with st.form("nuevo_pedido_form"):
@@ -146,6 +146,6 @@ def show_create(df_pedidos, df_listas):
                 for key in list(st.session_state.keys()):
                     if key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_") or key.startswith("cantidad_"):
                         del st.session_state[key]
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Error al crear el pedido")
