@@ -33,21 +33,20 @@ def show_modify(df_pedidos, df_listas):
     if 'pedido_a_modificar' in st.session_state and st.session_state.pedido_a_modificar:
         pedido = st.session_state.pedido_a_modificar
 
-        # ✅ Cargar productos desde JSON si es necesario
+        # ✅ Inicializar productos desde JSON o crear lista vacía
         if "Productos" in pedido:
-            if isinstance(pedido["Productos"], list):
-                st.session_state.productos = pedido["Productos"]
-            elif isinstance(pedido["Productos"], str) and pedido["Productos"].strip():
-                try:
-                    st.session_state.productos = json.loads(pedido["Productos"])
-                except json.JSONDecodeError:
-                    st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
-            else:
+            try:
+                st.session_state.productos = (
+                    json.loads(pedido["Productos"]) if isinstance(pedido["Productos"], str) and pedido["Productos"].strip()
+                    else pedido["Productos"] if isinstance(pedido["Productos"], list)
+                    else [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
+                )
+            except json.JSONDecodeError:
                 st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
         else:
             st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
 
-        # --- BLOQUE DE PRODUCTOS (FUERA DEL FORM) ---
+        # --- BLOQUE DE PRODUCTOS ---
         st.markdown("### Productos del pedido")
         productos_lista = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
         telas_lista = [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""]
@@ -59,14 +58,14 @@ def show_modify(df_pedidos, df_listas):
                 st.session_state.productos[i]["Producto"] = st.selectbox(
                     f"Producto {i+1}",
                     productos_lista,
-                    index=productos_lista.index(p["Producto"]) if p["Producto"] in productos_lista else 0,
+                    index=productos_lista.index(p.get("Producto", "")) if p.get("Producto", "") in productos_lista else 0,
                     key=f"mod_producto_{i}"
                 )
             with cols[1]:
                 st.session_state.productos[i]["Tela"] = st.selectbox(
                     f"Tela {i+1}",
                     telas_lista,
-                    index=telas_lista.index(p["Tela"]) if p["Tela"] in telas_lista else 0,
+                    index=telas_lista.index(p.get("Tela", "")) if p.get("Tela", "") in telas_lista else 0,
                     key=f"mod_tela_{i}"
                 )
             with cols[2]:
@@ -136,7 +135,6 @@ def show_modify(df_pedidos, df_listas):
                     st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                     return
 
-                # Guardar productos como JSON
                 productos_json = json.dumps(st.session_state.productos)
 
                 updated_pedido = {
