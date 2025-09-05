@@ -28,6 +28,9 @@ def show_create(df_pedidos, df_listas):
         st.session_state["new_cobrado"] = False
         st.session_state["new_retirado"] = False
         st.session_state["new_pendiente"] = False
+
+    # ✅ Asegurar que productos siempre exista, aunque el cliente ya esté en session_state
+    if "productos" not in st.session_state:
         st.session_state["productos"] = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
 
     # --- BLOQUE DE PRODUCTOS ---
@@ -69,11 +72,13 @@ def show_create(df_pedidos, df_listas):
     with add_col:
         if st.button("➕ Añadir otro producto", key="crear_add_producto"):
             st.session_state.productos.append({"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1})
+            st.experimental_rerun()  # 🔑 Forzamos recarga para que aparezca el nuevo producto de inmediato
 
     with remove_col:
         if len(st.session_state.productos) > 1:
             if st.button("➖ Quitar último producto", key="crear_remove_producto"):
                 st.session_state.productos.pop()
+                st.experimental_rerun()
 
     # --- RESTO DEL FORMULARIO ---
     with st.form("nuevo_pedido_form"):
@@ -120,7 +125,6 @@ def show_create(df_pedidos, df_listas):
                 st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                 return
 
-            # Guardar productos como JSON string
             productos_json = json.dumps(st.session_state.productos)
 
             new_pedido = {
@@ -166,7 +170,7 @@ def show_create(df_pedidos, df_listas):
                 for key in list(st.session_state.keys()):
                     if key.startswith("new_") or key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_"):
                         del st.session_state[key]
-                st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
-                st.rerun()
+                st.session_state["productos"] = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
+                st.experimental_rerun()
             else:
                 st.error("Error al crear el pedido")
