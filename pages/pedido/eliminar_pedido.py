@@ -1,13 +1,11 @@
 import streamlit as st
 import pandas as pd
 import json
-import time
 from utils import save_dataframe_firestore
 
 def show_delete(df_pedidos):
     st.subheader("Eliminar Pedido por ID")
 
-    # Inicializar estado
     if "delete_step" not in st.session_state:
         st.session_state.delete_step = 0
 
@@ -85,10 +83,8 @@ def show_delete(df_pedidos):
             df_pedidos.reset_index(drop=True, inplace=True)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                success_placeholder = st.empty()
-                success_placeholder.success(f"✅ Pedido {delete_id} eliminado correctamente.")
-                time.sleep(3)
                 st.session_state.delete_step = 0
+                st.success(f"✅ Pedido {delete_id} eliminado correctamente.")
                 st.rerun()
             else:
                 st.error("❌ Error al eliminar el pedido.")
