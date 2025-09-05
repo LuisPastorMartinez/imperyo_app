@@ -3,7 +3,7 @@ import pandas as pd
 import time
 import json
 from datetime import datetime, date
-from utils.firestore_utils import save_dataframe_firestore
+from ..utils.firestore_utils import save_dataframe_firestore
 from .helpers import convert_to_firestore_type, safe_select_index
 
 def safe_to_date(value):
