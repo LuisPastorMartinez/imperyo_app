@@ -157,5 +157,8 @@ def show_create(df_pedidos, df_listas):
                 # Activar reseteo y nueva clave de refresco
                 st.session_state.reset_form = True
                 st.session_state.force_refresh = str(datetime.now().timestamp())
+
+                # 🔑 Forzar rerun inmediato para que se limpie al instante
+                st.rerun()
             else:
                 st.error("Error al crear el pedido")
