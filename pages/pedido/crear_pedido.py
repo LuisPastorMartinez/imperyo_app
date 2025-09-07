@@ -7,6 +7,15 @@ from .helpers import convert_to_firestore_type
 import time
 
 def show_create(df_pedidos, df_listas):
+    # --- Comprobar si hay que resetear el formulario ---
+    if st.session_state.get("reset_form", False):
+        keys_to_keep = ["data"]
+        keys_to_delete = [k for k in st.session_state.keys() if k not in keys_to_keep]
+        for key in keys_to_delete:
+            del st.session_state[key]
+        st.session_state.num_productos = 1
+        st.session_state.reset_form = False
+
     st.subheader("Crear Nuevo Pedido")
 
     # --- Inicializar número de filas de productos ---
@@ -141,13 +150,7 @@ def show_create(df_pedidos, df_listas):
                     st.session_state['data'] = {}
                 st.session_state.data['df_pedidos'] = df_pedidos
 
-                # --- 🔄 Resetear solo campos del formulario ---
-                keys_to_keep = ["data"]
-                keys_to_delete = [k for k in st.session_state.keys() if k not in keys_to_keep]
-                for key in keys_to_delete:
-                    del st.session_state[key]
-
-                st.session_state.num_productos = 1
-                st.rerun()
+                # En lugar de rerun, marcamos reset para la próxima recarga
+                st.session_state.reset_form = True
             else:
                 st.error("Error al crear el pedido")
