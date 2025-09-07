@@ -46,7 +46,7 @@ def show_create(df_pedidos, df_listas):
     with add_col:
         if st.button("➕ Añadir otro producto", key="crear_add_producto"):
             st.session_state.num_productos += 1
-            st.rerun()  # ✅ ahora usa st.rerun()
+            st.rerun()
 
     with remove_col:
         if st.session_state.num_productos > 1:
@@ -137,15 +137,16 @@ def show_create(df_pedidos, df_listas):
                 time.sleep(2)
                 success_placeholder.empty()
 
+                # Guardar df_pedidos en session_state
                 if 'data' not in st.session_state:
                     st.session_state['data'] = {}
                 st.session_state.data['df_pedidos'] = df_pedidos
 
-                # Resetear formulario
-                st.session_state.num_productos = 1
-                for key in list(st.session_state.keys()):
-                    if key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_") or key.startswith("cantidad_"):
-                        del st.session_state[key]
+                # --- 🔄 Resetear TODO excepto 'data' ---
+                data_temp = st.session_state['data']
+                st.session_state.clear()
+                st.session_state['data'] = data_temp
                 st.rerun()
+
             else:
                 st.error("Error al crear el pedido")
