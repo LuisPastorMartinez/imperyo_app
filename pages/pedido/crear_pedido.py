@@ -46,13 +46,13 @@ def show_create(df_pedidos, df_listas):
     with add_col:
         if st.button("➕ Añadir otro producto", key="crear_add_producto"):
             st.session_state.num_productos += 1
-            st.rerun()
+            st.experimental_rerun()
 
     with remove_col:
         if st.session_state.num_productos > 1:
             if st.button("➖ Quitar último producto", key="crear_remove_producto"):
                 st.session_state.num_productos -= 1
-                st.rerun()
+                st.experimental_rerun()
 
     # --- RESTO DEL FORMULARIO ---
     with st.form("nuevo_pedido_form"):
@@ -141,15 +141,16 @@ def show_create(df_pedidos, df_listas):
                     st.session_state['data'] = {}
                 st.session_state.data['df_pedidos'] = df_pedidos
 
-                # --- 🔄 Resetear solo los campos del formulario ---
+                # --- 🔄 Resetear solo campos del formulario sin romper navegación ---
                 keys_to_keep = ["data"]
-                for key in list(st.session_state.keys()):
-                    if key not in keys_to_keep:
-                        del st.session_state[key]
+                keys_to_delete = [k for k in st.session_state.keys() if k not in keys_to_keep]
+                for key in keys_to_delete:
+                    del st.session_state[key]
 
-                # Reiniciar número de productos a 1
+                # Reiniciar número de productos a 1 de forma segura
                 st.session_state.num_productos = 1
 
-                st.rerun()
+                # Usar experimental_rerun para evitar reinicio de la app
+                st.experimental_rerun()
             else:
                 st.error("Error al crear el pedido")
