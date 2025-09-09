@@ -9,16 +9,20 @@ from .helpers import convert_to_firestore_type, safe_select_index
 import time
 
 def safe_to_date(value):
-    """Convierte un valor a datetime.date de forma segura. Si es None, devuelve None."""
+    """Convierte un valor a datetime.date de forma segura. Si es None, NaT o inválido, devuelve None."""
     if value is None:
         return None
-    if isinstance(value, date):
-        return value
+    if isinstance(value, pd.Timestamp) and (pd.isna(value) or value is pd.NaT):
+        return None
     if isinstance(value, str) and value.strip() != "":
         try:
             return datetime.strptime(value[:10], "%Y-%m-%d").date()
         except Exception:
-            pass
+            return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
     return None
 
 def show_modify(df_pedidos, df_listas):
@@ -130,11 +134,11 @@ def show_modify(df_pedidos, df_listas):
 
                 # ✅ Manejar fecha_salida_value para evitar pd.NaT
                 fecha_salida_value = safe_to_date(pedido.get('Fecha Salida'))
-                if fecha_salida_value is None:
-                    fecha_salida_value = datetime.now().date()
 
                 # ✅ Mostrar date_input solo si tiene_fecha_salida está marcado
                 if tiene_fecha_salida:
+                    if fecha_salida_value is None:
+                        fecha_salida_value = datetime.now().date()
                     fecha_salida = st.date_input(
                         "Fecha salida",
                         value=fecha_salida_value,
