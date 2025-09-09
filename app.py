@@ -77,12 +77,16 @@ h2 {
 # --- HEADER ---
 col_logo, col_title = st.columns([0.1, 0.9])
 with col_logo:
+    # ✅ Corregido: URL sin espacios
     st.image("https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1", width=80)
 with col_title:
     st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
 
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
+    if df.empty:
+        return df
+
     # Eliminar columna "Fechas Entrada" si existe
     if 'Fechas Entrada' in df.columns:
         df = df.drop(columns=['Fechas Entrada'])
@@ -173,35 +177,69 @@ def check_password():
     else:
         return True
 
+# --- FUNCIÓN PARA INICIALIZAR SESIÓN ---
+def init_session_state():
+    defaults = {
+        "authenticated": False,
+        "login_attempted": False,
+        "username_input": "",
+        "password_input": "",
+        "data_loaded": False,
+        "current_summary_view": "Todos los Pedidos"
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
 # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
 if check_password():
-    # --- CARGA Y CORRECCIÓN DE DATOS ---
-    if 'data_loaded' not in st.session_state:
-        st.session_state.data = load_dataframes_firestore()
-        
-        if 'df_pedidos' in st.session_state.data:
-            st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
-        
-        st.session_state.data_loaded = True
+    init_session_state()
 
-    if st.session_state.data is None:
+    # --- CARGA Y CORRECCIÓN DE DATOS ---
+    if not st.session_state.get('data_loaded', False):
+        try:
+            data = load_dataframes_firestore()
+            if data is None:
+                st.error("No se pudieron cargar los datos. Verifica la conexión a Firestore.")
+                st.stop()
+
+            st.session_state.data = data
+
+            if 'df_pedidos' in st.session_state.data:
+                st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
+
+            st.session_state.data_loaded = True
+        except Exception as e:
+            st.error(f"Error al cargar datos: {e}")
+            st.stop()
+
+    # Verificar que data existe
+    if 'data' not in st.session_state or st.session_state.data is None:
+        st.error("No se cargaron los datos correctamente.")
         st.stop()
-    
+
+    # Verificar DataFrames esenciales
+    required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
+    for df_name in required_dfs:
+        if df_name not in st.session_state.data:
+            st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
+            st.stop()
+
     # Asignar DataFrames
     df_pedidos = st.session_state.data['df_pedidos']
     df_gastos = st.session_state.data['df_gastos']
     df_totales = st.session_state.data['df_totales']
     df_listas = st.session_state.data['df_listas']
     df_trabajos = st.session_state.data['df_trabajos']
-    
+
     # --- BOTÓN DE CERRAR SESIÓN ---
     st.sidebar.markdown("---")
     if st.sidebar.button("Cerrar Sesión"):
-        st.session_state["authenticated"] = False
-        st.session_state["data_loaded"] = False
-        st.session_state["login_attempted"] = False
-        st.session_state["username_input"] = ""
-        st.session_state["password_input"] = ""
+        for key in ["authenticated", "data_loaded", "login_attempted", "username_input", "password_input"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        if 'data' in st.session_state:
+            del st.session_state['data']
         st.rerun()
 
     # --- NAVEGACIÓN ---
@@ -237,8 +275,10 @@ if check_password():
                 'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
                 'Tipo de pago', 'Adelanto', 'Observaciones'
             ]
-            remaining_columns = [col for col in df_pedidos_sorted.columns if col not in new_column_order]
-            final_column_order = new_column_order + remaining_columns
+            # ✅ Solo columnas que existen
+            existing_columns = [col for col in new_column_order if col in df_pedidos_sorted.columns]
+            remaining_columns = [col for col in df_pedidos_sorted.columns if col not in existing_columns]
+            final_column_order = existing_columns + remaining_columns
             df_pedidos_reordered = df_pedidos_sorted[final_column_order]
             st.dataframe(df_pedidos_reordered)
         else:
