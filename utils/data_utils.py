@@ -1,53 +1,91 @@
 # utils/data_utils.py
 import re
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date
+import logging
 
-def limpiar_telefono(numero):
-    """Convierte el número a string y limpia formatos, manteniendo 9 dígitos"""
-    if pd.isna(numero) or numero == "":
+# Opcional: para parseo flexible de fechas (recomendado)
+try:
+    from dateutil.parser import parse
+    DATEUTIL_AVAILABLE = True
+except ImportError:
+    DATEUTIL_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
+def limpiar_telefono(numero, longitud_esperada=9, truncar=True):
+    """
+    Limpia y normaliza un número de teléfono.
+    
+    Ejemplos:
+        limpiar_telefono("600 123 456") → "600123456"
+        limpiar_telefono("+34 600 123 456") → "600123456" (si truncar=True)
+        limpiar_telefono("123") → None
+
+    Args:
+        numero: entrada (str, int, float, etc.)
+        longitud_esperada: longitud deseada del resultado (default: 9)
+        truncar: si True, trunca números más largos (últimos dígitos)
+
+    Returns:
+        str con número limpio, o None si no es válido.
+    """
+    if pd.isna(numero) or numero == "" or numero is None:
         return None
-    
+
+    # Convertir a string y limpiar
     numero_limpio = re.sub(r'[^0-9]', '', str(numero))
-    
-    if len(numero_limpio) == 9:
+
+    if len(numero_limpio) == longitud_esperada:
         return numero_limpio
-    elif len(numero_limpio) > 9:
-        return numero_limpio[:9]
-    
+    elif len(numero_limpio) > longitud_esperada and truncar:
+        # Tomar los últimos N dígitos (más útil que los primeros)
+        return numero_limpio[-longitud_esperada:]
+    elif len(numero_limpio) < longitud_esperada:
+        # Número demasiado corto
+        return None
+
     return None
 
 def limpiar_fecha(fecha):
-    """Convierte la fecha a formato date (sin hora)"""
-    if pd.isna(fecha) or fecha == "":
+    """
+    Convierte la fecha a formato date (sin hora).
+    Soporta múltiples formatos si dateutil está instalado.
+    """
+    if pd.isna(fecha) or fecha == "" or fecha is None:
         return None
-    
+
     try:
         if isinstance(fecha, str):
-            if 'T' in fecha:
-                return datetime.strptime(fecha.split('T')[0], '%Y-%m-%d').date()
-            elif ' ' in fecha:
-                return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
-            elif '/' in fecha:
-                return datetime.strptime(fecha, '%d/%m/%Y').date()
+            if DATEUTIL_AVAILABLE:
+                # Usa dateutil para parseo flexible
+                parsed = parse(fecha, dayfirst=True)  # DD/MM/YYYY primero
+                return parsed.date()
             else:
-                return datetime.strptime(fecha, '%Y-%m-%d').date()
-        elif hasattr(fecha, 'date'):
+                # Parseo manual básico
+                if 'T' in fecha:
+                    return datetime.strptime(fecha.split('T')[0], '%Y-%m-%d').date()
+                elif ' ' in fecha:
+                    return datetime.strptime(fecha.split()[0], '%Y-%m-%d').date()
+                elif '/' in fecha:
+                    # Intentar DD/MM/YYYY
+                    parts = fecha.split('/')
+                    if len(parts) == 3:
+                        day, month, year = parts
+                        return date(int(year), int(month), int(day))
+                else:
+                    return datetime.strptime(fecha, '%Y-%m-%d').date()
+        elif isinstance(fecha, datetime):
             return fecha.date()
-    except:
+        elif isinstance(fecha, date):
+            return fecha
+        else:
+            logger.warning(f"Tipo de fecha no soportado: {type(fecha)} - valor: {fecha}")
+            return None
+    except Exception as e:
+        logger.warning(f"Error al parsear fecha '{fecha}': {e}")
         return None
-    
-    return None
 
-def get_next_id(df, id_column_name):
-    """
-    Encuentra el siguiente ID disponible buscando el máximo ID existente
-    en un DataFrame y sumando 1. Si el DataFrame está vacío, comienza desde 1.
-    """
-    if df.empty or id_column_name not in df.columns:
-        return 1
-    df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
-    df_clean = df.dropna(subset=[id_column_name])
-    if df_clean.empty:
-        return 1
-    return int(df_clean[id_column_name].max()) + 1
+# NOTA: get_next_id se ha movido a firestore_utils.py para evitar duplicación.
+# Si necesitas usarla aquí, importa desde firestore_utils:
+# from .firestore_utils import get_next_id
