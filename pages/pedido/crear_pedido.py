@@ -197,9 +197,11 @@ def show_create(df_pedidos, df_listas):
                 # Activar reseteo y nueva clave de refresco
                 st.session_state.reset_form = True
                 st.session_state.force_refresh = str(datetime.now().timestamp())
-
-                # Mostrar botón para crear otro pedido
-                if st.button("🆕 Crear otro pedido"):
-                    st.rerun()
             else:
                 st.error("Error al crear el pedido")
+
+    # ✅ BOTÓN "CREAR OTRO PEDIDO" FUERA DEL FORMULARIO
+    if st.session_state.get("reset_form", False):
+        st.markdown("---")
+        if st.button("🆕 Crear otro pedido", key="crear_otro_pedido_btn"):
+            st.rerun()
