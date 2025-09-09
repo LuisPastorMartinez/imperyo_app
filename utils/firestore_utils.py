@@ -1,10 +1,13 @@
-
 import streamlit as st
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime, date
 import numpy as np
+import logging
+
+# Importar función compartida
+from pages.pedido.helpers import convert_to_firestore_type
 
 # Configuración de colecciones
 COLLECTION_NAMES = {
@@ -15,81 +18,40 @@ COLLECTION_NAMES = {
     'trabajos': 'trabajos'
 }
 
-@st.cache_resource
-def initialize_firestore():
-    """Inicializa la conexión con Firestore"""
-    try:
-        if not firebase_admin._apps:
-            cred_dict = dict(st.secrets["firestore"])  # requiere st.secrets configurado
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred)
-        return firestore.client()
-    except Exception as e:
-        st.error(f"Error inicializando Firestore: {e}")
-        return None
+# Configurar logging
+logger = logging.getLogger(__name__)
 
-db = initialize_firestore()
-
-def convert_to_firestore_types(value):
-    """Convierte tipos de Python a tipos compatibles con Firestore (sin NaT)."""
-    # 1) Vacíos / NaN / NaT / None / ""
-    if value is None:
-        return None
-    try:
-        if pd.isna(value):
-            return None
-    except Exception:
-        pass
-    if isinstance(value, str) and value.strip() in ("", "NaT", "nan", "None"):
-        return None
-    if value is pd.NaT:
-        return None
-
-    # 2) pandas.Timestamp
-    if isinstance(value, pd.Timestamp):
-        # proteger doble por si acaso
-        if pd.isna(value) or value is pd.NaT:
-            return None
+def get_firestore_client():
+    """Obtiene el cliente de Firestore, inicializándolo si es necesario."""
+    if 'firestore_client' not in st.session_state:
         try:
-            return value.to_pydatetime()
-        except Exception:
+            if "firestore" not in st.secrets:
+                st.error("Error: No se encontraron credenciales de Firestore en secrets.")
+                return None
+
+            cred_dict = dict(st.secrets["firestore"])
+            
+            if not firebase_admin._apps:
+                cred = credentials.Certificate(cred_dict)
+                firebase_admin.initialize_app(cred)
+            
+            st.session_state.firestore_client = firestore.client()
+        except Exception as e:
+            st.error(f"Error inicializando Firestore: {e}")
+            logger.error(f"Error inicializando Firestore: {e}")
             return None
+    return st.session_state.firestore_client
 
-    # 3) datetime.date (de st.date_input)
-    if isinstance(value, date) and not isinstance(value, datetime):
-        return datetime.combine(value, datetime.min.time())
-
-    # 4) datetime.datetime
-    if isinstance(value, datetime):
-        return value  # naive OK
-
-    # 5) NumPy numéricos
-    if isinstance(value, (np.integer, )):
-        return int(value)
-    if isinstance(value, (np.floating, )):
-        # Si es NaN, ya habría salido arriba con pd.isna
-        return float(value)
-
-    # 6) Tipos básicos
-    if isinstance(value, (int, float, bool, str)):
-        return value
-
-    # 7) Fallback: string
-    return str(value)
+db = get_firestore_client()
 
 def _sanitize_dataframe_for_firestore(df: pd.DataFrame) -> pd.DataFrame:
-    """Aplica conversión celda a celda y elimina cualquier NaT remanente."""
+    """Aplica conversión celda a celda usando la función compartida."""
     if df is None or df.empty:
         return df
-    # Aplicación celda a celda
     df = df.copy()
     for col in df.columns:
-        df[col] = df[col].apply(convert_to_firestore_types)
-    # Reemplazo final de NaT/NaN por None por si algo se coló
+        df[col] = df[col].apply(convert_to_firestore_type)
     df = df.where(pd.notna(df), None)
-    # Doble pasada por tipos especiales que puedan haber quedado en object
-    for col in df.columns:
-        df[col] = df[col].apply(lambda x: None if x is pd.NaT else x)
     return df
 
 def load_dataframes_firestore():
@@ -111,25 +73,23 @@ def load_dataframes_firestore():
                 df = pd.DataFrame(records)
 
                 if key == 'pedidos':
-                    # Bools
+                    # Booleanos
                     for col in ['Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado']:
                         if col in df.columns:
-                            df[col] = df[col].fillna(False).astype(bool)
+                            def safe_bool(x):
+                                if isinstance(x, bool):
+                                    return x
+                                if isinstance(x, str):
+                                    return x.lower() in ('true', '1', 'yes', 'si')
+                                if isinstance(x, (int, float)):
+                                    return bool(x)
+                                return False
+                            df[col] = df[col].apply(safe_bool).fillna(False).astype(bool)
 
-                    # Fechas -> string para visualización estable en Streamlit
+                    # Fechas → mantener como datetime (NO convertir a string aquí)
                     for col in ['Fecha entrada', 'Fecha Salida']:
                         if col in df.columns:
-                            def _fmt(x):
-                                if pd.isna(x) or x is None or x is pd.NaT:
-                                    return ''
-                                if hasattr(x, 'strftime'):
-                                    try:
-                                        return x.strftime('%Y-%m-%d')
-                                    except Exception:
-                                        pass
-                                s = str(x)
-                                return s[:10] if s and s != 'NaT' else ''
-                            df[col] = df[col].apply(_fmt)
+                            df[col] = pd.to_datetime(df[col], errors='coerce')
 
                     # Números
                     for col in ['ID', 'Precio', 'Precio Factura', 'Adelanto']:
@@ -152,10 +112,11 @@ def load_dataframes_firestore():
         return data
     except Exception as e:
         st.error(f"Error cargando datos: {e}")
+        logger.error(f"Error cargando datos: {e}")
         return None
 
 def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
-    """Guarda un DataFrame en Firestore con conversión de tipos y limpieza anti-NaT."""
+    """Guarda un DataFrame en Firestore usando batch para mayor eficiencia."""
     if db is None:
         return False
 
@@ -164,53 +125,42 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
         return False
 
     try:
-        # Limpieza y conversión robusta
         df = _sanitize_dataframe_for_firestore(df)
 
-        # Última comprobación por si acaso (diagnóstico)
-        def _has_nat(obj):
-            return obj is pd.NaT or (isinstance(obj, pd.Timestamp) and (pd.isna(obj) or obj is pd.NaT))
+        batch = db.batch()
+        collection_ref = db.collection(collection_name)
 
-        if df.applymap(_has_nat).any().any():
-            # Reemplazar cualquier NaT rezagado
-            df = df.applymap(lambda x: None if _has_nat(x) else x)
-
-        if collection_key == 'pedidos':
-            for _, row in df.iterrows():
-                record = row.drop('id_documento_firestore', errors='ignore').to_dict()
-
-                # Limpieza final del dict (defensiva)
-                for k, v in list(record.items()):
-                    if v is pd.NaT:
-                        record[k] = None
-                    elif isinstance(v, pd.Timestamp):
-                        record[k] = v.to_pydatetime()
-
-                doc_id = row.get('id_documento_firestore')
-                if doc_id:
-                    db.collection(collection_name).document(doc_id).set(record)
-                else:
-                    db.collection(collection_name).add(record)
-        else:
-            batch = db.batch()
-            docs = db.collection(collection_name).stream()
+        # Si no es pedidos, borrar todo y reescribir (como antes)
+        if collection_key != 'pedidos':
+            docs = collection_ref.stream()
             for doc in docs:
                 batch.delete(doc.reference)
-            for _, row in df.iterrows():
-                record = row.to_dict()
-                # Limpieza final por si acaso
-                for k, v in list(record.items()):
-                    if v is pd.NaT:
-                        record[k] = None
-                    elif isinstance(v, pd.Timestamp):
-                        record[k] = v.to_pydatetime()
-                new_doc = db.collection(collection_name).document()
-                batch.set(new_doc, record)
-            batch.commit()
 
+        # Guardar cada fila
+        for _, row in df.iterrows():
+            record = row.drop('id_documento_firestore', errors='ignore').to_dict()
+
+            # Limpieza final por si acaso
+            for k, v in list(record.items()):
+                if v is pd.NaT:
+                    record[k] = None
+                elif isinstance(v, pd.Timestamp):
+                    record[k] = v.to_pydatetime()
+
+            doc_id = row.get('id_documento_firestore')
+            if doc_id:
+                doc_ref = collection_ref.document(doc_id)
+            else:
+                doc_ref = collection_ref.document()
+
+            batch.set(doc_ref, record)
+
+        batch.commit()
         return True
+
     except Exception as e:
         st.error(f"Error guardando en Firestore: {e}")
+        logger.error(f"Error guardando en Firestore: {e}")
         return False
 
 def delete_document_firestore(collection_key, doc_id):
@@ -227,6 +177,7 @@ def delete_document_firestore(collection_key, doc_id):
         return True
     except Exception as e:
         st.error(f"Error eliminando documento: {e}")
+        logger.error(f"Error eliminando documento: {e}")
         return False
 
 def create_empty_dataframe(collection_name):
