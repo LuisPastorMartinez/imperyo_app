@@ -142,66 +142,64 @@ def show_create(df_pedidos, df_listas):
         with estado_cols[4]:
             pendiente = st.checkbox("Pendiente", key=f"pendiente_{suffix}")
 
-        if st.form_submit_button("Guardar Nuevo Pedido", key=f"guardar_{suffix}"):
-            if not cliente or not telefono or not club:
-                st.error("Por favor complete los campos obligatorios (*)")
-                return
+        submitted = st.form_submit_button("Guardar Nuevo Pedido", key=f"guardar_{suffix}")
 
+    # ✅ PROCESAR DESPUÉS DEL FORMULARIO (fuera de él)
+    if submitted:
+        if not cliente or not telefono or not club:
+            st.error("Por favor complete los campos obligatorios (*)")
+        else:
             telefono_limpio = limpiar_telefono(telefono)
             if not telefono_limpio:
                 st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
-                return
-
-            productos_json = json.dumps(productos_temp)
-
-            new_pedido = {
-                'ID': next_id,
-                'Productos': productos_json,
-                'Cliente': convert_to_firestore_type(cliente),
-                'Telefono': convert_to_firestore_type(telefono_limpio),
-                'Club': convert_to_firestore_type(club),
-                'Breve Descripción': convert_to_firestore_type(descripcion),
-                'Fecha entrada': convert_to_firestore_type(fecha_entrada),
-                'Fecha Salida': convert_to_firestore_type(fecha_salida),
-                'Precio': convert_to_firestore_type(precio),
-                'Precio Factura': convert_to_firestore_type(precio_factura),
-                'Tipo de pago': convert_to_firestore_type(tipo_pago),
-                'Adelanto': convert_to_firestore_type(adelanto),
-                'Observaciones': convert_to_firestore_type(observaciones),
-                'Inicio Trabajo': convert_to_firestore_type(empezado),
-                'Trabajo Terminado': convert_to_firestore_type(terminado),
-                'Cobrado': convert_to_firestore_type(cobrado),
-                'Retirado': convert_to_firestore_type(retirado),
-                'Pendiente': convert_to_firestore_type(pendiente),
-                'id_documento_firestore': None
-            }
-
-            new_pedido_df = pd.DataFrame([new_pedido])
-            df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
-            df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
-
-            for c in df_pedidos.columns:
-                df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
-
-            if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                success_placeholder = st.empty()
-                success_placeholder.success(f"✅ Pedido {next_id} creado correctamente!")
-                st.balloons()
-                time.sleep(2)
-                success_placeholder.empty()
-
-                if 'data' not in st.session_state:
-                    st.session_state['data'] = {}
-                st.session_state.data['df_pedidos'] = df_pedidos
-
-                # Activar reseteo y nueva clave de refresco
-                st.session_state.reset_form = True
-                st.session_state.force_refresh = str(datetime.now().timestamp())
             else:
-                st.error("Error al crear el pedido")
+                productos_json = json.dumps(productos_temp)
 
-    # ✅ BOTÓN "CREAR OTRO PEDIDO" FUERA DEL FORMULARIO
-    if st.session_state.get("reset_form", False):
-        st.markdown("---")
-        if st.button("🆕 Crear otro pedido", key="crear_otro_pedido_btn"):
-            st.rerun()
+                new_pedido = {
+                    'ID': next_id,
+                    'Productos': productos_json,
+                    'Cliente': convert_to_firestore_type(cliente),
+                    'Telefono': convert_to_firestore_type(telefono_limpio),
+                    'Club': convert_to_firestore_type(club),
+                    'Breve Descripción': convert_to_firestore_type(descripcion),
+                    'Fecha entrada': convert_to_firestore_type(fecha_entrada),
+                    'Fecha Salida': convert_to_firestore_type(fecha_salida),
+                    'Precio': convert_to_firestore_type(precio),
+                    'Precio Factura': convert_to_firestore_type(precio_factura),
+                    'Tipo de pago': convert_to_firestore_type(tipo_pago),
+                    'Adelanto': convert_to_firestore_type(adelanto),
+                    'Observaciones': convert_to_firestore_type(observaciones),
+                    'Inicio Trabajo': convert_to_firestore_type(empezado),
+                    'Trabajo Terminado': convert_to_firestore_type(terminado),
+                    'Cobrado': convert_to_firestore_type(cobrado),
+                    'Retirado': convert_to_firestore_type(retirado),
+                    'Pendiente': convert_to_firestore_type(pendiente),
+                    'id_documento_firestore': None
+                }
+
+                new_pedido_df = pd.DataFrame([new_pedido])
+                df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
+                df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
+
+                for c in df_pedidos.columns:
+                    df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
+
+                if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                    success_placeholder = st.empty()
+                    success_placeholder.success(f"✅ Pedido {next_id} creado correctamente!")
+                    st.balloons()
+                    time.sleep(2)
+                    success_placeholder.empty()
+
+                    if 'data' not in st.session_state:
+                        st.session_state['data'] = {}
+                    st.session_state.data['df_pedidos'] = df_pedidos
+
+                    # ✅ Activar reinicio automático
+                    st.session_state.reset_form = True
+                    st.session_state.force_refresh = str(datetime.now().timestamp())
+
+                    # ✅ REINICIAR INMEDIATAMENTE
+                    st.rerun()
+                else:
+                    st.error("Error al crear el pedido")
