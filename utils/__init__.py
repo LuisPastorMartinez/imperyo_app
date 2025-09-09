@@ -6,6 +6,7 @@ from .firestore_utils import (
     save_dataframe_firestore,
     delete_document_firestore
 )
+from .helpers import convert_to_firestore_type, safe_select_index  # ✅ NUEVO
 
 __all__ = [
     'limpiar_telefono',
@@ -15,5 +16,7 @@ __all__ = [
     'save_dataframe_local',
     'load_dataframes_firestore',
     'save_dataframe_firestore',
-    'delete_document_firestore'
+    'delete_document_firestore',
+    'convert_to_firestore_type',  # ✅ NUEVO
+    'safe_select_index'           # ✅ NUEVO
 ]
