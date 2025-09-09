@@ -1,7 +1,7 @@
 # pages/gastos_page.py
 import streamlit as st
 import pandas as pd
-from utils import get_next_id, save_dataframe_firestore, delete_document_firestore
+from utils.firestore_utils import get_next_id, save_dataframe_firestore, delete_document_firestore
 
 def highlight_gastos_rows(row):
     """Función para resaltar filas en la tabla de gastos"""
