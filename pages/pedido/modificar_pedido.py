@@ -10,20 +10,28 @@ import time
 
 def safe_to_date(value):
     """Convierte un valor a datetime.date de forma segura. Si es None, NaT o inválido, devuelve None."""
-    if value is None:
-        return None
-    if isinstance(value, pd.Timestamp) and (pd.isna(value) or value is pd.NaT):
-        return None
-    if isinstance(value, str) and value.strip() != "":
-        try:
-            return datetime.strptime(value[:10], "%Y-%m-%d").date()
-        except Exception:
+    try:
+        if value is None:
             return None
-    if isinstance(value, date) and not isinstance(value, datetime):
-        return value
-    if isinstance(value, datetime):
-        return value.date()
-    return None
+        if isinstance(value, pd.Timestamp):
+            if pd.isna(value) or value is pd.NaT:
+                return None
+            return value.date()
+        if isinstance(value, str) and value.strip() != "":
+            # Intentar varios formatos
+            for fmt in ["%Y-%m-%d", "%d/%m/%Y", "%Y/%m/%d"]:
+                try:
+                    return datetime.strptime(value.split('T')[0].split()[0], fmt).date()
+                except ValueError:
+                    continue
+            return None
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return value
+        if isinstance(value, datetime):
+            return value.date()
+        return None
+    except Exception:
+        return None
 
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
@@ -137,8 +145,21 @@ def show_modify(df_pedidos, df_listas):
 
                 # ✅ Mostrar date_input solo si tiene_fecha_salida está marcado
                 if tiene_fecha_salida:
+                    # ✅ Conversión ultra-defensiva
                     if fecha_salida_value is None:
                         fecha_salida_value = datetime.now().date()
+                    elif isinstance(fecha_salida_value, pd.Timestamp):
+                        if pd.isna(fecha_salida_value) or fecha_salida_value is pd.NaT:
+                            fecha_salida_value = datetime.now().date()
+                        else:
+                            fecha_salida_value = fecha_salida_value.date()
+                    elif isinstance(fecha_salida_value, str):
+                        fecha_salida_value = safe_to_date(fecha_salida_value)
+
+                    # ✅ Última verificación
+                    if fecha_salida_value is None or (isinstance(fecha_salida_value, pd.Timestamp) and (pd.isna(fecha_salida_value) or fecha_salida_value is pd.NaT)):
+                        fecha_salida_value = datetime.now().date()
+
                     fecha_salida = st.date_input(
                         "Fecha salida",
                         value=fecha_salida_value,
