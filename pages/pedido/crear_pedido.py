@@ -1,17 +1,26 @@
+# pages/pedido/crear_pedido.py
 import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime
 from utils.firestore_utils import get_next_id, save_dataframe_firestore
-from .helpers import convert_to_firestore_type
+from utils.data_utils import limpiar_telefono
+from .helpers import convert_to_firestore_type, safe_select_index
 import time
 
 def show_create(df_pedidos, df_listas):
     # --- Comprobar si hay que resetear el formulario ---
     if st.session_state.get("reset_form", False):
-        keys_to_keep = ["data"]
+        # Solo borrar keys del formulario, no toda la sesión
+        keys_to_delete = [
+            "num_productos", "force_refresh", "reset_form",
+            "cliente_", "telefono_", "club_", "descripcion_",
+            "fecha_entrada_", "fecha_salida_", "precio_total_",
+            "precio_factura_", "tipo_pago_", "adelanto_", "observaciones_",
+            "empezado_", "terminado_", "cobrado_", "retirado_", "pendiente_"
+        ]
         for key in list(st.session_state.keys()):
-            if key not in keys_to_keep:
+            if key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_") or key.startswith("cantidad_") or key in keys_to_delete:
                 del st.session_state[key]
         st.session_state.num_productos = 1
         st.session_state.force_refresh = str(datetime.now().timestamp())
@@ -27,8 +36,17 @@ def show_create(df_pedidos, df_listas):
 
     # --- BLOQUE DE PRODUCTOS ---
     st.markdown("### Productos del pedido")
-    productos_lista = [""] + df_listas['Producto'].dropna().unique().tolist() if 'Producto' in df_listas.columns else [""]
-    telas_lista = [""] + df_listas['Tela'].dropna().unique().tolist() if 'Tela' in df_listas.columns else [""]
+    productos_lista = [""]
+    if 'Producto' in df_listas.columns:
+        unique_products = df_listas['Producto'].dropna().unique()
+        if len(unique_products) > 0:
+            productos_lista.extend(unique_products.tolist())
+
+    telas_lista = [""]
+    if 'Tela' in df_listas.columns:
+        unique_telas = df_listas['Tela'].dropna().unique()
+        if len(unique_telas) > 0:
+            telas_lista.extend(unique_telas.tolist())
 
     total_productos = 0.0
     productos_temp = []
@@ -37,13 +55,27 @@ def show_create(df_pedidos, df_listas):
         suffix = st.session_state.force_refresh
         cols = st.columns([3, 3, 2, 2])
         with cols[0]:
-            producto = st.selectbox(f"Producto {i+1}", productos_lista, key=f"producto_{i}_{suffix}")
+            producto = st.selectbox(
+                f"Producto {i+1}",
+                productos_lista,
+                index=safe_select_index(productos_lista, ""),
+                key=f"producto_{i}_{suffix}"
+            )
         with cols[1]:
-            tela = st.selectbox(f"Tela {i+1}", telas_lista, key=f"tela_{i}_{suffix}")
+            tela = st.selectbox(
+                f"Tela {i+1}",
+                telas_lista,
+                index=safe_select_index(telas_lista, ""),
+                key=f"tela_{i}_{suffix}"
+            )
         with cols[2]:
-            precio_unit = st.number_input(f"Precio {i+1}", min_value=0.0, value=0.0, key=f"precio_unit_{i}_{suffix}")
+            precio_unit = st.number_input(
+                f"Precio {i+1}", min_value=0.0, value=0.0, key=f"precio_unit_{i}_{suffix}"
+            )
         with cols[3]:
-            cantidad = st.number_input(f"Cantidad {i+1}", min_value=1, value=1, key=f"cantidad_{i}_{suffix}")
+            cantidad = st.number_input(
+                f"Cantidad {i+1}", min_value=1, value=1, key=f"cantidad_{i}_{suffix}"
+            )
 
         total_productos += precio_unit * cantidad
         productos_temp.append({
@@ -86,8 +118,14 @@ def show_create(df_pedidos, df_listas):
             fecha_salida = st.date_input("Fecha salida", value=datetime.now().date(), key=f"fecha_salida_{suffix}") if tiene_fecha_salida else None
             precio = st.number_input("Precio total", min_value=0.0, value=total_productos, key=f"precio_total_{suffix}")
             precio_factura = st.number_input("Precio factura", min_value=0.0, value=0.0, key=f"precio_factura_{suffix}")
-            tipos_pago = [""] + df_listas['Tipo de pago'].dropna().unique().tolist() if 'Tipo de pago' in df_listas.columns else [""]
-            tipo_pago = st.selectbox("Tipo de pago", tipos_pago, key=f"tipo_pago_{suffix}")
+            
+            tipos_pago = [""]
+            if 'Tipo de pago' in df_listas.columns:
+                unique_tipos = df_listas['Tipo de pago'].dropna().unique()
+                if len(unique_tipos) > 0:
+                    tipos_pago.extend(unique_tipos.tolist())
+            tipo_pago = st.selectbox("Tipo de pago", tipos_pago, index=safe_select_index(tipos_pago, ""), key=f"tipo_pago_{suffix}")
+            
             adelanto = st.number_input("Adelanto", min_value=0.0, value=0.0, key=f"adelanto_{suffix}")
             observaciones = st.text_area("Observaciones", key=f"observaciones_{suffix}")
 
@@ -109,7 +147,8 @@ def show_create(df_pedidos, df_listas):
                 st.error("Por favor complete los campos obligatorios (*)")
                 return
 
-            if not telefono.isdigit() or len(telefono) != 9:
+            telefono_limpio = limpiar_telefono(telefono)
+            if not telefono_limpio:
                 st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
                 return
 
@@ -119,7 +158,7 @@ def show_create(df_pedidos, df_listas):
                 'ID': next_id,
                 'Productos': productos_json,
                 'Cliente': convert_to_firestore_type(cliente),
-                'Telefono': convert_to_firestore_type(telefono),
+                'Telefono': convert_to_firestore_type(telefono_limpio),
                 'Club': convert_to_firestore_type(club),
                 'Breve Descripción': convert_to_firestore_type(descripcion),
                 'Fecha entrada': convert_to_firestore_type(fecha_entrada),
@@ -146,7 +185,8 @@ def show_create(df_pedidos, df_listas):
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
                 success_placeholder = st.empty()
-                success_placeholder.success(f"Pedido {next_id} creado correctamente!")
+                success_placeholder.success(f"✅ Pedido {next_id} creado correctamente!")
+                st.balloons()
                 time.sleep(2)
                 success_placeholder.empty()
 
@@ -158,7 +198,8 @@ def show_create(df_pedidos, df_listas):
                 st.session_state.reset_form = True
                 st.session_state.force_refresh = str(datetime.now().timestamp())
 
-                # 🔑 Forzar rerun inmediato para que se limpie al instante
-                st.rerun()
+                # Mostrar botón para crear otro pedido
+                if st.button("🆕 Crear otro pedido"):
+                    st.rerun()
             else:
                 st.error("Error al crear el pedido")
