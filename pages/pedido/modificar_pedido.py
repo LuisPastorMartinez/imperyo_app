@@ -226,4 +226,69 @@ def show_modify(df_pedidos, df_listas):
             # ✅ BOTÓN DE SUBMIT SIEMPRE VISIBLE
             submitted = st.form_submit_button("Guardar Cambios")
 
-        # ✅ PROCESAR FUERA
+        # ✅ PROCESAR FUERA DEL FORMULARIO
+        if submitted:
+            if not cliente or not telefono or not club:
+                st.error("Por favor complete los campos obligatorios (*)")
+            else:
+                telefono_limpio = limpiar_telefono(telefono)
+                if not telefono_limpio:
+                    st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
+                else:
+                    productos_json = json.dumps(st.session_state.productos)
+
+                    updated_pedido = {
+                        'ID': mod_id,
+                        'Productos': productos_json,
+                        'Cliente': convert_to_firestore_type(cliente),
+                        'Telefono': convert_to_firestore_type(telefono_limpio),
+                        'Club': convert_to_firestore_type(club),
+                        'Breve Descripción': convert_to_firestore_type(descripcion),
+                        'Fecha entrada': convert_to_firestore_type(fecha_entrada),
+                        'Fecha Salida': convert_to_firestore_type(fecha_salida),
+                        'Precio': convert_to_firestore_type(precio),
+                        'Precio Factura': convert_to_firestore_type(precio_factura),
+                        'Tipo de pago': convert_to_firestore_type(tipo_pago),
+                        'Adelanto': convert_to_firestore_type(adelanto),
+                        'Observaciones': convert_to_firestore_type(observaciones),
+                        'Inicio Trabajo': convert_to_firestore_type(empezado),
+                        'Trabajo Terminado': convert_to_firestore_type(terminado),
+                        'Cobrado': convert_to_firestore_type(cobrado),
+                        'Retirado': convert_to_firestore_type(retirado),
+                        'Pendiente': convert_to_firestore_type(pendiente),
+                        'id_documento_firestore': pedido['id_documento_firestore']
+                    }
+
+                    idx_list = df_pedidos.index[df_pedidos['ID'] == mod_id].tolist()
+                    if len(idx_list) != 1:
+                        st.error(f"Error: Se encontraron {len(idx_list)} pedidos con ID {mod_id}. Debe haber exactamente uno.")
+                    else:
+                        df_pedidos.loc[idx_list[0]] = updated_pedido
+                        df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
+                        for c in df_pedidos.columns:
+                            df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
+
+                        if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                            success_placeholder = st.empty()
+                            success_placeholder.success(f"✅ Pedido {mod_id} actualizado correctamente!")
+                            st.balloons()
+                            time.sleep(2)
+                            success_placeholder.empty()
+
+                            # Limpiar estado
+                            keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
+                            for k in keys_to_delete:
+                                if k in st.session_state:
+                                    del st.session_state[k]
+
+                            if 'pedido_a_modificar' in st.session_state:
+                                del st.session_state['pedido_a_modificar']
+
+                            if 'data' not in st.session_state:
+                                st.session_state['data'] = {}
+                            st.session_state.data['df_pedidos'] = df_pedidos
+
+                            # ✅ REINICIAR INMEDIATAMENTE
+                            st.rerun()
+                        else:
+                            st.error("Error al actualizar el pedido")
