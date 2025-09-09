@@ -7,7 +7,8 @@ import numpy as np
 import logging
 
 # Importar función compartida
-from pages.pedido.helpers import convert_to_firestore_type
+# from pages.pedido.helpers import convert_to_firestore_type
+ from utils.helpers import convert_to_firestore_type
 
 # Configuración de colecciones
 COLLECTION_NAMES = {
