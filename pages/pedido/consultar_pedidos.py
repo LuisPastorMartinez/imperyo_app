@@ -4,16 +4,24 @@ import pandas as pd
 import json
 from utils.data_utils import limpiar_telefono
 
+def cargar_productos_seguro(productos_json):
+    """Carga productos desde JSON de forma segura. Devuelve lista vacía si falla."""
+    try:
+        if isinstance(productos_json, str):
+            if not productos_json.strip():
+                return []
+            return json.loads(productos_json)
+        elif isinstance(productos_json, list):
+            return productos_json
+        else:
+            return []
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return []
+
 def formatear_primer_producto(productos_json):
     """Muestra solo el primer producto en formato resumido."""
     try:
-        if isinstance(productos_json, str):
-            productos = json.loads(productos_json)
-        elif isinstance(productos_json, list):
-            productos = productos_json
-        else:
-            return "Sin productos"
-
+        productos = cargar_productos_seguro(productos_json)
         if not productos:
             return "Sin productos"
 
@@ -39,14 +47,7 @@ def formatear_primer_producto(productos_json):
 def mostrar_detalle_productos(productos_json, key_suffix):
     """Muestra todos los productos en un expander."""
     try:
-        if isinstance(productos_json, str):
-            productos = json.loads(productos_json)
-        elif isinstance(productos_json, list):
-            productos = productos_json
-        else:
-            st.write("Sin productos")
-            return
-
+        productos = cargar_productos_seguro(productos_json)
         if not productos:
             st.write("Sin productos")
             return
@@ -156,7 +157,8 @@ def show_consult(df_pedidos, df_listas):
         st.markdown("### 🔍 Detalle de Productos por Pedido")
         for idx, row in df_filtrado.iterrows():
             if 'Productos' in row and row['Productos']:
-                with st.expander(f"Pedido {row['ID']} - {row['Cliente']} ({len(json.loads(row['Productos']) if isinstance(row['Productos'], str) else row['Productos'])} productos)"):
+                productos_lista = cargar_productos_seguro(row['Productos'])
+                with st.expander(f"Pedido {row['ID']} - {row['Cliente']} ({len(productos_lista)} productos)"):
                     mostrar_detalle_productos(row['Productos'], key_suffix=str(row['ID']))
 
         st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
