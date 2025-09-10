@@ -44,29 +44,37 @@ def formatear_primer_producto(productos_json):
     except Exception:
         return "Error"
 
-def mostrar_detalle_productos(productos_json, key_suffix):
-    """Muestra todos los productos en un expander."""
-    try:
-        productos = cargar_productos_seguro(productos_json)
-        if not productos:
-            st.write("Sin productos")
-            return
+# ✅ NUEVO: Función de diálogo para mostrar detalle
+@st.dialog("Detalle de Productos", width="large")
+def mostrar_dialogo_productos(productos_json, pedido_id, cliente):
+    st.subheader(f"Pedido {pedido_id} - {cliente}")
+    productos = cargar_productos_seguro(productos_json)
+    if not productos:
+        st.write("Sin productos")
+        return
 
-        total_general = 0.0
-        for i, p in enumerate(productos):
-            nombre = p.get("Producto", "")
-            tela = p.get("Tela", "")
-            precio_unit = float(p.get("PrecioUnitario", 0.0))
-            cantidad = int(p.get("Cantidad", 1))
-            total = precio_unit * cantidad
-            total_general += total
+    total_general = 0.0
+    for i, p in enumerate(productos):
+        nombre = p.get("Producto", "")
+        tela = p.get("Tela", "")
+        precio_unit = float(p.get("PrecioUnitario", 0.0))
+        cantidad = int(p.get("Cantidad", 1))
+        total = precio_unit * cantidad
+        total_general += total
 
-            st.markdown(f"**{i+1}. {nombre}** {f'({tela})' if tela else ''} — x{cantidad} → **{total:.2f}€**")
+        col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+        with col1:
+            st.write(f"**{nombre}** {f'({tela})' if tela else ''}")
+        with col2:
+            st.write(f"x{cantidad}")
+        with col3:
+            st.write(f"{precio_unit:.2f}€")
+        with col4:
+            st.write(f"**{total:.2f}€**")
 
-        st.markdown(f"**TOTAL: {total_general:.2f}€**")
-
-    except Exception as e:
-        st.error(f"Error al cargar productos: {e}")
+    st.markdown("---")
+    st.markdown(f"### **TOTAL: {total_general:.2f}€**")
+    st.button("Cerrar", on_click=st.rerun)  # Cierra el diálogo
 
 def show_consult(df_pedidos, df_listas):
     st.subheader("Consultar Pedidos")
@@ -139,9 +147,9 @@ def show_consult(df_pedidos, df_listas):
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
 
-        # ✅ Columnas a mostrar
+        # ✅ Columnas a mostrar (sin 'Productos' duplicado)
         columnas_mostrar = [
-            'ID', 'Productos', 'Cliente', 'Club', 'Telefono',
+            'ID', 'Cliente', 'Club', 'Telefono',
             'Fecha entrada', 'Fecha Salida', 'Precio',
             'Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado'
         ]
@@ -150,16 +158,23 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # Mostrar tabla
-        st.dataframe(df_display[columnas_disponibles], height=600, use_container_width=True)
+        # ✅ Mostrar tabla con botón de acción
+        st.markdown("### Resultados")
+        for idx, row in df_display.iterrows():
+            col_id, col_cliente, col_accion = st.columns([1, 4, 2])
+            with col_id:
+                st.write(f"**{row['ID']}**")
+            with col_cliente:
+                st.write(f"{row['Cliente']} - {formatear_primer_producto(df_filtrado.iloc[idx]['Productos'])}")
+            with col_accion:
+                if st.button("🔍 Ver Detalle", key=f"btn_detalle_{row['ID']}"):
+                    mostrar_dialogo_productos(
+                        df_filtrado.iloc[idx]['Productos'],
+                        row['ID'],
+                        row['Cliente']
+                    )
 
-        # ✅ NUEVO: Sección de "Ver Detalle de Productos"
-        st.markdown("### 🔍 Detalle de Productos por Pedido")
-        for idx, row in df_filtrado.iterrows():
-            if 'Productos' in row and row['Productos']:
-                productos_lista = cargar_productos_seguro(row['Productos'])
-                with st.expander(f"Pedido {row['ID']} - {row['Cliente']} ({len(productos_lista)} productos)"):
-                    mostrar_detalle_productos(row['Productos'], key_suffix=str(row['ID']))
+            st.markdown("---")
 
         st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
 
