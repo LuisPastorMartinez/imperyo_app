@@ -70,9 +70,9 @@ def show_consult(df_pedidos, df_listas):
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
 
-        # Columnas a mostrar
+        # ✅ Columnas a mostrar — ¡AHORA INCLUYE 'Productos'!
         columnas_mostrar = [
-            'ID', 'Producto', 'Cliente', 'Club', 'Telefono',
+            'ID', 'Productos', 'Cliente', 'Club', 'Telefono',  # ✅ 'Productos' añadido aquí
             'Fecha entrada', 'Fecha Salida', 'Precio',
             'Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado'
         ]
