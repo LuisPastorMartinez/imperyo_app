@@ -23,8 +23,7 @@ def validar_telefono_9_digitos(telefono):
     """Valida que el teléfono tenga exactamente 9 dígitos numéricos."""
     if not telefono:
         return False
-    telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
-    return len(telefono_limpio) == 9
+    return telefono.isdigit() and len(telefono) == 9
 
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
@@ -112,7 +111,13 @@ def show_modify(df_pedidos, df_listas):
             with col1:
                 st.text_input("ID", value=pedido['ID'], disabled=True, key="mod_id")
                 cliente = st.text_input("Cliente*", value=pedido.get('Cliente',''), key="mod_cliente")
-                telefono = st.text_input("Teléfono*", value=pedido.get('Telefono',''), key="mod_telefono")
+                # ✅ Teléfono: solo 9 dígitos numéricos
+                telefono = st.text_input(
+                    "Teléfono* (9 dígitos numéricos)",
+                    value=pedido.get('Telefono',''),
+                    max_chars=9,
+                    key="mod_telefono"
+                )
                 club = st.text_input("Club*", value=pedido.get('Club',''), key="mod_club")
                 descripcion = st.text_area("Descripción", value=pedido.get('Breve Descripción',''), key="mod_descripcion")
 
@@ -154,7 +159,7 @@ def show_modify(df_pedidos, df_listas):
             with submit_col:
                 submitted = st.form_submit_button("💾 Guardar Cambios", type="primary")
             with cancel_col:
-                # ✅ Botón "Salir sin guardar" (fuera del submit, pero dentro del form)
+                # ✅ Botón "Salir sin guardar"
                 if st.form_submit_button("🚪 Salir sin guardar"):
                     # Limpiar estado y volver
                     keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
@@ -178,9 +183,9 @@ def show_modify(df_pedidos, df_listas):
                 st.session_state.submitted = False
                 return
 
-            # ✅ Validar teléfono: 9 dígitos numéricos
+            # ✅ Validar teléfono: exactamente 9 dígitos numéricos
             if not validar_telefono_9_digitos(telefono):
-                st.error("El teléfono debe contener exactamente 9 dígitos numéricos.")
+                st.error("El teléfono debe contener exactamente 9 dígitos numéricos (solo números, sin espacios ni símbolos).")
                 st.session_state.submitted = False
                 return
 
