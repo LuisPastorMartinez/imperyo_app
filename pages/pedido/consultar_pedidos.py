@@ -2,7 +2,29 @@
 import streamlit as st
 import pandas as pd
 import json
+import time
 from utils.data_utils import limpiar_telefono
+
+# ✅ CSS para botón azul claro
+st.markdown("""
+<style>
+.blue-button {
+    background-color: #E3F2FD;
+    color: #1976D2;
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: 1px solid #90CAF9;
+    cursor: pointer;
+    font-weight: bold;
+    text-align: center;
+    display: inline-block;
+    font-size: 14px;
+}
+.blue-button:hover {
+    background-color: #BBDEFB;
+}
+</style>
+""", unsafe_allow_html=True)
 
 def cargar_productos_seguro(productos_json):
     """Carga productos desde JSON de forma segura. Devuelve lista vacía si falla."""
@@ -18,8 +40,8 @@ def cargar_productos_seguro(productos_json):
     except (json.JSONDecodeError, TypeError, ValueError):
         return []
 
-def formatear_primer_producto(productos_json):
-    """Muestra solo el primer producto en formato resumido."""
+def formatear_primer_producto(productos_json, row_id, container):
+    """Muestra solo el primer producto + botón azul si hay más."""
     try:
         productos = cargar_productos_seguro(productos_json)
         if not productos:
@@ -36,8 +58,23 @@ def formatear_primer_producto(productos_json):
             resumen += f" ({tela})"
         resumen += f" x{cantidad} → {precio_total:.2f}€"
 
+        # ✅ Si hay más de un producto, agregar botón azul
         if len(productos) > 1:
-            resumen += f" +{len(productos)-1} más"
+            # Botón HTML estilizado
+            button_key = f"btn_{row_id}"
+            if st.button("➕ Más", key=button_key):
+                # Mostrar todos los productos temporalmente
+                mensaje = container.empty()
+                mensaje.markdown("### 📦 Productos del pedido:")
+                for i, prod in enumerate(productos):
+                    nombre_p = prod.get("Producto", "")
+                    tela_p = prod.get("Tela", "")
+                    cantidad_p = int(prod.get("Cantidad", 1))
+                    precio_unit_p = float(prod.get("PrecioUnitario", 0.0))
+                    total_p = precio_unit_p * cantidad_p
+                    mensaje.markdown(f"**{i+1}. {nombre_p}** {f'({tela_p})' if tela_p else ''} — x{cantidad_p} → **{total_p:.2f}€**")
+                time.sleep(5)
+                mensaje.empty()  # Ocultar después de 5 segundos
 
         return resumen
 
@@ -95,9 +132,15 @@ def show_consult(df_pedidos, df_listas):
     if not df_filtrado.empty:
         df_display = df_filtrado.copy()
 
-        # ✅ Formatear columna Productos (solo primer producto)
+        # ✅ Columna temporal para el contenedor de mensajes
+        containers = [st.empty() for _ in range(len(df_display))]
+
+        # ✅ Formatear columna Productos (solo primer producto + botón si hay más)
         if 'Productos' in df_display.columns:
-            df_display['Productos'] = df_display['Productos'].apply(formatear_primer_producto)
+            df_display['Productos'] = [
+                formatear_primer_producto(row['Productos'], idx, containers[idx])
+                for idx, row in df_filtrado.iterrows()
+            ]
 
         # Formatear fechas
         for col in ['Fecha entrada', 'Fecha Salida']:
