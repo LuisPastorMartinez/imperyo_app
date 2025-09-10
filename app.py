@@ -6,7 +6,9 @@ import re
 import sys
 from pathlib import Path
 from datetime import datetime
+import streamlit as st
 
+st.sidebar.info(f"Streamlit v{st.__version__}")
 # Configuración de paths para imports
 sys.path.append(str(Path(__file__).parent))
 
