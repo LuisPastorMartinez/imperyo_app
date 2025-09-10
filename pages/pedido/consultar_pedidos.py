@@ -5,22 +5,23 @@ import json
 import time
 from utils.data_utils import limpiar_telefono
 
-# ✅ CSS para botón azul claro
+# ✅ CSS para botón azul claro DENTRO de la celda
 st.markdown("""
 <style>
-.blue-button {
+.blue-square {
+    display: inline-block;
     background-color: #E3F2FD;
     color: #1976D2;
-    padding: 8px 16px;
+    padding: 4px 8px;
     border-radius: 4px;
     border: 1px solid #90CAF9;
-    cursor: pointer;
     font-weight: bold;
-    text-align: center;
-    display: inline-block;
-    font-size: 14px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-left: 8px;
+    vertical-align: middle;
 }
-.blue-button:hover {
+.blue-square:hover {
     background-color: #BBDEFB;
 }
 </style>
@@ -40,8 +41,8 @@ def cargar_productos_seguro(productos_json):
     except (json.JSONDecodeError, TypeError, ValueError):
         return []
 
-def formatear_primer_producto(productos_json, row_id, container):
-    """Muestra solo el primer producto + botón azul si hay más."""
+def generar_html_producto(productos_json, row_id, container):
+    """Genera HTML con primer producto + botón azul en la misma línea."""
     try:
         productos = cargar_productos_seguro(productos_json)
         if not productos:
@@ -58,11 +59,17 @@ def formatear_primer_producto(productos_json, row_id, container):
             resumen += f" ({tela})"
         resumen += f" x{cantidad} → {precio_total:.2f}€"
 
-        # ✅ Si hay más de un producto, agregar botón azul
+        # ✅ Si hay más de un producto, agregar botón azul EN LA MISMA LÍNEA
         if len(productos) > 1:
-            # Botón HTML estilizado
-            button_key = f"btn_{row_id}"
-            if st.button("➕ Más", key=button_key):
+            # Generar HTML con botón
+            html = f"""
+            {resumen}
+            <span class="blue-square" onclick="window.parent.postMessage({{'type': 'streamlit:click', 'key': 'btn_{row_id}'}}, '*')">
+                ➕
+            </span>
+            """
+            # Manejar clic con st.button (invisible, fuera de la tabla)
+            if st.button("➕", key=f"btn_{row_id}", help="Mostrar todos los productos", use_container_width=False):
                 # Mostrar todos los productos temporalmente
                 mensaje = container.empty()
                 mensaje.markdown("### 📦 Productos del pedido:")
@@ -75,6 +82,8 @@ def formatear_primer_producto(productos_json, row_id, container):
                     mensaje.markdown(f"**{i+1}. {nombre_p}** {f'({tela_p})' if tela_p else ''} — x{cantidad_p} → **{total_p:.2f}€**")
                 time.sleep(5)
                 mensaje.empty()  # Ocultar después de 5 segundos
+
+            return html
 
         return resumen
 
@@ -132,13 +141,13 @@ def show_consult(df_pedidos, df_listas):
     if not df_filtrado.empty:
         df_display = df_filtrado.copy()
 
-        # ✅ Columna temporal para el contenedor de mensajes
+        # ✅ Crear contenedores para mensajes temporales (uno por fila)
         containers = [st.empty() for _ in range(len(df_display))]
 
-        # ✅ Formatear columna Productos (solo primer producto + botón si hay más)
+        # ✅ Generar HTML para columna Productos
         if 'Productos' in df_display.columns:
             df_display['Productos'] = [
-                formatear_primer_producto(row['Productos'], idx, containers[idx])
+                generar_html_producto(row['Productos'], idx, containers[idx])
                 for idx, row in df_filtrado.iterrows()
             ]
 
@@ -169,8 +178,39 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # Mostrar tabla
-        st.dataframe(df_display[columnas_disponibles], height=600, use_container_width=True)
+        # ✅ Mostrar tabla con HTML en columna Productos
+        for idx, row in df_display.iterrows():
+            cols = st.columns([0.5, 3, 2, 1.5, 1, 1, 1, 1])
+            with cols[0]:
+                st.write(row['ID'])
+            with cols[1]:
+                st.markdown(row['Productos'], unsafe_allow_html=True)  # ✅ HTML con botón
+            with cols[2]:
+                st.write(row['Cliente'])
+            with cols[3]:
+                st.write(row['Club'])
+            with cols[4]:
+                st.write(row['Telefono'])
+            with cols[5]:
+                st.write(row['Fecha entrada'])
+            with cols[6]:
+                st.write(row['Precio'])
+            with cols[7]:
+                estados = []
+                if row.get('Pendiente', False):
+                    estados.append("📌")
+                if row.get('Inicio Trabajo', False):
+                    estados.append("🔵")
+                if row.get('Trabajo Terminado', False):
+                    estados.append("✅")
+                if row.get('Retirado', False):
+                    estados.append("📦")
+                if row.get('Cobrado', False):
+                    estados.append("💰")
+                st.write(" ".join(estados))
+
+            st.markdown("---")
+
         st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
 
         # ✅ Botón para exportar a CSV
