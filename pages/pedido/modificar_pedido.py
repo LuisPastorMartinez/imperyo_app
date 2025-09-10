@@ -19,6 +19,13 @@ def safe_to_date(value):
             return datetime.now().date()
     return datetime.now().date()
 
+def validar_telefono_9_digitos(telefono):
+    """Valida que el teléfono tenga exactamente 9 dígitos numéricos."""
+    if not telefono:
+        return False
+    telefono_limpio = ''.join(filter(str.isdigit, str(telefono)))
+    return len(telefono_limpio) == 9
+
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
 
@@ -27,6 +34,20 @@ def show_modify(df_pedidos, df_listas):
         pedido = df_pedidos[df_pedidos['ID'] == mod_id]
         if not pedido.empty:
             st.session_state.pedido_a_modificar = pedido.iloc[0].to_dict()
+            st.session_state.productos = []
+            if "Productos" in st.session_state.pedido_a_modificar:
+                try:
+                    productos_raw = st.session_state.pedido_a_modificar["Productos"]
+                    if isinstance(productos_raw, str) and productos_raw.strip():
+                        st.session_state.productos = json.loads(productos_raw)
+                    elif isinstance(productos_raw, list):
+                        st.session_state.productos = productos_raw
+                    else:
+                        st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
+                except json.JSONDecodeError:
+                    st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
+            else:
+                st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
             st.success(f"Pedido {mod_id} cargado para modificación")
         else:
             st.warning(f"No existe un pedido con ID {mod_id}")
@@ -34,19 +55,6 @@ def show_modify(df_pedidos, df_listas):
 
     if 'pedido_a_modificar' in st.session_state and st.session_state.pedido_a_modificar:
         pedido = st.session_state.pedido_a_modificar
-
-        # ✅ Inicializar productos desde JSON o crear lista vacía
-        if "Productos" in pedido:
-            try:
-                st.session_state.productos = (
-                    json.loads(pedido["Productos"]) if isinstance(pedido["Productos"], str) and pedido["Productos"].strip()
-                    else pedido["Productos"] if isinstance(pedido["Productos"], list)
-                    else [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
-                )
-            except json.JSONDecodeError:
-                st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
-        else:
-            st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
 
         # --- BLOQUE DE PRODUCTOS ---
         st.markdown("### Productos del pedido")
@@ -83,15 +91,20 @@ def show_modify(df_pedidos, df_listas):
 
         st.markdown(f"**💰 Total productos: {total_productos:.2f} €**")
 
+        # ✅ BOTONES DE AÑADIR/QUITAR PRODUCTOS (con rerun)
         add_col, remove_col = st.columns([1, 1])
         with add_col:
-            if st.button("➕ Añadir otro producto", key="mod_add_producto"):
+            if st.button("➕ Añadir otro producto", key="mod_add_producto_global"):
                 st.session_state.productos.append({"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1})
+                st.rerun()
 
         with remove_col:
             if len(st.session_state.productos) > 1:
-                if st.button("➖ Quitar último producto", key="mod_remove_producto"):
+                if st.button("➖ Quitar último producto", key="mod_remove_producto_global"):
                     st.session_state.productos.pop()
+                    st.rerun()
+
+        st.markdown("---")
 
         # --- FORMULARIO PRINCIPAL ---
         with st.form("modificar_pedido_form"):
@@ -107,7 +120,7 @@ def show_modify(df_pedidos, df_listas):
                 fecha_entrada = st.date_input("Fecha entrada*", value=safe_to_date(pedido.get('Fecha entrada')), key="mod_fecha_entrada")
                 tiene_fecha_salida = st.checkbox("Establecer fecha de salida", value=bool(pedido.get('Fecha Salida')), key="mod_tiene_fecha_salida")
                 
-                # ✅ CORRECCIÓN: Evitar pd.NaT
+                # ✅ Evitar pd.NaT
                 raw_fecha_salida = pedido.get('Fecha Salida')
                 if pd.isna(raw_fecha_salida) or raw_fecha_salida is None or raw_fecha_salida is pd.NaT:
                     fecha_salida_value = datetime.now().date()
@@ -136,17 +149,39 @@ def show_modify(df_pedidos, df_listas):
             with estado_cols[4]:
                 pendiente = st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), key="mod_pendiente")
 
-            # ✅ BOTÓN DE SUBMIT (siempre visible)
-            submitted = st.form_submit_button("Guardar Cambios")
+            # ✅ BOTONES DENTRO DEL FORMULARIO
+            submit_col, cancel_col = st.columns([1, 1])
+            with submit_col:
+                submitted = st.form_submit_button("💾 Guardar Cambios", type="primary")
+            with cancel_col:
+                # ✅ Botón "Salir sin guardar" (fuera del submit, pero dentro del form)
+                if st.form_submit_button("🚪 Salir sin guardar"):
+                    # Limpiar estado y volver
+                    keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
+                    for k in keys_to_delete:
+                        if k in st.session_state:
+                            del st.session_state[k]
+                    if 'pedido_a_modificar' in st.session_state:
+                        del st.session_state['pedido_a_modificar']
+                    st.rerun()
 
         # ✅ PROCESAR DESPUÉS DEL FORMULARIO
+        if 'submitted' not in st.session_state:
+            st.session_state.submitted = False
+
         if submitted:
-            if not cliente or not telefono or not club:
-                st.error("Por favor complete los campos obligatorios (*)")
+            st.session_state.submitted = True
+
+            # ✅ Validar campos obligatorios
+            if not cliente or not club:
+                st.error("Por favor complete los campos obligatorios: Cliente y Club.")
+                st.session_state.submitted = False
                 return
 
-            if not telefono.isdigit() or len(telefono) != 9:
-                st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
+            # ✅ Validar teléfono: 9 dígitos numéricos
+            if not validar_telefono_9_digitos(telefono):
+                st.error("El teléfono debe contener exactamente 9 dígitos numéricos.")
+                st.session_state.submitted = False
                 return
 
             productos_json = json.dumps(st.session_state.productos)
@@ -181,18 +216,17 @@ def show_modify(df_pedidos, df_listas):
                     df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
                 if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                    success_placeholder = st.empty()
-                    success_placeholder.success(f"Pedido {mod_id} actualizado correctamente!")
-                    time.sleep(3)
-                    success_placeholder.empty()
+                    st.success(f"✅ Pedido {mod_id} actualizado correctamente!")
+                    st.balloons()
+                    time.sleep(2)
 
+                    # Limpiar estado
                     keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
                     for k in keys_to_delete:
-                        del st.session_state[k]
-
+                        if k in st.session_state:
+                            del st.session_state[k]
                     if 'pedido_a_modificar' in st.session_state:
                         del st.session_state['pedido_a_modificar']
-
                     if 'data' not in st.session_state:
                         st.session_state['data'] = {}
                     st.session_state.data['df_pedidos'] = df_pedidos
