@@ -1,7 +1,50 @@
 # pages/pedido/consultar_pedidos.py
 import streamlit as st
 import pandas as pd
+import json
 from utils.data_utils import limpiar_telefono
+
+def formatear_productos(productos_json):
+    """
+    Convierte el JSON de productos en un texto legible.
+    Ej: "Camiseta (Algodón) x2 → 40.0€\nPantalón x1 → 30.0€\nTOTAL: 70.0€"
+    """
+    try:
+        if isinstance(productos_json, str):
+            productos = json.loads(productos_json)
+        elif isinstance(productos_json, list):
+            productos = productos_json
+        else:
+            return "Sin productos"
+
+        if not productos:
+            return "Sin productos"
+
+        lineas = []
+        total = 0.0
+
+        for p in productos:
+            nombre = p.get("Producto", "")
+            tela = p.get("Tela", "")
+            precio_unit = float(p.get("PrecioUnitario", 0.0))
+            cantidad = int(p.get("Cantidad", 1))
+
+            # Formato: "Producto (Tela) xCantidad → PrecioTotal€"
+            detalle = nombre
+            if tela:
+                detalle += f" ({tela})"
+            detalle += f" x{cantidad} → {precio_unit * cantidad:.2f}€"
+
+            lineas.append(detalle)
+            total += precio_unit * cantidad
+
+        # Unir todas las líneas + total
+        resultado = "\n".join(lineas)
+        resultado += f"\nTOTAL: {total:.2f}€"
+        return resultado
+
+    except Exception:
+        return "Error al cargar productos"
 
 def show_consult(df_pedidos, df_listas):
     st.subheader("Consultar Pedidos")
@@ -54,6 +97,10 @@ def show_consult(df_pedidos, df_listas):
     if not df_filtrado.empty:
         df_display = df_filtrado.copy()
 
+        # ✅ Formatear columna Productos
+        if 'Productos' in df_display.columns:
+            df_display['Productos'] = df_display['Productos'].apply(formatear_productos)
+
         # Formatear fechas
         for col in ['Fecha entrada', 'Fecha Salida']:
             if col in df_display.columns:
@@ -70,9 +117,9 @@ def show_consult(df_pedidos, df_listas):
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
 
-        # ✅ Columnas a mostrar — ¡AHORA INCLUYE 'Productos'!
+        # ✅ Columnas a mostrar — ¡AHORA CON 'Productos' FORMATEADO!
         columnas_mostrar = [
-            'ID', 'Productos', 'Cliente', 'Club', 'Telefono',  # ✅ 'Productos' añadido aquí
+            'ID', 'Productos', 'Cliente', 'Club', 'Telefono',
             'Fecha entrada', 'Fecha Salida', 'Precio',
             'Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado'
         ]
