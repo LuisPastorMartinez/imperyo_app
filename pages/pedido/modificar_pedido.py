@@ -145,7 +145,6 @@ def show_modify(df_pedidos, df_listas):
 
                 # ✅ Mostrar date_input solo si tiene_fecha_salida está marcado
                 if tiene_fecha_salida:
-                    # ✅ Conversión ultra-defensiva
                     if fecha_salida_value is None:
                         fecha_salida_value = datetime.now().date()
                     elif isinstance(fecha_salida_value, pd.Timestamp):
@@ -157,7 +156,7 @@ def show_modify(df_pedidos, df_listas):
                         fecha_salida_value = safe_to_date(fecha_salida_value)
 
                     # ✅ Última verificación
-                    if fecha_salida_value is None or (isinstance(fecha_salida_value, pd.Timestamp) and (pd.isna(fecha_salida_value) or fecha_salida_value is pd.NaT)):
+                    if not isinstance(fecha_salida_value, date):
                         fecha_salida_value = datetime.now().date()
 
                     fecha_salida = st.date_input(
@@ -248,8 +247,8 @@ def show_modify(df_pedidos, df_listas):
                     key="mod_pendiente"
                 )
 
-            # ✅ BOTÓN DE SUBMIT SIEMPRE VISIBLE
-            submitted = st.form_submit_button("Guardar Cambios")
+            # ✅ BOTÓN DE SUBMIT AL FINAL, SIN CONDICIONES
+            submitted = st.form_submit_button("Guardar Cambios", type="primary")
 
         # ✅ PROCESAR FUERA DEL FORMULARIO
         if submitted:
