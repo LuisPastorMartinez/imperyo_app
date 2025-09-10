@@ -4,11 +4,8 @@ import pandas as pd
 import json
 from utils.data_utils import limpiar_telefono
 
-def formatear_productos(productos_json):
-    """
-    Convierte el JSON de productos en un texto legible.
-    Ej: "Camiseta (Algodón) x2 → 40.0€\nPantalón x1 → 30.0€\nTOTAL: 70.0€"
-    """
+def formatear_primer_producto(productos_json):
+    """Muestra solo el primer producto en formato resumido."""
     try:
         if isinstance(productos_json, str):
             productos = json.loads(productos_json)
@@ -20,31 +17,55 @@ def formatear_productos(productos_json):
         if not productos:
             return "Sin productos"
 
-        lineas = []
-        total = 0.0
+        p = productos[0]
+        nombre = p.get("Producto", "")
+        tela = p.get("Tela", "")
+        cantidad = int(p.get("Cantidad", 1))
+        precio_total = float(p.get("PrecioUnitario", 0.0)) * cantidad
 
-        for p in productos:
+        resumen = nombre
+        if tela:
+            resumen += f" ({tela})"
+        resumen += f" x{cantidad} → {precio_total:.2f}€"
+
+        if len(productos) > 1:
+            resumen += f" +{len(productos)-1}"
+
+        return resumen
+
+    except Exception:
+        return "Error"
+
+def mostrar_detalle_productos(productos_json, key_suffix):
+    """Muestra todos los productos en un expander."""
+    try:
+        if isinstance(productos_json, str):
+            productos = json.loads(productos_json)
+        elif isinstance(productos_json, list):
+            productos = productos_json
+        else:
+            st.write("Sin productos")
+            return
+
+        if not productos:
+            st.write("Sin productos")
+            return
+
+        total_general = 0.0
+        for i, p in enumerate(productos):
             nombre = p.get("Producto", "")
             tela = p.get("Tela", "")
             precio_unit = float(p.get("PrecioUnitario", 0.0))
             cantidad = int(p.get("Cantidad", 1))
+            total = precio_unit * cantidad
+            total_general += total
 
-            # Formato: "Producto (Tela) xCantidad → PrecioTotal€"
-            detalle = nombre
-            if tela:
-                detalle += f" ({tela})"
-            detalle += f" x{cantidad} → {precio_unit * cantidad:.2f}€"
+            st.markdown(f"**{i+1}. {nombre}** {f'({tela})' if tela else ''} — x{cantidad} → **{total:.2f}€**")
 
-            lineas.append(detalle)
-            total += precio_unit * cantidad
+        st.markdown(f"**TOTAL: {total_general:.2f}€**")
 
-        # Unir todas las líneas + total
-        resultado = "\n".join(lineas)
-        resultado += f"\nTOTAL: {total:.2f}€"
-        return resultado
-
-    except Exception:
-        return "Error al cargar productos"
+    except Exception as e:
+        st.error(f"Error al cargar productos: {e}")
 
 def show_consult(df_pedidos, df_listas):
     st.subheader("Consultar Pedidos")
@@ -97,9 +118,9 @@ def show_consult(df_pedidos, df_listas):
     if not df_filtrado.empty:
         df_display = df_filtrado.copy()
 
-        # ✅ Formatear columna Productos
+        # ✅ Formatear columna Productos (solo primer producto)
         if 'Productos' in df_display.columns:
-            df_display['Productos'] = df_display['Productos'].apply(formatear_productos)
+            df_display['Productos'] = df_display['Productos'].apply(formatear_primer_producto)
 
         # Formatear fechas
         for col in ['Fecha entrada', 'Fecha Salida']:
@@ -117,7 +138,7 @@ def show_consult(df_pedidos, df_listas):
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
 
-        # ✅ Columnas a mostrar — ¡AHORA CON 'Productos' FORMATEADO!
+        # ✅ Columnas a mostrar
         columnas_mostrar = [
             'ID', 'Productos', 'Cliente', 'Club', 'Telefono',
             'Fecha entrada', 'Fecha Salida', 'Precio',
@@ -130,6 +151,14 @@ def show_consult(df_pedidos, df_listas):
 
         # Mostrar tabla
         st.dataframe(df_display[columnas_disponibles], height=600, use_container_width=True)
+
+        # ✅ NUEVO: Sección de "Ver Detalle de Productos"
+        st.markdown("### 🔍 Detalle de Productos por Pedido")
+        for idx, row in df_filtrado.iterrows():
+            if 'Productos' in row and row['Productos']:
+                with st.expander(f"Pedido {row['ID']} - {row['Cliente']} ({len(json.loads(row['Productos']) if isinstance(row['Productos'], str) else row['Productos'])} productos)"):
+                    mostrar_detalle_productos(row['Productos'], key_suffix=str(row['ID']))
+
         st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
 
         # ✅ Botón para exportar a CSV
