@@ -127,38 +127,20 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla con st.markdown para permitir HTML en "Productos"
-        for idx, row in df_display.iterrows():
-            cols = st.columns([0.5, 3, 2, 1.5, 1, 1, 1, 1])
-            with cols[0]:
-                st.write(row['ID'])
-            with cols[1]:
-                st.markdown(row['Productos'], unsafe_allow_html=True)  # ✅ ¡Aquí se renderiza el +P en azul!
-            with cols[2]:
-                st.write(row['Cliente'])
-            with cols[3]:
-                st.write(row['Club'])
-            with cols[4]:
-                st.write(row['Telefono'])
-            with cols[5]:
-                st.write(row['Fecha entrada'])
-            with cols[6]:
-                st.write(row['Precio'])
-            with cols[7]:
-                estados = []
-                if row.get('Pendiente', False):
-                    estados.append("📌")
-                if row.get('Inicio Trabajo', False):
-                    estados.append("🔵")
-                if row.get('Trabajo Terminado', False):
-                    estados.append("✅")
-                if row.get('Retirado', False):
-                    estados.append("📦")
-                if row.get('Cobrado', False):
-                    estados.append("💰")
-                st.write(" ".join(estados))
-
-            st.markdown("---")
+        # ✅ Mostrar tabla con st.dataframe y HTML en columna Productos
+        st.dataframe(
+            df_display[columnas_disponibles],
+            column_config={
+                "Productos": st.column_config.TextColumn(
+                    "Productos",
+                    help="Primer producto +P si hay más",
+                    width="medium",
+                    unsafe_allow_html=True  # ✅ ¡Permite HTML en la celda!
+                )
+            },
+            height=600,
+            use_container_width=True
+        )
 
         st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
 
