@@ -36,7 +36,7 @@ def formatear_primer_producto(productos_json):
             resumen += f" ({tela})"
         resumen += f" x{cantidad} → {precio_total:.2f}€"
 
-        # ✅ Si hay más de un producto, agregar "+P" (simple, sin HTML)
+        # ✅ Si hay más de un producto, agregar "+P"
         if len(productos) > 1:
             resumen += " +P"
 
@@ -59,7 +59,7 @@ def show_consult(df_pedidos, df_listas):
     with col_f4:
         filtro_estado = st.selectbox(
             "Estado",
-            options=["", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado"],
+            options=["", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado", "Completado"],
             key="filtro_estado_consulta"
         )
 
@@ -90,6 +90,12 @@ def show_consult(df_pedidos, df_listas):
             df_filtrado = df_filtrado[df_filtrado['Retirado'] == True]
         elif filtro_estado == "Cobrado":
             df_filtrado = df_filtrado[df_filtrado['Cobrado'] == True]
+        elif filtro_estado == "Completado":
+            df_filtrado = df_filtrado[
+                (df_filtrado['Trabajo Terminado'] == True) &
+                (df_filtrado['Cobrado'] == True) &
+                (df_filtrado['Retirado'] == True)
+            ]
 
     # --- MOSTRAR RESULTADOS ---
     if not df_filtrado.empty:
@@ -110,7 +116,12 @@ def show_consult(df_pedidos, df_listas):
         if 'Precio' in df_display.columns:
             df_display['Precio'] = pd.to_numeric(df_display['Precio'], errors='coerce').fillna(0.0)
 
-        # ✅ Reemplazar booleanos por iconos en columnas de estado
+        # Asegurar booleanos
+        for col in ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado']:
+            if col in df_display.columns:
+                df_display[col] = df_display[col].fillna(False).astype(bool)
+
+        # ✅ Generar columna "Estado" con iconos + "✔️ COMPLETADO"
         def estado_a_icono(row):
             iconos = []
             if row.get('Pendiente', False):
@@ -123,16 +134,18 @@ def show_consult(df_pedidos, df_listas):
                 iconos.append("📦")
             if row.get('Cobrado', False):
                 iconos.append("💰")
+            
+            # ✅ Si está Terminado + Cobrado + Retirado → añadir "✔️ COMPLETADO"
+            if (row.get('Trabajo Terminado', False) and
+                row.get('Cobrado', False) and
+                row.get('Retirado', False)):
+                iconos.append("✔️ COMPLETADO")
+
             return " ".join(iconos)
 
-        for col in ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado']:
-            if col in df_display.columns:
-                df_display[col] = df_display[col].fillna(False).astype(bool)
-
-        # Crear columna "Estado" con iconos
         df_display['Estado'] = df_display.apply(estado_a_icono, axis=1)
 
-        # ✅ Columnas a mostrar (incluye "Estado" y excluye booleanos individuales)
+        # ✅ Columnas a mostrar
         columnas_mostrar = [
             'ID', 'Productos', 'Cliente', 'Club', 'Telefono',
             'Fecha entrada', 'Fecha Salida', 'Precio', 'Estado'
@@ -142,7 +155,7 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla con st.dataframe (encabezados fijos, estable, sin HTML)
+        # ✅ Mostrar tabla
         st.dataframe(
             df_display[columnas_disponibles],
             column_config={
@@ -158,8 +171,8 @@ def show_consult(df_pedidos, df_listas):
                 ),
                 "Estado": st.column_config.TextColumn(
                     "Estado",
-                    help="📌 Pendiente | 🔵 Empezado | ✅ Terminado | 📦 Retirado | 💰 Cobrado",
-                    width="small"
+                    help="📌 Pendiente | 🔵 Empezado | ✅ Terminado | 📦 Retirado | 💰 Cobrado | ✔️ COMPLETADO",
+                    width="medium"
                 ),
             },
             height=600,
