@@ -19,7 +19,7 @@ def cargar_productos_seguro(productos_json):
         return []
 
 def formatear_primer_producto(productos_json):
-    """Muestra solo el primer producto en formato resumido + '+P' en azul si hay más."""
+    """Muestra solo el primer producto en formato resumido + '+P' si hay más."""
     try:
         productos = cargar_productos_seguro(productos_json)
         if not productos:
@@ -36,9 +36,9 @@ def formatear_primer_producto(productos_json):
             resumen += f" ({tela})"
         resumen += f" x{cantidad} → {precio_total:.2f}€"
 
-        # ✅ Si hay más de un producto, agregar "+P" en azul brillante (para usar con st.markdown)
+        # ✅ Si hay más de un producto, agregar "+P" (simple, sin HTML)
         if len(productos) > 1:
-            resumen += ' <span style="color: #1976D2; font-weight: bold;">+P</span>'
+            resumen += " +P"
 
         return resumen
 
@@ -51,14 +51,14 @@ def show_consult(df_pedidos, df_listas):
     # --- FILTROS ---
     col_f1, col_f2, col_f3, col_f4 = st.columns(4)
     with col_f1:
-        filtro_cliente = st.text_input("Filtrar por cliente", key="filtro_cliente_consulta")
+        filtro_cliente = st.text_input("Cliente", key="filtro_cliente_consulta")
     with col_f2:
-        filtro_club = st.text_input("Filtrar por club", key="filtro_club_consulta")
+        filtro_club = st.text_input("Club", key="filtro_club_consulta")
     with col_f3:
-        filtro_telefono = st.text_input("Filtrar por teléfono", key="filtro_telefono_consulta")
+        filtro_telefono = st.text_input("Teléfono", key="filtro_telefono_consulta")
     with col_f4:
         filtro_estado = st.selectbox(
-            "Filtrar por estado",
+            "Estado",
             options=["", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado"],
             key="filtro_estado_consulta"
         )
@@ -73,7 +73,6 @@ def show_consult(df_pedidos, df_listas):
         df_filtrado = df_filtrado[df_filtrado['Club'].str.contains(filtro_club, case=False, na=False)]
 
     if filtro_telefono:
-        # ✅ Limpiar y filtrar por teléfono
         filtro_limpio = ''.join(filter(str.isdigit, filtro_telefono))
         if filtro_limpio:
             df_filtrado['Telefono_limpio'] = df_filtrado['Telefono'].astype(str).str.replace(r'\D', '', regex=True)
@@ -96,7 +95,7 @@ def show_consult(df_pedidos, df_listas):
     if not df_filtrado.empty:
         df_display = df_filtrado.copy()
 
-        # ✅ Formatear columna Productos (con HTML para +P en azul)
+        # ✅ Formatear columna Productos
         if 'Productos' in df_display.columns:
             df_display['Productos'] = df_display['Productos'].apply(formatear_primer_producto)
 
@@ -111,55 +110,62 @@ def show_consult(df_pedidos, df_listas):
         if 'Precio' in df_display.columns:
             df_display['Precio'] = pd.to_numeric(df_display['Precio'], errors='coerce').fillna(0.0)
 
-        # Asegurar booleanos
+        # ✅ Reemplazar booleanos por iconos en columnas de estado
+        def estado_a_icono(row):
+            iconos = []
+            if row.get('Pendiente', False):
+                iconos.append("📌")
+            if row.get('Inicio Trabajo', False):
+                iconos.append("🔵")
+            if row.get('Trabajo Terminado', False):
+                iconos.append("✅")
+            if row.get('Retirado', False):
+                iconos.append("📦")
+            if row.get('Cobrado', False):
+                iconos.append("💰")
+            return " ".join(iconos)
+
         for col in ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado']:
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
 
-        # ✅ Columnas a mostrar
+        # Crear columna "Estado" con iconos
+        df_display['Estado'] = df_display.apply(estado_a_icono, axis=1)
+
+        # ✅ Columnas a mostrar (incluye "Estado" y excluye booleanos individuales)
         columnas_mostrar = [
             'ID', 'Productos', 'Cliente', 'Club', 'Telefono',
-            'Fecha entrada', 'Fecha Salida', 'Precio',
-            'Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado'
+            'Fecha entrada', 'Fecha Salida', 'Precio', 'Estado'
         ]
         columnas_disponibles = [col for col in columnas_mostrar if col in df_display.columns]
 
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla manual con st.markdown para permitir HTML en "Productos"
-        st.markdown("### Resultados")
-        for idx, row in df_display.iterrows():
-            cols = st.columns([0.5, 2.5, 2, 1.5, 1, 1, 1, 1])
-            with cols[0]:
-                st.write(f"**{row['ID']}**")
-            with cols[1]:
-                # ✅ ¡Aquí renderizamos el +P en azul!
-                st.markdown(row['Productos'], unsafe_allow_html=True)
-            with cols[2]:
-                st.write(row['Cliente'])
-            with cols[3]:
-                st.write(row['Club'])
-            with cols[4]:
-                st.write(row['Telefono'])
-            with cols[5]:
-                st.write(row['Fecha entrada'])
-            with cols[6]:
-                st.write(f"{row['Precio']:.2f} €")
-            with cols[7]:
-                estados = []
-                if row.get('Pendiente', False):
-                    estados.append("📌")
-                if row.get('Inicio Trabajo', False):
-                    estados.append("🔵")
-                if row.get('Trabajo Terminado', False):
-                    estados.append("✅")
-                if row.get('Retirado', False):
-                    estados.append("📦")
-                if row.get('Cobrado', False):
-                    estados.append("💰")
-                st.write(" ".join(estados))
-            st.markdown("---")
+        # ✅ Mostrar tabla con st.dataframe (encabezados fijos, estable, sin HTML)
+        st.dataframe(
+            df_display[columnas_disponibles],
+            column_config={
+                "Productos": st.column_config.TextColumn(
+                    "Productos",
+                    help="Primer producto del pedido. '+P' indica que hay más productos.",
+                    width="medium"
+                ),
+                "Precio": st.column_config.NumberColumn(
+                    "Precio (€)",
+                    format="%.2f €",
+                    width="small"
+                ),
+                "Estado": st.column_config.TextColumn(
+                    "Estado",
+                    help="📌 Pendiente | 🔵 Empezado | ✅ Terminado | 📦 Retirado | 💰 Cobrado",
+                    width="small"
+                ),
+            },
+            height=600,
+            use_container_width=True,
+            hide_index=True
+        )
 
         st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
 
