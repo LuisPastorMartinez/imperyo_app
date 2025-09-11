@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-
 # Configuración de paths para imports
 sys.path.append(str(Path(__file__).parent))
 
@@ -20,7 +19,7 @@ from utils.firestore_utils import (
 )
 from utils.data_utils import limpiar_telefono, limpiar_fecha
 
-# Importaciones desde pages
+# Importaciones desde modules (antes pages)
 from modules.pedidos_page import show_pedidos_page
 from modules.gastos_page import show_gastos_page
 from modules.resumen_page import show_resumen_page
@@ -78,7 +77,6 @@ h2 {
 # --- HEADER ---
 col_logo, col_title = st.columns([0.1, 0.9])
 with col_logo:
-    # ✅ Corregido: URL sin espacios
     st.image("https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1", width=80)
 with col_title:
     st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
@@ -266,6 +264,28 @@ if check_password():
         st.subheader("Estado General de Pedidos")
         st.info(f"Total de Pedidos Registrados: **{len(df_pedidos)}**")
 
+        # ✅ BOTÓN DE BACKUP + DROPBOX
+        st.markdown("### 🔐 Backup de Seguridad")
+        if st.button("💾 Generar Backup y Subir a Dropbox"):
+            with st.spinner("Generando backup..."):
+                from utils.excel_utils import backup_to_dropbox
+                success, result, upload_success, upload_error = backup_to_dropbox(st.session_state.data)
+                if success:
+                    # Descargar localmente
+                    with open(result, "rb") as f:
+                        st.download_button(
+                            "📥 Descargar Backup (Excel)",
+                            f,
+                            file_name=os.path.basename(result),
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    if upload_success:
+                        st.success(f"✅ Backup subido a Dropbox: `{os.path.basename(result)}`")
+                    else:
+                        st.warning(f"⚠️ Backup generado, pero error al subir a Dropbox: {upload_error}")
+                else:
+                    st.error(f"❌ Error al generar backup: {result}")
+
     elif page == "Ver Datos":
         st.header("Datos Cargados de Firestore")
         st.subheader("Colección 'pedidos'")
@@ -276,7 +296,6 @@ if check_password():
                 'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
                 'Tipo de pago', 'Adelanto', 'Observaciones'
             ]
-            # ✅ Solo columnas que existen
             existing_columns = [col for col in new_column_order if col in df_pedidos_sorted.columns]
             remaining_columns = [col for col in df_pedidos_sorted.columns if col not in existing_columns]
             final_column_order = existing_columns + remaining_columns
