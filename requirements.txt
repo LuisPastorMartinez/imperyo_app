@@ -1,6 +1,6 @@
 streamlit
 pandas
 openpyxl
-st-gsheets-connection
 firebase-admin
-dropbox  # ✅ AÑADE ESTA LÍNEA
+dropbox
+schedule  # ✅ ¡AÑADE ESTA LÍNEA!
