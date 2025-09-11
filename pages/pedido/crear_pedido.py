@@ -11,13 +11,12 @@ import time
 def show_create(df_pedidos, df_listas):
     # --- Comprobar si hay que resetear el formulario ---
     if st.session_state.get("reset_form", False):
-        # Solo borrar keys del formulario, no toda la sesión
         keys_to_delete = [
             "num_productos", "force_refresh", "reset_form",
             "cliente_", "telefono_", "club_", "descripcion_",
             "fecha_entrada_", "fecha_salida_", "precio_total_",
             "precio_factura_", "tipo_pago_", "adelanto_", "observaciones_",
-            "empezado_", "terminado_", "cobrado_", "retirado_", "pendiente_"
+            "pendiente_", "empezado_", "cobrado_"
         ]
         for key in list(st.session_state.keys()):
             if key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_") or key.startswith("cantidad_") or key in keys_to_delete:
@@ -85,7 +84,7 @@ def show_create(df_pedidos, df_listas):
             "Cantidad": cantidad
         })
 
-    st.markdown(f"**💰 Total productos: {total_productos:.2f} €**")
+    st.markdown(f"**💰 Subtotal productos: {total_productos:.2f} €** (solo informativo)")
 
     add_col, remove_col = st.columns([1, 1])
     with add_col:
@@ -116,7 +115,9 @@ def show_create(df_pedidos, df_listas):
             fecha_entrada = st.date_input("Fecha entrada", value=datetime.now().date(), key=f"fecha_entrada_{suffix}")
             tiene_fecha_salida = st.checkbox("Establecer fecha de salida", key=f"tiene_fecha_salida_{suffix}")
             fecha_salida = st.date_input("Fecha salida", value=datetime.now().date(), key=f"fecha_salida_{suffix}") if tiene_fecha_salida else None
-            precio = st.number_input("Precio total", min_value=0.0, value=total_productos, key=f"precio_total_{suffix}")
+            
+            # ✅ PRECIO Y PRECIO FACTURA MANUALES — PUEDEN SER 0
+            precio = st.number_input("Precio total", min_value=0.0, value=0.0, key=f"precio_total_{suffix}")
             precio_factura = st.number_input("Precio factura", min_value=0.0, value=0.0, key=f"precio_factura_{suffix}")
             
             tipos_pago = [""]
@@ -129,77 +130,68 @@ def show_create(df_pedidos, df_listas):
             adelanto = st.number_input("Adelanto", min_value=0.0, value=0.0, key=f"adelanto_{suffix}")
             observaciones = st.text_area("Observaciones", key=f"observaciones_{suffix}")
 
+        # ✅ ESTADOS: Pendiente, Empezado, Cobrado — NINGUNO SELECCIONADO POR DEFECTO
         st.write("**Estado del pedido:**")
-        estado_cols = st.columns(5)
+        estado_cols = st.columns(3)
         with estado_cols[0]:
-            empezado = st.checkbox("Empezado", key=f"empezado_{suffix}")
+            pendiente = st.checkbox("Pendiente", value=False, key=f"pendiente_{suffix}")
         with estado_cols[1]:
-            terminado = st.checkbox("Terminado", key=f"terminado_{suffix}")
+            empezado = st.checkbox("Empezado", value=False, key=f"empezado_{suffix}")
         with estado_cols[2]:
-            cobrado = st.checkbox("Cobrado", key=f"cobrado_{suffix}")
-        with estado_cols[3]:
-            retirado = st.checkbox("Retirado", key=f"retirado_{suffix}")
-        with estado_cols[4]:
-            pendiente = st.checkbox("Pendiente", key=f"pendiente_{suffix}")
+            cobrado = st.checkbox("Cobrado", value=False, key=f"cobrado_{suffix}")
 
-        submitted = st.form_submit_button("Guardar Nuevo Pedido", key=f"guardar_{suffix}")
+        if st.form_submit_button("Guardar Nuevo Pedido", key=f"guardar_{suffix}"):
+            if not cliente or not telefono or not club:
+                st.error("Por favor complete los campos obligatorios (*)")
+                return
 
-    # ✅ PROCESAR DESPUÉS DEL FORMULARIO (fuera de él)
-    if submitted:
-        if not cliente or not telefono or not club:
-            st.error("Por favor complete los campos obligatorios (*)")
-        else:
             telefono_limpio = limpiar_telefono(telefono)
             if not telefono_limpio:
                 st.error("El teléfono debe contener exactamente 9 dígitos numéricos")
+                return
+
+            productos_json = json.dumps(productos_temp)
+
+            new_pedido = {
+                'ID': next_id,
+                'Productos': productos_json,
+                'Cliente': convert_to_firestore_type(cliente),
+                'Telefono': convert_to_firestore_type(telefono_limpio),
+                'Club': convert_to_firestore_type(club),
+                'Breve Descripción': convert_to_firestore_type(descripcion),
+                'Fecha entrada': convert_to_firestore_type(fecha_entrada),
+                'Fecha Salida': convert_to_firestore_type(fecha_salida),
+                'Precio': convert_to_firestore_type(precio),
+                'Precio Factura': convert_to_firestore_type(precio_factura),
+                'Tipo de pago': convert_to_firestore_type(tipo_pago),
+                'Adelanto': convert_to_firestore_type(adelanto),
+                'Observaciones': convert_to_firestore_type(observaciones),
+                'Inicio Trabajo': convert_to_firestore_type(empezado),
+                'Trabajo Terminado': False,  # ❌ No editable en Crear
+                'Cobrado': convert_to_firestore_type(cobrado),
+                'Retirado': False,  # ❌ No editable en Crear
+                'Pendiente': convert_to_firestore_type(pendiente),
+                'id_documento_firestore': None
+            }
+
+            new_pedido_df = pd.DataFrame([new_pedido])
+            df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
+            df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
+
+            for c in df_pedidos.columns:
+                df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
+
+            if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                st.success(f"✅ Pedido {next_id} creado correctamente!")
+                st.balloons()
+                time.sleep(2)
+
+                if 'data' not in st.session_state:
+                    st.session_state['data'] = {}
+                st.session_state.data['df_pedidos'] = df_pedidos
+
+                st.session_state.reset_form = True
+                st.session_state.force_refresh = str(datetime.now().timestamp())
+                st.rerun()
             else:
-                productos_json = json.dumps(productos_temp)
-
-                new_pedido = {
-                    'ID': next_id,
-                    'Productos': productos_json,
-                    'Cliente': convert_to_firestore_type(cliente),
-                    'Telefono': convert_to_firestore_type(telefono_limpio),
-                    'Club': convert_to_firestore_type(club),
-                    'Breve Descripción': convert_to_firestore_type(descripcion),
-                    'Fecha entrada': convert_to_firestore_type(fecha_entrada),
-                    'Fecha Salida': convert_to_firestore_type(fecha_salida),
-                    'Precio': convert_to_firestore_type(precio),
-                    'Precio Factura': convert_to_firestore_type(precio_factura),
-                    'Tipo de pago': convert_to_firestore_type(tipo_pago),
-                    'Adelanto': convert_to_firestore_type(adelanto),
-                    'Observaciones': convert_to_firestore_type(observaciones),
-                    'Inicio Trabajo': convert_to_firestore_type(empezado),
-                    'Trabajo Terminado': convert_to_firestore_type(terminado),
-                    'Cobrado': convert_to_firestore_type(cobrado),
-                    'Retirado': convert_to_firestore_type(retirado),
-                    'Pendiente': convert_to_firestore_type(pendiente),
-                    'id_documento_firestore': None
-                }
-
-                new_pedido_df = pd.DataFrame([new_pedido])
-                df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
-                df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
-
-                for c in df_pedidos.columns:
-                    df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
-
-                if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                    success_placeholder = st.empty()
-                    success_placeholder.success(f"✅ Pedido {next_id} creado correctamente!")
-                    st.balloons()
-                    time.sleep(2)
-                    success_placeholder.empty()
-
-                    if 'data' not in st.session_state:
-                        st.session_state['data'] = {}
-                    st.session_state.data['df_pedidos'] = df_pedidos
-
-                    # ✅ Activar reinicio automático
-                    st.session_state.reset_form = True
-                    st.session_state.force_refresh = str(datetime.now().timestamp())
-
-                    # ✅ REINICIAR INMEDIATAMENTE
-                    st.rerun()
-                else:
-                    st.error("Error al crear el pedido")
+                st.error("Error al crear el pedido")
