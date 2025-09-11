@@ -6,6 +6,9 @@ import re
 import sys
 from pathlib import Path
 from datetime import datetime
+import schedule
+import time
+import threading
 
 # Configuración de paths para imports
 sys.path.append(str(Path(__file__).parent))
@@ -18,11 +21,13 @@ from utils.firestore_utils import (
     get_next_id
 )
 from utils.data_utils import limpiar_telefono, limpiar_fecha
+from utils.excel_utils import backup_to_dropbox
 
-# Importaciones desde modules (antes pages)
+# Importaciones desde modules
 from modules.pedidos_page import show_pedidos_page
 from modules.gastos_page import show_gastos_page
 from modules.resumen_page import show_resumen_page
+from modules.restore_page import show_restore_page
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -86,11 +91,9 @@ def unificar_columnas(df):
     if df.empty:
         return df
 
-    # Eliminar columna "Fechas Entrada" si existe
     if 'Fechas Entrada' in df.columns:
         df = df.drop(columns=['Fechas Entrada'])
     
-    # Unificar columnas de teléfono
     if 'Teléfono' in df.columns and 'Telefono' in df.columns:
         df['Telefono'] = df['Telefono'].combine_first(df['Teléfono'])
         df = df.drop(columns=['Teléfono'])
@@ -101,12 +104,10 @@ def unificar_columnas(df):
         df['Telefono'] = df['Telefono'].combine_first(df['Telefono '])
         df = df.drop(columns=['Telefono '])
     
-    # Limpiar teléfonos
     if 'Telefono' in df.columns:
         df['Telefono'] = df['Telefono'].apply(lambda x: x if pd.isna(x) else str(x).strip())
         df['Telefono'] = df['Telefono'].apply(limpiar_telefono)
     
-    # Limpiar y unificar fechas
     if 'Fecha entrada' in df.columns:
         df['Fecha entrada'] = df['Fecha entrada'].apply(limpiar_fecha)
     
@@ -118,7 +119,6 @@ def unificar_columnas(df):
         df['Fecha Salida'] = df['Fecha Salida'].combine_first(df['Fecha salida'].apply(limpiar_fecha))
         df = df.drop(columns=['Fecha salida'])
     
-    # Resto de unificaciones
     columnas_a_unificar = {
         'Precio factura': 'Precio Factura',
         'Obserbaciones': 'Observaciones',
@@ -184,11 +184,56 @@ def init_session_state():
         "username_input": "",
         "password_input": "",
         "data_loaded": False,
-        "current_summary_view": "Todos los Pedidos"
+        "current_summary_view": "Todos los Pedidos",
+        "backup_config": {
+            "enabled": False,
+            "day": "Sunday",
+            "time": "02:00"
+        }
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+# --- FUNCIÓN PARA PROGRAMAR BACKUP AUTOMÁTICO ---
+def schedule_backup():
+    if not st.session_state.backup_config["enabled"]:
+        return
+
+    day = st.session_state.backup_config["day"]
+    time_str = st.session_state.backup_config["time"]
+
+    # Limpiar trabajos anteriores
+    schedule.clear()
+
+    # Programar nuevo trabajo
+    job = lambda: backup_job(st.session_state.data if 'data' in st.session_state else {})
+    getattr(schedule.every(), day.lower()).at(time_str).do(job)
+
+    st.success(f"✅ Backup automático programado para {day} a las {time_str}.")
+
+def backup_job(data):
+    """Función que se ejecuta en el hilo de backup automático."""
+    if not data:
+        return
+
+    success, result, upload_success, upload_error = backup_to_dropbox(data)
+    if success and upload_success:
+        print(f"[BACKUP AUTOMÁTICO] Éxito: {result}")
+    else:
+        print(f"[BACKUP AUTOMÁTICO] Error: {result or upload_error}")
+
+# --- HILO PARA EJECUTAR BACKUP AUTOMÁTICO ---
+def run_scheduler():
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+
+# Iniciar hilo de scheduler
+if 'scheduler_started' not in st.session_state:
+    st.session_state.scheduler_started = True
+    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+    scheduler_thread.start()
 
 # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
 if check_password():
@@ -212,19 +257,16 @@ if check_password():
             st.error(f"Error al cargar datos: {e}")
             st.stop()
 
-    # Verificar que data existe
     if 'data' not in st.session_state or st.session_state.data is None:
         st.error("No se cargaron los datos correctamente.")
         st.stop()
 
-    # Verificar DataFrames esenciales
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
         if df_name not in st.session_state.data:
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
             st.stop()
 
-    # Asignar DataFrames
     df_pedidos = st.session_state.data['df_pedidos']
     df_gastos = st.session_state.data['df_gastos']
     df_totales = st.session_state.data['df_totales']
@@ -243,7 +285,7 @@ if check_password():
 
     # --- NAVEGACIÓN ---
     st.sidebar.title("Navegación")
-    page = st.sidebar.radio("Ir a:", ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos"], key="main_page_radio")
+    page = st.sidebar.radio("Ir a:", ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Restaurar Backup", "Configurar Backup"], key="main_page_radio")
 
     if 'current_summary_view' not in st.session_state:
         st.session_state.current_summary_view = "Todos los Pedidos"
@@ -264,14 +306,11 @@ if check_password():
         st.subheader("Estado General de Pedidos")
         st.info(f"Total de Pedidos Registrados: **{len(df_pedidos)}**")
 
-        # ✅ BOTÓN DE BACKUP + DROPBOX
         st.markdown("### 🔐 Backup de Seguridad")
         if st.button("💾 Generar Backup y Subir a Dropbox"):
             with st.spinner("Generando backup..."):
-                from utils.excel_utils import backup_to_dropbox
                 success, result, upload_success, upload_error = backup_to_dropbox(st.session_state.data)
                 if success:
-                    # Descargar localmente
                     with open(result, "rb") as f:
                         st.download_button(
                             "📥 Descargar Backup (Excel)",
@@ -321,3 +360,23 @@ if check_password():
 
     elif page == "Resumen":
         show_resumen_page(df_pedidos, st.session_state.current_summary_view)
+
+    elif page == "Restaurar Backup":
+        show_restore_page()
+
+    elif page == "Configurar Backup":
+        st.header("Configurar Backup Automático")
+        st.write("Programa el backup automático semanal.")
+
+        enabled = st.checkbox("Activar backup automático", value=st.session_state.backup_config["enabled"])
+        day = st.selectbox("Día de la semana", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], index=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].index(st.session_state.backup_config["day"]))
+        time_str = st.text_input("Hora (HH:MM)", value=st.session_state.backup_config["time"])
+
+        if st.button("💾 Guardar Configuración"):
+            st.session_state.backup_config = {
+                "enabled": enabled,
+                "day": day,
+                "time": time_str
+            }
+            schedule_backup()
+            st.success("✅ Configuración guardada y programada.")
