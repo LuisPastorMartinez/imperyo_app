@@ -135,15 +135,15 @@ def show_create(df_pedidos, df_listas):
             adelanto = st.number_input("Adelanto", min_value=0.0, value=0.0, key=f"adelanto_{suffix}")
             observaciones = st.text_area("Observaciones", key=f"observaciones_{suffix}")
 
-        # ✅ ESTADOS: Pendiente, Empezado, Cobrado — NINGUNO SELECCIONADO POR DEFECTO
+        # ✅ ESTADOS: Orden personalizado — Empezado, Cobrado, Pendiente
         st.write("**Estado del pedido:**")
         estado_cols = st.columns(3)
         with estado_cols[0]:
-            pendiente = st.checkbox("Pendiente", value=False, key=f"pendiente_{suffix}")
-        with estado_cols[1]:
             empezado = st.checkbox("Empezado", value=False, key=f"empezado_{suffix}")
-        with estado_cols[2]:
+        with estado_cols[1]:
             cobrado = st.checkbox("Cobrado", value=False, key=f"cobrado_{suffix}")
+        with estado_cols[2]:
+            pendiente = st.checkbox("Pendiente", value=False, key=f"pendiente_{suffix}")
 
         if st.form_submit_button("Guardar Nuevo Pedido", key=f"guardar_{suffix}"):
             if not cliente or not telefono or not club:

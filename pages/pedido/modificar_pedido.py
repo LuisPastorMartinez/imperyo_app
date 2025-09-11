@@ -131,19 +131,19 @@ def show_modify(df_pedidos, df_listas):
                 adelanto = st.number_input("Adelanto", min_value=0.0, value=float(pedido.get('Adelanto', 0.0)), key="mod_adelanto")
                 observaciones = st.text_area("Observaciones", value=pedido.get('Observaciones',''), key="mod_observaciones")
 
-            # ✅ ESTADOS: Todos visibles + lógica de exclusión mutua
+            # ✅ ESTADOS: Orden personalizado — Empezado, Terminado, Cobrado, Retirado, Pendiente
             st.write("**Estado del pedido:**")
             estado_cols = st.columns(5)
             with estado_cols[0]:
-                pendiente = st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), key="mod_pendiente")
-            with estado_cols[1]:
                 empezado = st.checkbox("Empezado", value=bool(pedido.get('Inicio Trabajo', False)), key="mod_empezado")
-            with estado_cols[2]:
+            with estado_cols[1]:
                 terminado = st.checkbox("Terminado", value=bool(pedido.get('Trabajo Terminado', False)), key="mod_terminado")
-            with estado_cols[3]:
+            with estado_cols[2]:
                 cobrado = st.checkbox("Cobrado", value=bool(pedido.get('Cobrado', False)), key="mod_cobrado")
-            with estado_cols[4]:
+            with estado_cols[3]:
                 retirado = st.checkbox("Retirado", value=bool(pedido.get('Retirado', False)), key="mod_retirado")
+            with estado_cols[4]:
+                pendiente = st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), key="mod_pendiente")
 
             # ✅ BOTONES
             submit_col, cancel_col = st.columns([1, 1])
