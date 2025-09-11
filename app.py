@@ -20,10 +20,10 @@ from utils.firestore_utils import (
 )
 from utils.data_utils import limpiar_telefono, limpiar_fecha
 
-# Importaciones desde pages
-from pages.pedidos_page import show_pedidos_page
-from pages.gastos_page import show_gastos_page
-from pages.resumen_page import show_resumen_page
+# Importaciones desde modules
+from modules.pedidos_page import show_pedidos_page
+from modules.gastos_page import show_gastos_page
+from modules.resumen_page import show_resumen_page
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -301,4 +301,5 @@ if check_password():
         show_gastos_page(df_gastos)
 
     elif page == "Resumen":
+
         show_resumen_page(df_pedidos, st.session_state.current_summary_view)
