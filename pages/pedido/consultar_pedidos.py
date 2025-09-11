@@ -19,7 +19,7 @@ def cargar_productos_seguro(productos_json):
         return []
 
 def formatear_primer_producto(productos_json):
-    """Muestra solo el primer producto en formato resumido."""
+    """Muestra solo el primer producto en formato resumido + '+P' si hay más."""
     try:
         productos = cargar_productos_seguro(productos_json)
         if not productos:
@@ -36,8 +36,9 @@ def formatear_primer_producto(productos_json):
             resumen += f" ({tela})"
         resumen += f" x{cantidad} → {precio_total:.2f}€"
 
+        # ✅ Reemplazar "+N más" por "+P" → más corto y limpio
         if len(productos) > 1:
-            resumen += f" +{len(productos)-1} más"
+            resumen += " +P"
 
         return resumen
 
@@ -95,7 +96,7 @@ def show_consult(df_pedidos, df_listas):
     if not df_filtrado.empty:
         df_display = df_filtrado.copy()
 
-        # ✅ Formatear columna Productos (solo primer producto)
+        # ✅ Formatear columna Productos
         if 'Productos' in df_display.columns:
             df_display['Productos'] = df_display['Productos'].apply(formatear_primer_producto)
 
@@ -126,8 +127,50 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # Mostrar tabla
-        st.dataframe(df_display[columnas_disponibles], height=600, use_container_width=True)
+        # ✅ Mostrar tabla con configuración de columnas (tooltip + anchos)
+        st.dataframe(
+            df_display[columnas_disponibles],
+            column_config={
+                "Productos": st.column_config.TextColumn(
+                    "Productos",
+                    help="Primer producto del pedido. '+P' indica que hay más productos.",  # ✅ Tooltip explicativo
+                    width="medium"
+                ),
+                "ID": st.column_config.NumberColumn(
+                    "ID",
+                    width="small"
+                ),
+                "Cliente": st.column_config.TextColumn(
+                    "Cliente",
+                    width="medium"
+                ),
+                "Club": st.column_config.TextColumn(
+                    "Club",
+                    width="small"
+                ),
+                "Telefono": st.column_config.TextColumn(
+                    "Teléfono",
+                    width="small"
+                ),
+                "Precio": st.column_config.NumberColumn(
+                    "Precio (€)",
+                    format="%.2f €",
+                    width="small"
+                ),
+                "Fecha entrada": st.column_config.TextColumn(
+                    "Entrada",
+                    width="small"
+                ),
+                "Fecha Salida": st.column_config.TextColumn(
+                    "Salida",
+                    width="small"
+                ),
+            },
+            height=600,
+            use_container_width=True,
+            hide_index=True  # ✅ Más limpio
+        )
+
         st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
 
         # ✅ Botón para exportar a CSV
