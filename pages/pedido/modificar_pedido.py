@@ -19,16 +19,10 @@ def safe_to_date(value):
             return datetime.now().date()
     return datetime.now().date()
 
-def validar_telefono_9_digitos(telefono):
-    """Valida que el teléfono tenga exactamente 9 dígitos numéricos."""
-    if not telefono:
-        return False
-    return telefono.isdigit() and len(telefono) == 9
-
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
 
-    mod_id = st.number_input("ID del pedido a modificar:", min_value=1, key="modify_id_input")
+    mod_id = st.number_input("ID del pedido a modificar:", min_value=1, value=1, key="modify_id_input")
     if st.button("Cargar Pedido", key="load_pedido_button"):
         pedido = df_pedidos[df_pedidos['ID'] == mod_id]
         if not pedido.empty:
@@ -88,7 +82,7 @@ def show_modify(df_pedidos, df_listas):
 
             total_productos += st.session_state.productos[i]["PrecioUnitario"] * st.session_state.productos[i]["Cantidad"]
 
-        st.markdown(f"**💰 Total productos: {total_productos:.2f} €**")
+        st.markdown(f"**💰 Subtotal productos: {total_productos:.2f} €** (solo informativo)")
 
         # ✅ BOTONES DE AÑADIR/QUITAR PRODUCTOS (con rerun)
         add_col, remove_col = st.columns([1, 1])
@@ -111,13 +105,7 @@ def show_modify(df_pedidos, df_listas):
             with col1:
                 st.text_input("ID", value=pedido['ID'], disabled=True, key="mod_id")
                 cliente = st.text_input("Cliente*", value=pedido.get('Cliente',''), key="mod_cliente")
-                # ✅ Teléfono: solo 9 dígitos numéricos
-                telefono = st.text_input(
-                    "Teléfono* (9 dígitos numéricos)",
-                    value=pedido.get('Telefono',''),
-                    max_chars=9,
-                    key="mod_telefono"
-                )
+                telefono = st.text_input("Teléfono*", value=pedido.get('Telefono',''), key="mod_telefono")
                 club = st.text_input("Club*", value=pedido.get('Club',''), key="mod_club")
                 descripcion = st.text_area("Descripción", value=pedido.get('Breve Descripción',''), key="mod_descripcion")
 
@@ -134,34 +122,35 @@ def show_modify(df_pedidos, df_listas):
                 
                 fecha_salida = st.date_input("Fecha salida", value=fecha_salida_value, key="mod_fecha_salida") if tiene_fecha_salida else None
 
-                precio = st.number_input("Precio total", min_value=0.0, value=total_productos, key="mod_precio")
-                precio_factura = st.number_input("Precio factura", min_value=0.0, value=float(pedido.get('Precio Factura', 0) or 0), key="mod_precio_factura")
+                # ✅ PRECIO Y PRECIO FACTURA MANUALES — PUEDEN SER 0
+                precio = st.number_input("Precio total", min_value=0.0, value=float(pedido.get('Precio', 0.0)), key="mod_precio")
+                precio_factura = st.number_input("Precio factura", min_value=0.0, value=float(pedido.get('Precio Factura', 0.0)), key="mod_precio_factura")
+                
                 tipos_pago = [""] + df_listas['Tipo de pago'].dropna().unique().tolist() if 'Tipo de pago' in df_listas.columns else [""]
                 tipo_pago = st.selectbox("Tipo de pago", tipos_pago, index=safe_select_index(tipos_pago, pedido.get('Tipo de pago','')), key="mod_tipo_pago")
-                adelanto = st.number_input("Adelanto", min_value=0.0, value=float(pedido.get('Adelanto', 0) or 0), key="mod_adelanto")
+                adelanto = st.number_input("Adelanto", min_value=0.0, value=float(pedido.get('Adelanto', 0.0)), key="mod_adelanto")
                 observaciones = st.text_area("Observaciones", value=pedido.get('Observaciones',''), key="mod_observaciones")
 
+            # ✅ ESTADOS: Todos visibles + lógica de exclusión mutua
             st.write("**Estado del pedido:**")
             estado_cols = st.columns(5)
             with estado_cols[0]:
-                empezado = st.checkbox("Empezado", value=bool(pedido.get('Inicio Trabajo', False)), key="mod_empezado")
-            with estado_cols[1]:
-                terminado = st.checkbox("Terminado", value=bool(pedido.get('Trabajo Terminado', False)), key="mod_terminado")
-            with estado_cols[2]:
-                cobrado = st.checkbox("Cobrado", value=bool(pedido.get('Cobrado', False)), key="mod_cobrado")
-            with estado_cols[3]:
-                retirado = st.checkbox("Retirado", value=bool(pedido.get('Retirado', False)), key="mod_retirado")
-            with estado_cols[4]:
                 pendiente = st.checkbox("Pendiente", value=bool(pedido.get('Pendiente', False)), key="mod_pendiente")
+            with estado_cols[1]:
+                empezado = st.checkbox("Empezado", value=bool(pedido.get('Inicio Trabajo', False)), key="mod_empezado")
+            with estado_cols[2]:
+                terminado = st.checkbox("Terminado", value=bool(pedido.get('Trabajo Terminado', False)), key="mod_terminado")
+            with estado_cols[3]:
+                cobrado = st.checkbox("Cobrado", value=bool(pedido.get('Cobrado', False)), key="mod_cobrado")
+            with estado_cols[4]:
+                retirado = st.checkbox("Retirado", value=bool(pedido.get('Retirado', False)), key="mod_retirado")
 
-            # ✅ BOTONES DENTRO DEL FORMULARIO
+            # ✅ BOTONES
             submit_col, cancel_col = st.columns([1, 1])
             with submit_col:
                 submitted = st.form_submit_button("💾 Guardar Cambios", type="primary")
             with cancel_col:
-                # ✅ Botón "Salir sin guardar"
                 if st.form_submit_button("🚪 Salir sin guardar"):
-                    # Limpiar estado y volver
                     keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
                     for k in keys_to_delete:
                         if k in st.session_state:
@@ -171,22 +160,19 @@ def show_modify(df_pedidos, df_listas):
                     st.rerun()
 
         # ✅ PROCESAR DESPUÉS DEL FORMULARIO
-        if 'submitted' not in st.session_state:
-            st.session_state.submitted = False
-
         if submitted:
-            st.session_state.submitted = True
-
-            # ✅ Validar campos obligatorios
-            if not cliente or not club:
-                st.error("Por favor complete los campos obligatorios: Cliente y Club.")
-                st.session_state.submitted = False
+            if not cliente or not telefono or not club:
+                st.error("Por favor complete los campos obligatorios: Cliente, Teléfono y Club.")
                 return
 
-            # ✅ Validar teléfono: exactamente 9 dígitos numéricos
-            if not validar_telefono_9_digitos(telefono):
-                st.error("El teléfono debe contener exactamente 9 dígitos numéricos (solo números, sin espacios ni símbolos).")
-                st.session_state.submitted = False
+            telefono_limpio = limpiar_telefono(telefono)
+            if not telefono_limpio:
+                st.error("El teléfono debe contener exactamente 9 dígitos numéricos.")
+                return
+
+            # ✅ Lógica de exclusión mutua: Empezado y Terminado no pueden estar activos a la vez
+            if empezado and terminado:
+                st.error("❌ No puedes marcar 'Empezado' y 'Terminado' al mismo tiempo. Desmarca uno para continuar.")
                 return
 
             productos_json = json.dumps(st.session_state.productos)
@@ -195,7 +181,7 @@ def show_modify(df_pedidos, df_listas):
                 'ID': mod_id,
                 'Productos': productos_json,
                 'Cliente': convert_to_firestore_type(cliente),
-                'Telefono': convert_to_firestore_type(telefono),
+                'Telefono': convert_to_firestore_type(telefono_limpio),
                 'Club': convert_to_firestore_type(club),
                 'Breve Descripción': convert_to_firestore_type(descripcion),
                 'Fecha entrada': convert_to_firestore_type(fecha_entrada),
@@ -214,29 +200,29 @@ def show_modify(df_pedidos, df_listas):
             }
 
             idx_list = df_pedidos.index[df_pedidos['ID'] == mod_id].tolist()
-            if idx_list:
-                df_pedidos.loc[idx_list[0]] = updated_pedido
-                df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
-                for c in df_pedidos.columns:
-                    df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
+            if not idx_list:
+                st.error("No se encontró el pedido para actualizar.")
+                return
 
-                if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                    st.success(f"✅ Pedido {mod_id} actualizado correctamente!")
-                    st.balloons()
-                    time.sleep(2)
+            df_pedidos.loc[idx_list[0]] = updated_pedido
+            df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
+            for c in df_pedidos.columns:
+                df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
-                    # Limpiar estado
-                    keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
-                    for k in keys_to_delete:
-                        if k in st.session_state:
-                            del st.session_state[k]
-                    if 'pedido_a_modificar' in st.session_state:
-                        del st.session_state['pedido_a_modificar']
-                    if 'data' not in st.session_state:
-                        st.session_state['data'] = {}
-                    st.session_state.data['df_pedidos'] = df_pedidos
-                    st.rerun()
-                else:
-                    st.error("Error al actualizar el pedido")
+            if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                st.success(f"✅ Pedido {mod_id} actualizado correctamente!")
+                st.balloons()
+                time.sleep(2)
+
+                keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
+                for k in keys_to_delete:
+                    if k in st.session_state:
+                        del st.session_state[k]
+                if 'pedido_a_modificar' in st.session_state:
+                    del st.session_state['pedido_a_modificar']
+                if 'data' not in st.session_state:
+                    st.session_state['data'] = {}
+                st.session_state.data['df_pedidos'] = df_pedidos
+                st.rerun()
             else:
-                st.error("No se encontró el índice del pedido para actualizar.")
+                st.error("Error al actualizar el pedido")
