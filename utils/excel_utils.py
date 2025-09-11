@@ -134,9 +134,14 @@ def backup_to_dropbox(data, backup_folder="backups"):
     os.makedirs(backup_folder, exist_ok=True)
 
     try:
-        # Guardar en Excel
         with pd.ExcelWriter(backup_path, engine='openpyxl') as writer:
             for key, df in data.items():
+                # ✅ Eliminar zona horaria de columnas de fecha/hora
+                df = df.copy()  # No modificar el original
+                for col in df.columns:
+                    if pd.api.types.is_datetime64_any_dtype(df[col]):
+                        df[col] = df[col].dt.tz_localize(None)  # ✅ Eliminar zona horaria
+                
                 sheet_name = key.replace("df_", "")[:31]
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
 
