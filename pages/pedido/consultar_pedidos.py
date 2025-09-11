@@ -19,7 +19,7 @@ def cargar_productos_seguro(productos_json):
         return []
 
 def formatear_primer_producto(productos_json):
-    """Muestra solo el primer producto en formato resumido + '+P' en azul si hay más."""
+    """Muestra solo el primer producto en formato resumido."""
     try:
         productos = cargar_productos_seguro(productos_json)
         if not productos:
@@ -36,9 +36,8 @@ def formatear_primer_producto(productos_json):
             resumen += f" ({tela})"
         resumen += f" x{cantidad} → {precio_total:.2f}€"
 
-        # ✅ Si hay más de un producto, agregar "+P" en azul brillante
         if len(productos) > 1:
-            resumen += ' <span style="color: #1976D2; font-weight: bold; font-size: 0.9em;">+P</span>'
+            resumen += f" +{len(productos)-1} más"
 
         return resumen
 
@@ -96,7 +95,7 @@ def show_consult(df_pedidos, df_listas):
     if not df_filtrado.empty:
         df_display = df_filtrado.copy()
 
-        # ✅ Formatear columna Productos (solo primer producto + '+P' en azul)
+        # ✅ Formatear columna Productos (solo primer producto)
         if 'Productos' in df_display.columns:
             df_display['Productos'] = df_display['Productos'].apply(formatear_primer_producto)
 
@@ -127,39 +126,8 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla con st.markdown para permitir HTML en "Productos"
-        for idx, row in df_display.iterrows():
-            cols = st.columns([0.5, 3, 2, 1.5, 1, 1, 1, 1])
-            with cols[0]:
-                st.write(f"**{row['ID']}**")
-            with cols[1]:
-                st.markdown(row['Productos'], unsafe_allow_html=True)  # ✅ ¡Aquí se renderiza el +P en azul!
-            with cols[2]:
-                st.write(row['Cliente'])
-            with cols[3]:
-                st.write(row['Club'])
-            with cols[4]:
-                st.write(row['Telefono'])
-            with cols[5]:
-                st.write(row['Fecha entrada'])
-            with cols[6]:
-                st.write(f"{row['Precio']:.2f}€")
-            with cols[7]:
-                estados = []
-                if row.get('Pendiente', False):
-                    estados.append("📌")
-                if row.get('Inicio Trabajo', False):
-                    estados.append("🔵")
-                if row.get('Trabajo Terminado', False):
-                    estados.append("✅")
-                if row.get('Retirado', False):
-                    estados.append("📦")
-                if row.get('Cobrado', False):
-                    estados.append("💰")
-                st.write(" ".join(estados))
-
-            st.markdown("---")
-
+        # Mostrar tabla
+        st.dataframe(df_display[columnas_disponibles], height=600, use_container_width=True)
         st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
 
         # ✅ Botón para exportar a CSV
