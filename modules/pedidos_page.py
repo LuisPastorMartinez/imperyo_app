@@ -1,6 +1,6 @@
 # pages/pedidos_page.py
 import streamlit as st
-from pages.pedido import show_create, show_consult, show_modify, show_delete
+from modules.pedido import show_create, show_consult, show_modify, show_delete
 from utils.firestore_utils import load_dataframes_firestore
 
 def show_pedidos_page(df_pedidos=None, df_listas=None):
