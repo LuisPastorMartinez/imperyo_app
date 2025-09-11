@@ -9,21 +9,26 @@ from .helpers import convert_to_firestore_type, safe_select_index
 import time
 
 def show_create(df_pedidos, df_listas):
-    # --- Comprobar si hay que resetear el formulario ---
-    if st.session_state.get("reset_form", False):
-        keys_to_delete = [
-            "num_productos", "force_refresh", "reset_form",
-            "cliente_", "telefono_", "club_", "descripcion_",
-            "fecha_entrada_", "fecha_salida_", "precio_total_",
-            "precio_factura_", "tipo_pago_", "adelanto_", "observaciones_",
-            "pendiente_", "empezado_", "cobrado_"
-        ]
-        for key in list(st.session_state.keys()):
-            if key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_") or key.startswith("cantidad_") or key in keys_to_delete:
-                del st.session_state[key]
-        st.session_state.num_productos = 1
-        st.session_state.force_refresh = str(datetime.now().timestamp())
-        st.session_state.reset_form = False
+    # ✅ LIMPIAR ESTADO SI VIENE DE OTRA PÁGINA
+    if 'ultima_pagina' not in st.session_state:
+        st.session_state.ultima_pagina = "Crear"
+    else:
+        if st.session_state.ultima_pagina != "Crear":
+            # Limpiar todas las keys del formulario
+            keys_to_delete = [
+                "num_productos", "force_refresh", "reset_form",
+                "cliente_", "telefono_", "club_", "descripcion_",
+                "fecha_entrada_", "fecha_salida_", "precio_total_",
+                "precio_factura_", "tipo_pago_", "adelanto_", "observaciones_",
+                "pendiente_", "empezado_", "cobrado_"
+            ]
+            for key in list(st.session_state.keys()):
+                if key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_") or key.startswith("cantidad_") or key in keys_to_delete:
+                    del st.session_state[key]
+            st.session_state.num_productos = 1
+            st.session_state.force_refresh = str(datetime.now().timestamp())
+            st.session_state.reset_form = False
+        st.session_state.ultima_pagina = "Crear"
 
     st.subheader("Crear Nuevo Pedido")
 
