@@ -1,4 +1,4 @@
-# pages/resumen_page.py
+# pages/resumen_page.py (o modules/resumen_page.py si renombraste)
 import streamlit as st
 import pandas as pd
 
@@ -9,10 +9,13 @@ def highlight_pedidos_rows(row):
     pendiente = row.get('Pendiente', False)
     terminado = row.get('Trabajo Terminado', False)
     retirado = row.get('Retirado', False)
+    cobrado = row.get('Cobrado', False)
     
-    # Lógica de colores priorizando pendientes
-    if pendiente:
-        styles = ['background-color: #FF00FF'] * len(row)  # Morado siempre para pendientes
+    # ✅ Nueva lógica: si está Terminado + Cobrado + Retirado → verde
+    if terminado and cobrado and retirado:
+        styles = ['background-color: #00B050'] * len(row)  # Verde para completado
+    elif pendiente:
+        styles = ['background-color: #FF00FF'] * len(row)  # Morado para pendientes
     elif terminado and retirado:
         styles = ['background-color: #00B050'] * len(row)  # Verde para terminados+retirados
     elif terminado:
@@ -62,7 +65,7 @@ def show_resumen_page(df_pedidos, current_view):
         column_order = [
             'ID', 'Producto', 'Cliente', 'Club', 'Telefono',
             'Fecha entrada', 'Fecha Salida', 'Precio',
-            'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Pendiente'
+            'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Pendiente', 'Cobrado'
         ]
         
         # Filtrar columnas existentes
@@ -73,7 +76,16 @@ def show_resumen_page(df_pedidos, current_view):
             filtered_df[cols_to_show]
             .sort_values('ID', ascending=False)
             .style.apply(highlight_pedidos_rows, axis=1),
-            height=600
+            height=600,
+            use_container_width=True
         )
+        
+        # ✅ Mostrar contador de pedidos COMPLETADOS (Terminado + Cobrado + Retirado)
+        completados = filtered_df[
+            (filtered_df['Trabajo Terminado'] == True) &
+            (filtered_df['Cobrado'] == True) &
+            (filtered_df['Retirado'] == True)
+        ]
+        st.info(f"✅ Pedidos COMPLETADOS en esta vista: **{len(completados)}**")
     else:
         st.info(f"No hay pedidos en la categoría: {current_view}")
