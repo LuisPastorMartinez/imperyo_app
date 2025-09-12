@@ -1,4 +1,4 @@
-# pages/pedido/modificar_pedido.py
+# modules/pedido/modificar_pedido.py
 import streamlit as st
 import pandas as pd
 import json
@@ -214,6 +214,20 @@ def show_modify(df_pedidos, df_listas):
                 st.balloons()
                 time.sleep(2)
 
+                # ✅ ENVIAR NOTIFICACIÓN POR TELEGRAM SI ESTÁ COMPLETADO
+                if terminado and cobrado and retirado:
+                    try:
+                        from utils.notifications import enviar_telegram
+                        mensaje = f"✅ <b>Pedido COMPLETADO</b>\nID: {mod_id}\nCliente: {cliente}\nTeléfono: {telefono_limpio}"
+                        enviar_telegram(
+                            mensaje=mensaje,
+                            bot_token=st.secrets["telegram"]["bot_token"],
+                            chat_id=st.secrets["telegram"]["chat_id"]
+                        )
+                    except Exception as e:
+                        st.warning(f"⚠️ No se pudo enviar notificación: {e}")
+
+                # Limpiar estado
                 keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
                 for k in keys_to_delete:
                     if k in st.session_state:
