@@ -1,4 +1,4 @@
-# pages/pedido/crear_pedido.py
+# modules/pedido/crear_pedido.py
 import streamlit as st
 import pandas as pd
 import json
@@ -190,6 +190,22 @@ def show_create(df_pedidos, df_listas):
                 st.success(f"✅ Pedido {next_id} creado correctamente!")
                 st.balloons()
                 time.sleep(2)
+
+                # ✅ ENVIAR NOTIFICACIÓN POR TELEGRAM
+                try:
+                    from utils.notifications import enviar_telegram
+                    
+                    # Obtener precio a mostrar (el que sea > 0)
+                    precio_mostrar = precio if precio > 0 else precio_factura if precio_factura > 0 else 0.0
+                    
+                    mensaje = f"🆕 <b>Nuevo pedido</b>\nID: {next_id}\nCliente: {cliente}\nEquipo: {club}\nPrecio: {precio_mostrar:.2f} €"
+                    enviar_telegram(
+                        mensaje=mensaje,
+                        bot_token=st.secrets["telegram"]["bot_token"],
+                        chat_id=st.secrets["telegram"]["chat_id"]
+                    )
+                except Exception as e:
+                    st.warning(f"⚠️ No se pudo enviar notificación: {e}")
 
                 if 'data' not in st.session_state:
                     st.session_state['data'] = {}

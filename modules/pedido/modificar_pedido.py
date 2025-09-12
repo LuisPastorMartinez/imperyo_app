@@ -214,18 +214,32 @@ def show_modify(df_pedidos, df_listas):
                 st.balloons()
                 time.sleep(2)
 
-                # ✅ ENVIAR NOTIFICACIÓN POR TELEGRAM SI ESTÁ COMPLETADO
-                if terminado and cobrado and retirado:
-                    try:
-                        from utils.notifications import enviar_telegram
-                        mensaje = f"✅ <b>Pedido COMPLETADO</b>\nID: {mod_id}\nCliente: {cliente}\nTeléfono: {telefono_limpio}"
+                # ✅ ENVIAR NOTIFICACIÓN POR TELEGRAM
+                try:
+                    from utils.notifications import enviar_telegram
+                    
+                    # Obtener precio a mostrar (el que sea > 0)
+                    precio_mostrar = precio if precio > 0 else precio_factura if precio_factura > 0 else 0.0
+                    
+                    # ✅ Notificación si está "Terminado" (solo Terminado, sin Cobrado ni Retirado)
+                    if terminado and not (cobrado and retirado):
+                        mensaje = f"🟡 <b>Pedido TERMINADO</b>\nID: {mod_id}\nCliente: {cliente}\nEquipo: {club}\nPrecio: {precio_mostrar:.2f} €"
                         enviar_telegram(
                             mensaje=mensaje,
                             bot_token=st.secrets["telegram"]["bot_token"],
                             chat_id=st.secrets["telegram"]["chat_id"]
                         )
-                    except Exception as e:
-                        st.warning(f"⚠️ No se pudo enviar notificación: {e}")
+                    
+                    # ✅ Notificación si está "COMPLETADO" (Terminado + Cobrado + Retirado)
+                    if terminado and cobrado and retirado:
+                        mensaje = f"✅ <b>Pedido COMPLETADO</b>\nID: {mod_id}\nCliente: {cliente}\nEquipo: {club}\nPrecio: {precio_mostrar:.2f} €"
+                        enviar_telegram(
+                            mensaje=mensaje,
+                            bot_token=st.secrets["telegram"]["bot_token"],
+                            chat_id=st.secrets["telegram"]["chat_id"]
+                        )
+                except Exception as e:
+                    st.warning(f"⚠️ No se pudo enviar notificación: {e}")
 
                 # Limpiar estado
                 keys_to_delete = [k for k in st.session_state.keys() if k.startswith("mod_") or k.startswith("modify_")]
