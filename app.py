@@ -27,7 +27,7 @@ from utils.excel_utils import backup_to_dropbox
 from modules.pedidos_page import show_pedidos_page
 from modules.gastos_page import show_gastos_page
 from modules.resumen_page import show_resumen_page
-from modules.restore_page import show_restore_page
+from modules.config_page import show_config_page
 
 # --- CONFIGURACIÓN BÁSICA DE LA PÁGINA ---
 st.set_page_config(
@@ -196,25 +196,9 @@ def init_session_state():
             st.session_state[key] = value
 
 # --- FUNCIÓN PARA PROGRAMAR BACKUP AUTOMÁTICO ---
-def schedule_backup():
-    if not st.session_state.backup_config["enabled"]:
-        return
-
-    day = st.session_state.backup_config["day"]
-    time_str = st.session_state.backup_config["time"]
-
-    # Limpiar trabajos anteriores
-    schedule.clear()
-
-    # Programar nuevo trabajo
-    job = lambda: backup_job(st.session_state.data if 'data' in st.session_state else {})
-    getattr(schedule.every(), day.lower()).at(time_str).do(job)
-
-    st.success(f"✅ Backup automático programado para {day} a las {time_str}.")
-
 def backup_job(data):
     """Función que se ejecuta en el hilo de backup automático."""
-    if not data:
+    if not 
         return
 
     success, result, upload_success, upload_error = backup_to_dropbox(data)
@@ -249,7 +233,7 @@ if check_password():
 
             st.session_state.data = data
 
-            if 'df_pedidos' in st.session_state.data:
+            if 'df_pedidos' in st.session_state.
                 st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
 
             st.session_state.data_loaded = True
@@ -263,7 +247,7 @@ if check_password():
 
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
-        if df_name not in st.session_state.data:
+        if df_name not in st.session_state.
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
             st.stop()
 
@@ -285,7 +269,7 @@ if check_password():
 
     # --- NAVEGACIÓN ---
     st.sidebar.title("Navegación")
-    page = st.sidebar.radio("Ir a:", ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Restaurar Backup", "Configurar Backup"], key="main_page_radio")
+    page = st.sidebar.radio("Ir a:", ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"], key="main_page_radio")
 
     if 'current_summary_view' not in st.session_state:
         st.session_state.current_summary_view = "Todos los Pedidos"
@@ -306,24 +290,7 @@ if check_password():
         st.subheader("Estado General de Pedidos")
         st.info(f"Total de Pedidos Registrados: **{len(df_pedidos)}**")
 
-        st.markdown("### 🔐 Backup de Seguridad")
-        if st.button("💾 Generar Backup y Subir a Dropbox"):
-            with st.spinner("Generando backup..."):
-                success, result, upload_success, upload_error = backup_to_dropbox(st.session_state.data)
-                if success:
-                    with open(result, "rb") as f:
-                        st.download_button(
-                            "📥 Descargar Backup (Excel)",
-                            f,
-                            file_name=os.path.basename(result),
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-                    if upload_success:
-                        st.success(f"✅ Backup subido a Dropbox: `{os.path.basename(result)}`")
-                    else:
-                        st.warning(f"⚠️ Backup generado, pero error al subir a Dropbox: {upload_error}")
-                else:
-                    st.error(f"❌ Error al generar backup: {result}")
+        # ❌ QUITADO: Botón de backup de "Inicio"
 
     elif page == "Ver Datos":
         st.header("Datos Cargados de Firestore")
@@ -361,22 +328,5 @@ if check_password():
     elif page == "Resumen":
         show_resumen_page(df_pedidos, st.session_state.current_summary_view)
 
-    elif page == "Restaurar Backup":
-        show_restore_page()
-
-    elif page == "Configurar Backup":
-        st.header("Configurar Backup Automático")
-        st.write("Programa el backup automático semanal.")
-
-        enabled = st.checkbox("Activar backup automático", value=st.session_state.backup_config["enabled"])
-        day = st.selectbox("Día de la semana", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], index=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].index(st.session_state.backup_config["day"]))
-        time_str = st.text_input("Hora (HH:MM)", value=st.session_state.backup_config["time"])
-
-        if st.button("💾 Guardar Configuración"):
-            st.session_state.backup_config = {
-                "enabled": enabled,
-                "day": day,
-                "time": time_str
-            }
-            schedule_backup()
-            st.success("✅ Configuración guardada y programada.")
+    elif page == "Configuración":
+        show_config_page()
