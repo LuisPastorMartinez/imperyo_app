@@ -198,7 +198,7 @@ def init_session_state():
 # --- FUNCIÓN PARA PROGRAMAR BACKUP AUTOMÁTICO ---
 def backup_job(data):
     """Función que se ejecuta en el hilo de backup automático."""
-    if not 
+    if not data:
         return
 
     success, result, upload_success, upload_error = backup_to_dropbox(data)
