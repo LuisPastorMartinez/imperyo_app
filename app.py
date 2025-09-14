@@ -233,7 +233,7 @@ if check_password():
 
             st.session_state.data = data
 
-            if 'df_pedidos' in st.session_state:
+            if 'df_pedidos' in st.session_state.:
                 st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
 
             st.session_state.data_loaded = True
@@ -245,12 +245,15 @@ if check_password():
         st.error("No se cargaron los datos correctamente.")
         st.stop()
 
+    # --- ✅ VALIDACIÓN CORREGIDA: BUSCAR EN st.session_state.data ---
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
-        if df_name not in st.session_state:
+        if df_name not in st.session_state.:  # ← ¡CORREGIDO!
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
+            st.write("🔍 Claves disponibles en st.session_state.", list(st.session_state.data.keys()))
             st.stop()
 
+    # --- ASIGNAR DATAFRAMES ---
     df_pedidos = st.session_state.data['df_pedidos']
     df_gastos = st.session_state.data['df_gastos']
     df_totales = st.session_state.data['df_totales']
@@ -289,8 +292,6 @@ if check_password():
         st.write("---")
         st.subheader("Estado General de Pedidos")
         st.info(f"Total de Pedidos Registrados: **{len(df_pedidos)}**")
-
-        # ❌ QUITADO: Botón de backup de "Inicio"
 
     elif page == "Ver Datos":
         st.header("Datos Cargados de Firestore")
