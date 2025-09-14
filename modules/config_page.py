@@ -4,6 +4,7 @@ from utils.excel_utils import backup_to_dropbox
 import schedule
 import time
 import threading
+from datetime import datetime  # ← ¡Añadido! Necesario para manejar fechas
 
 def show_config_page():
     st.header("⚙️ Configuración")
@@ -127,7 +128,8 @@ def restore_data_from_excel(excel_path, collection_mapping):
 
 def backup_job(data):
     """Función que se ejecuta en el hilo de backup automático."""
-    if not 
+    if not isinstance(data, dict) or len(data) == 0:
+        print("[BACKUP AUTOMÁTICO] No hay datos para respaldar.")
         return
 
     success, result, upload_success, upload_error = backup_to_dropbox(data)
