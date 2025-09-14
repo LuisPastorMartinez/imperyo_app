@@ -108,7 +108,9 @@ def load_dataframes_firestore():
             else:
                 df = create_empty_dataframe(collection_name)
 
+            # --- ✅ CLAVE CORRECTA: con prefijo 'df_' ---
             data[f'df_{key}'] = df
+
         return data
     except Exception as e:
         st.error(f"Error cargando datos: {e}")
