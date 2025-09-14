@@ -1,0 +1,6 @@
+streamlit
+pandas
+openpyxl
+firebase-admin
+dropbox
+schedule  # ✅ ¡AÑADE ESTA LÍNEA!
