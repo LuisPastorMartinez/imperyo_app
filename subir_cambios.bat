@@ -1,41 +1,26 @@
 @echo off
 cls
-echo.
-echo 🚀 SUBIENDO CAMBIOS A GITHUB...
-echo.
-
-REM Navegar a tu carpeta del proyecto (¡CAMBIA ESTA RUTA POR LA TUYA!)
 cd /d "F:\ImperYo Sport Casa\ImperYo 1\Programa de gestion Imperyo sport\Imperyo_app_9-7 - 2"
 
-echo 1. Agregando todos los archivos modificados...
+echo 🔄 Sincronizando con GitHub...
+git pull origin main --rebase 2>nul
+
+echo 📤 Añadiendo cambios...
 git add .
 
-echo.
-echo 2. Haciendo commit...
-set /p MENSAJE="📝 Escribe un mensaje para este cambio (ej: 'Arreglé backup'): "
+set /p MENSAJE="📝 Escribe un mensaje: "
 if "%MENSAJE%"=="" set MENSAJE="Actualización rápida"
 
 git commit -m "%MENSAJE%"
 
-echo.
-echo 3. Subiendo a GitHub...
+echo 🚀 Subiendo...
 git push origin main
 
-echo.
-echo.
 if %errorlevel% == 0 (
-    echo ✅ ¡CAMBIOS SUBIDOS CON ÉXITO!
-    echo.
-    echo 🎉 Tu app en Streamlit Cloud se actualizará pronto.
-    echo 💡 Recuerda reiniciarla manualmente si es necesario.
+    echo ✅ ¡TODO SUBIDO! Visita: https://github.com/LuisPastorMartinez/imperyo_app
+    echo 💡 Recuerda reiniciar Streamlit Cloud manualmente.
 ) else (
-    echo ❌ ERROR al subir los cambios.
-    echo.
-    echo 🔍 Posibles causas:
-    echo - No hay conexión a internet.
-    echo - No has configurado tu email/nombre en Git.
-    echo - Hay cambios en GitHub que no tienes localmente (haz "git pull" primero).
+    echo ❌ ERROR. Revisa los mensajes.
 )
 
-echo.
 pause
