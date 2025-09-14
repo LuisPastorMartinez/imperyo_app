@@ -2,7 +2,7 @@
 import streamlit as st
 from utils.firestore_utils import load_dataframes_firestore
 
-# Importamos las funciones de pedido (asegúrate de que existan)
+# Importamos las funciones de pedido (asegúrate de que existan)1
 try:
     from modules.pedido import show_create, show_consult, show_modify, show_delete
 except ImportError:
@@ -18,7 +18,7 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
     if df_pedidos is None or df_listas is None:
         # 1. Intentar desde st.session_state.data
         data = st.session_state.get('data', {})
-        if isinstance(data, dict) and 'df_pedidos' in data and 'df_listas' in 
+        if isinstance(data, dict) and 'df_pedidos' in data and 'df_listas' in data:
             df_pedidos = data['df_pedidos']
             df_listas = data['df_listas']
             st.info("✅ Datos cargados desde la sesión.")
@@ -27,7 +27,7 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
             try:
                 st.info("🔄 Cargando datos desde Firestore...")
                 data = load_dataframes_firestore()
-                if not data or 'df_pedidos' not in data or 'df_listas' not in 
+                if not data or 'df_pedidos' not in data or 'df_listas' not in data:
                     st.error("❌ No se pudieron cargar df_pedidos o df_listas desde Firestore.")
                     st.write("🔍 Datos recibidos:", list(data.keys()) if data else "Ninguno")
                     return
