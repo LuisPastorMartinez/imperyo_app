@@ -236,7 +236,7 @@ if check_password():
             # --- ✅ DEBUG: Ver qué claves se cargaron ---
             st.write("🔍 DEBUG: Claves cargadas en st.session_state.", list(st.session_state.data.keys()))
 
-            if 'df_pedidos' in st.session_state.:
+            if 'df_pedidos' in st.session_state.data:
                 st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
 
             st.session_state.data_loaded = True
