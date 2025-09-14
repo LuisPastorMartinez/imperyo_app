@@ -10,7 +10,7 @@ import schedule
 import time
 import threading
 
-# Configuración de paths para imports
+# Configuración de paths para imports1
 sys.path.append(str(Path(__file__).parent))
 
 # Importaciones desde utils
