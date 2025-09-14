@@ -8,16 +8,10 @@ git pull origin main --rebase 2>nul
 if %errorlevel% neq 0 (
     echo ⚠️ Intentando integrar historias no relacionadas...
     git pull origin main --allow-unrelated-histories 2>nul
-    if %errorlevel% neq 0 (
-        echo ❌ ERROR: No se pudo sincronizar. ¿Hay conflictos?
-        echo 💡 Resuelve manualmente o usa: git status
-        pause
-        exit /b 1
-    )
 )
 
-echo 📤 Añadiendo cambios...
-git add .
+echo 📤 Añadiendo TODOS los cambios...
+git add --all
 
 REM Verificar si hay cambios para commitear
 git diff --cached --quiet
@@ -40,8 +34,7 @@ if %errorlevel% == 0 (
     echo 💡 Recuerda reiniciar Streamlit Cloud manualmente.
 ) else (
     echo ❌ ERROR al subir. Posibles causas:
-    echo - Secretos detectados (archivos .json, .env, etc.)
-    echo - Conflictos no resueltos
+    echo - Secretos detectados (.json, .env, etc.)
     echo - Historial desincronizado
     echo.
     echo 💡 Solución rápida:
