@@ -4,3 +4,4 @@ openpyxl
 firebase-admin
 dropbox
 schedule  # ✅ ¡AÑADE ESTA LÍNEA!
+echo apscheduler>> requirements.txt

@@ -6,9 +6,12 @@ import re
 import sys
 from pathlib import Path
 from datetime import datetime
-import schedule
 import time
 import threading
+
+# --- IMPORTACIONES ADICIONALES PARA APSCHEDULER ---
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # Configuración de paths para imports
 sys.path.append(str(Path(__file__).parent))
@@ -190,39 +193,64 @@ def init_session_state():
             "day": "Sunday",
             "time": "02:00"
         },
-        "last_backup": None  # ✅ ¡AÑADIDO! Para guardar la fecha del último backup
+        "last_backup": None
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
 # --- FUNCIÓN PARA PROGRAMAR BACKUP AUTOMÁTICO ---
-def backup_job(data):
-    """Función que se ejecuta en el hilo de backup automático."""
-    if not data:
-        return
+def backup_job():
+    """Función que se ejecuta en el scheduler de backup automático."""
+    try:
+        if 'data' not in st.session_state:
+            print("[BACKUP AUTOMÁTICO] No hay datos en st.session_state")
+            return
 
-    success, result, upload_success, upload_error = backup_to_dropbox(data)
-    if success and upload_success:
-        print(f"[BACKUP AUTOMÁTICO] Éxito: {result}")
-    else:
-        print(f"[BACKUP AUTOMÁTICO] Error: {result or upload_error}")
+        success, result, upload_success, upload_error = backup_to_dropbox(st.session_state.data)
+        if success and upload_success:
+            print(f"[BACKUP AUTOMÁTICO] Éxito: {result}")
+        else:
+            print(f"[BACKUP AUTOMÁTICO] Error: {result or upload_error}")
+    except Exception as e:
+        print(f"[BACKUP AUTOMÁTICO] Excepción: {e}")
 
-# --- HILO PARA EJECUTAR BACKUP AUTOMÁTICO ---
-def run_scheduler():
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+# --- INICIAR SCHEDULER EN BACKGROUND ---
+def start_scheduler():
+    if 'apscheduler_started' not in st.session_state:
+        st.session_state.apscheduler_started = True
+        scheduler = BackgroundScheduler()
+        
+        # Programar backup según configuración
+        if st.session_state.backup_config["enabled"]:
+            day = st.session_state.backup_config["day"].lower()
+            time_str = st.session_state.backup_config["time"]
+            hour, minute = time_str.split(":")
+            
+            # Mapeo de días para APScheduler
+            day_map = {
+                "monday": "mon",
+                "tuesday": "tue",
+                "wednesday": "wed",
+                "thursday": "thu",
+                "friday": "fri",
+                "saturday": "sat",
+                "sunday": "sun"
+            }
+            
+            cron_day = day_map.get(day, "sun")
+            trigger = CronTrigger(day_of_week=cron_day, hour=int(hour), minute=int(minute))
+            scheduler.add_job(backup_job, trigger, id='backup_job', replace_existing=True)
+            print(f"[SCHEDULER] Backup programado para {day} a las {time_str}")
 
-# Iniciar hilo de scheduler
-if 'scheduler_started' not in st.session_state:
-    st.session_state.scheduler_started = True
-    scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-    scheduler_thread.start()
+        scheduler.start()
+        st.session_state.scheduler = scheduler
+        print("[SCHEDULER] Iniciado correctamente")
 
 # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
 if check_password():
     init_session_state()
+    start_scheduler()  # ← ¡INICIA EL SCHEDULER AQUÍ!
 
     # --- CARGA Y CORRECCIÓN DE DATOS ---
     if not st.session_state.get('data_loaded', False):
@@ -234,10 +262,7 @@ if check_password():
 
             st.session_state.data = data
 
-            # --- ✅ DEBUG: Ver qué claves se cargaron ---
-            # st.write("🔍 DEBUG: Claves cargadas en st.session_state.", list(st.session_state.data.keys()))
-
-            if 'df_pedidos' in st.session_state.data:
+            if 'df_pedidos' in st.session_state.
                 st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
 
             st.session_state.data_loaded = True
@@ -252,7 +277,7 @@ if check_password():
     # --- ✅ VALIDACIÓN CORREGIDA: BUSCAR EN st.session_state.data ---
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
-        if df_name not in st.session_state.data:
+        if df_name not in st.session_state.
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
             st.write("🔍 Claves disponibles en st.session_state.", list(st.session_state.data.keys()))
             st.stop()
@@ -272,6 +297,9 @@ if check_password():
                 del st.session_state[key]
         if 'data' in st.session_state:
             del st.session_state['data']
+        if 'scheduler' in st.session_state:
+            st.session_state.scheduler.shutdown()
+            del st.session_state['scheduler']
         st.rerun()
 
     # --- NAVEGACIÓN ---

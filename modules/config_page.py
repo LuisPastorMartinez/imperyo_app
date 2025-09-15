@@ -1,10 +1,8 @@
 # modules/config_page.py
 import streamlit as st
 from utils.excel_utils import backup_to_dropbox
-import schedule
 import time
-import threading
-from datetime import datetime  # ← ¡Añadido! Necesario para manejar fechas
+from apscheduler.triggers.cron import CronTrigger
 
 def show_config_page():
     st.header("⚙️ Configuración")
@@ -25,16 +23,37 @@ def show_config_page():
                 "day": day,
                 "time": time_str
             }
-            # Programar backup
-            schedule.clear()
+            
+            # Reiniciar scheduler
+            if 'scheduler' in st.session_state:
+                st.session_state.scheduler.remove_all_jobs()
+            
             if enabled:
-                job = lambda: backup_job(st.session_state.data if 'data' in st.session_state else {})
-                getattr(schedule.every(), day.lower()).at(time_str).do(job)
-                st.success(f"✅ Backup automático programado para {day} a las {time_str}.")
+                try:
+                    hour, minute = time_str.split(":")
+                    day_map = {
+                        "Monday": "mon",
+                        "Tuesday": "tue",
+                        "Wednesday": "wed",
+                        "Thursday": "thu",
+                        "Friday": "fri",
+                        "Saturday": "sat",
+                        "Sunday": "sun"
+                    }
+                    cron_day = day_map.get(day, "sun")
+                    trigger = CronTrigger(day_of_week=cron_day, hour=int(hour), minute=int(minute))
+                    
+                    if 'scheduler' in st.session_state:
+                        st.session_state.scheduler.add_job(backup_job, trigger, id='backup_job', replace_existing=True)
+                    
+                    st.success(f"✅ Backup automático programado para {day} a las {time_str}.")
+                    st.write(f"ℹ️ Backup programado. Verifica los logs para confirmar ejecución.")
+                except Exception as e:
+                    st.error(f"❌ Error al programar backup: {e}")
             else:
                 st.info("⏸️ Backup automático desactivado.")
 
-        # --- ✅ NUEVO: Mostrar último backup ---
+        # --- ✅ Mostrar último backup ---
         st.markdown("---")
         st.subheader("📊 Último Backup")
         if 'last_backup' in st.session_state and st.session_state.last_backup:
@@ -42,7 +61,7 @@ def show_config_page():
         else:
             st.info("ℹ️ Aún no se ha realizado ningún backup.")
 
-        # --- ✅ NUEVO: Botón de backup manual ---
+        # --- ✅ Botón de backup manual ---
         st.markdown("---")
         st.subheader("📥 Backup Manual")
         if st.button("🚀 Hacer Backup Ahora", type="primary"):
@@ -83,7 +102,7 @@ def show_config_page():
                     with open(temp_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
                     
-                    # Función de restauración (mover desde restore_page.py)
+                    # Función de restauración
                     success = restore_data_from_excel(temp_path, collection_mapping)
                     
                     # Limpiar archivo temporal
@@ -149,14 +168,5 @@ def restore_data_from_excel(excel_path, collection_mapping):
         st.error(f"❌ Error al restaurar datos: {e}")
         return False
 
-def backup_job(data):
-    """Función que se ejecuta en el hilo de backup automático."""
-    if not isinstance(data, dict) or len(data) == 0:
-        print("[BACKUP AUTOMÁTICO] No hay datos para respaldar.")
-        return
-
-    success, result, upload_success, upload_error = backup_to_dropbox(data)
-    if success and upload_success:
-        print(f"[BACKUP AUTOMÁTICO] Éxito: {result}")
-    else:
-        print(f"[BACKUP AUTOMÁTICO] Error: {result or upload_error}")
+# --- IMPORTAR backup_job desde app.py ---
+from app import backup_job
