@@ -13,6 +13,9 @@ import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+# --- IMPORTACIÓN DE FIRESTORE ---
+from firebase_admin import firestore
+
 # Configuración de paths para imports
 sys.path.append(str(Path(__file__).parent))
 
@@ -198,6 +201,19 @@ def init_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+
+    # ✅ Cargar último backup desde Firestore
+    if "last_backup" not in st.session_state or st.session_state.last_backup is None:
+        try:
+            db = firestore.client()
+            doc = db.collection('config').document('backup').get()
+            if doc.exists:
+                st.session_state.last_backup = doc.to_dict().get('last_backup', None)
+            else:
+                st.session_state.last_backup = None
+        except Exception as e:
+            st.session_state.last_backup = None
+            print(f"[INICIO] Error al cargar último backup: {e}")
 
 # --- FUNCIÓN PARA PROGRAMAR BACKUP AUTOMÁTICO ---
 def backup_job():

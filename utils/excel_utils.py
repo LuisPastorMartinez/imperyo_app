@@ -7,6 +7,9 @@ from .firestore_utils import get_next_id
 import dropbox
 from datetime import datetime
 
+# --- IMPORTACIÓN DE FIRESTORE ---
+from firebase_admin import firestore
+
 # Configuración de rutas y nombres de hojas
 EXCEL_FILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "2025_1 Gastos.xlsm")
 
@@ -157,10 +160,22 @@ def backup_to_dropbox(data, backup_folder="backups"):
         if not upload_success:
             raise Exception(f"Error al subir a Dropbox: {upload_error}")
 
-        # ✅ Guardar fecha del último backup en sesión
-        st.session_state.last_backup = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # ✅ Guardar fecha del último backup en sesión Y en Firestore
+        backup_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state.last_backup = backup_timestamp
 
-        return True, f"Backup subido correctamente: {filename}", True, None
+        # Guardar en Firestore (colección 'config', documento 'backup')
+        try:
+            db = firestore.client()
+            db.collection('config').document('backup').set({
+                'last_backup': backup_timestamp,
+                'filename': filename,
+                'timestamp': firestore.SERVER_TIMESTAMP
+            })
+        except Exception as e:
+            print(f"[BACKUP] Error al guardar en Firestore: {e}")
+
+        return True, f"✅ ¡Backup completado! {filename}", True, None
 
     except Exception as e:
         return False, str(e), False, str(e)
