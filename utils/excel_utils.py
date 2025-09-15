@@ -145,15 +145,22 @@ def backup_to_dropbox(data, backup_folder="backups"):
                 sheet_name = key.replace("df_", "")[:31]
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
 
+        # ✅ Verificar que el archivo se creó
+        if not os.path.exists(backup_path):
+            raise Exception(f"Archivo no creado: {backup_path}")
+
         # Subir a Dropbox
         DROPBOX_ACCESS_TOKEN = st.secrets["dropbox"]["access_token"]
         DROPBOX_PATH = f"/{filename}"
         upload_success, upload_error = upload_to_dropbox(backup_path, DROPBOX_PATH, DROPBOX_ACCESS_TOKEN)
 
+        if not upload_success:
+            raise Exception(f"Error al subir a Dropbox: {upload_error}")
+
         # ✅ Guardar fecha del último backup en sesión
         st.session_state.last_backup = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        return True, backup_path, upload_success, upload_error
+        return True, f"Backup subido correctamente: {filename}", True, None
 
     except Exception as e:
         return False, str(e), False, str(e)
