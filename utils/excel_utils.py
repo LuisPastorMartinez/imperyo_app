@@ -150,6 +150,9 @@ def backup_to_dropbox(data, backup_folder="backups"):
         DROPBOX_PATH = f"/{filename}"
         upload_success, upload_error = upload_to_dropbox(backup_path, DROPBOX_PATH, DROPBOX_ACCESS_TOKEN)
 
+        # ✅ Guardar fecha del último backup en sesión
+        st.session_state.last_backup = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
         return True, backup_path, upload_success, upload_error
 
     except Exception as e:

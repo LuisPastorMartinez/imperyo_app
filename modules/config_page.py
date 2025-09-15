@@ -34,6 +34,29 @@ def show_config_page():
             else:
                 st.info("⏸️ Backup automático desactivado.")
 
+        # --- ✅ NUEVO: Mostrar último backup ---
+        st.markdown("---")
+        st.subheader("📊 Último Backup")
+        if 'last_backup' in st.session_state and st.session_state.last_backup:
+            st.success(f"✅ Último backup: **{st.session_state.last_backup}**")
+        else:
+            st.info("ℹ️ Aún no se ha realizado ningún backup.")
+
+        # --- ✅ NUEVO: Botón de backup manual ---
+        st.markdown("---")
+        st.subheader("📥 Backup Manual")
+        if st.button("🚀 Hacer Backup Ahora", type="primary"):
+            with st.spinner("Realizando backup manual..."):
+                if 'data' in st.session_state:
+                    success, result, upload_success, upload_error = backup_to_dropbox(st.session_state.data)
+                    if success and upload_success:
+                        st.balloons()
+                        st.success(f"✅ ¡Backup manual completado! {result}")
+                    else:
+                        st.error(f"❌ Error en backup manual: {result or upload_error}")
+                else:
+                    st.error("❌ No hay datos para respaldar.")
+
     with tab2:
         st.subheader("📂 Restaurar Datos desde Backup")
         st.warning("⚠️ **Esta acción borrará todos los datos actuales y los reemplazará con el backup.**")

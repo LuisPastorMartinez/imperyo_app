@@ -10,7 +10,7 @@ import schedule
 import time
 import threading
 
-# Configuración de paths para imports2
+# Configuración de paths para imports
 sys.path.append(str(Path(__file__).parent))
 
 # Importaciones desde utils
@@ -189,7 +189,8 @@ def init_session_state():
             "enabled": False,
             "day": "Sunday",
             "time": "02:00"
-        }
+        },
+        "last_backup": None  # ✅ ¡AÑADIDO! Para guardar la fecha del último backup
     }
     for key, value in defaults.items():
         if key not in st.session_state:
