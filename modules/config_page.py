@@ -3,6 +3,7 @@ import streamlit as st
 from utils.excel_utils import backup_to_dropbox
 import time
 from apscheduler.triggers.cron import CronTrigger
+from firebase_admin import firestore  # ✅ Importado para guardar en Firestore
 
 def show_config_page():
     st.header("⚙️ Configuración")
@@ -13,17 +14,33 @@ def show_config_page():
         st.subheader("📅 Configurar Backup Automático")
         st.write("Programa el backup automático semanal.")
 
-        enabled = st.checkbox("Activar backup automático", value=st.session_state.backup_config["enabled"])
-        day = st.selectbox("Día de la semana", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], index=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].index(st.session_state.backup_config["day"]))
-        time_str = st.text_input("Hora (HH:MM)", value=st.session_state.backup_config["time"])
+        # Cargar valores actuales desde st.session_state
+        current_config = st.session_state.backup_config
+        enabled = st.checkbox("Activar backup automático", value=current_config["enabled"])
+        day = st.selectbox("Día de la semana", ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], index=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].index(current_config["day"]))
+        time_str = st.text_input("Hora (HH:MM)", value=current_config["time"])
 
         if st.button("💾 Guardar Configuración"):
+            # Guardar configuración en sesión
             st.session_state.backup_config = {
                 "enabled": enabled,
                 "day": day,
                 "time": time_str
             }
             
+            # ✅ Guardar configuración en Firestore
+            try:
+                db = firestore.client()
+                db.collection('config').document('backup_settings').set({
+                    'enabled': enabled,
+                    'day': day,
+                    'time': time_str,
+                    'updated_at': firestore.SERVER_TIMESTAMP
+                })
+                st.success("✅ Configuración guardada permanentemente en Firestore.")
+            except Exception as e:
+                st.error(f"❌ Error al guardar configuración en Firestore: {e}")
+
             # Reiniciar scheduler
             if 'scheduler' in st.session_state:
                 st.session_state.scheduler.remove_all_jobs()
@@ -47,17 +64,46 @@ def show_config_page():
                         st.session_state.scheduler.add_job(backup_job, trigger, id='backup_job', replace_existing=True)
                     
                     st.success(f"✅ Backup automático programado para {day} a las {time_str}.")
-                    st.write(f"ℹ️ Backup programado. Verifica los logs para confirmar ejecución.")
                 except Exception as e:
                     st.error(f"❌ Error al programar backup: {e}")
             else:
                 st.info("⏸️ Backup automático desactivado.")
+
+        # --- ✅ Mostrar próximo backup programado ---
+        st.markdown("---")
+        st.subheader("📅 Próximo Backup Programado")
+        if st.session_state.backup_config["enabled"]:
+            next_backup = f"{st.session_state.backup_config['day']} a las {st.session_state.backup_config['time']}"
+            st.info(f"ℹ️ Próximo backup: **{next_backup}**")
+        else:
+            st.info("ℹ️ Backup automático desactivado.")
+
+        # --- ✅ Estado del scheduler ---
+        st.markdown("---")
+        st.subheader("⚙️ Estado del Scheduler")
+        if 'scheduler' in st.session_state and st.session_state.scheduler.get_jobs():
+            st.success("✅ Scheduler activo y funcionando.")
+            jobs = st.session_state.scheduler.get_jobs()
+            for job in jobs:
+                st.caption(f"• Job ID: `{job.id}` | Próxima ejecución: {job.next_run_time}")
+        else:
+            st.warning("⚠️ Scheduler inactivo o sin jobs programados.")
 
         # --- ✅ Mostrar último backup ---
         st.markdown("---")
         st.subheader("📊 Último Backup")
         if 'last_backup' in st.session_state and st.session_state.last_backup:
             st.success(f"✅ Último backup: **{st.session_state.last_backup}**")
+            # ✅ Mostrar nombre del archivo desde Firestore
+            try:
+                db = firestore.client()
+                doc = db.collection('config').document('backup').get()
+                if doc.exists:
+                    backup_data = doc.to_dict()
+                    filename = backup_data.get('filename', 'backup_desconocido.xlsx')
+                    st.caption(f"📁 Archivo: `{filename}`")
+            except Exception as e:
+                st.caption("📁 Archivo: no disponible")
         else:
             st.info("ℹ️ Aún no se ha realizado ningún backup.")
 

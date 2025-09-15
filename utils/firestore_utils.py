@@ -5,7 +5,7 @@ from firebase_admin import credentials, firestore
 from datetime import datetime, date
 import numpy as np
 import logging
-
+from firebase_admin import firestore
 # Importar función compartida
 from utils.helpers import convert_to_firestore_type
 
