@@ -262,7 +262,7 @@ if check_password():
 
             st.session_state.data = data
 
-            if 'df_pedidos' in st.session_state.
+            if 'df_pedidos' in st.session_state.data:
                 st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
 
             st.session_state.data_loaded = True
@@ -277,7 +277,7 @@ if check_password():
     # --- ✅ VALIDACIÓN CORREGIDA: BUSCAR EN st.session_state.data ---
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
-        if df_name not in st.session_state.
+        if df_name not in st.session_state.data:
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
             st.write("🔍 Claves disponibles en st.session_state.", list(st.session_state.data.keys()))
             st.stop()

@@ -1,7 +1,7 @@
-streamlit
-pandas
-openpyxl
-firebase-admin
-dropbox
-schedule  # ✅ ¡AÑADE ESTA LÍNEA!
-apscheduler
+streamlit==1.38.0
+pandas==2.2.2
+openpyxl==3.1.2
+firebase-admin==6.5.0
+dropbox==11.36.2
+schedule==1.2.1
+apscheduler==3.10.4
