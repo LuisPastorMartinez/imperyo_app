@@ -262,7 +262,7 @@ if check_password():
 
             st.session_state.data = data
 
-            if 'df_pedidos' in st.session_state.
+            if 'df_pedidos' in st.session_state.data:
                 st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
 
             st.session_state.data_loaded = True
