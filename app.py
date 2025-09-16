@@ -22,7 +22,7 @@ sys.path.append(str(Path(__file__).parent))
 # Importaciones desde utils
 from utils.firestore_utils import (
     load_dataframes_firestore,
-    save_dataframe_firestore,
+    save_dataframe_firestore,  # ✅ ¡AÑADIDO!
     delete_document_firestore,
     get_next_id
 )
@@ -278,7 +278,20 @@ if check_password():
 
             st.session_state.data = data
 
+            # ✅ AÑADIR CAMPO 'AÑO' SI NO EXISTE
             if 'df_pedidos' in st.session_state.data:
+                df = st.session_state.data['df_pedidos']
+                if 'Año' not in df.columns:
+                    # ✅ Asignar año 2025 a todos los pedidos existentes
+                    df['Año'] = 2025
+                    st.session_state.data['df_pedidos'] = df
+                    # ✅ Guardar cambios en Firestore
+                    if save_dataframe_firestore(df, 'pedidos'):
+                        st.success("✅ Campo 'Año' añadido a los pedidos existentes.")
+                    else:
+                        st.error("❌ Error al guardar el campo 'Año' en Firestore.")
+
+                # Aplicar unificación de columnas
                 st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
 
             st.session_state.data_loaded = True
@@ -349,7 +362,7 @@ if check_password():
             new_column_order = [
                 'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
                 'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                'Tipo de pago', 'Adelanto', 'Observaciones'
+                'Tipo de pago', 'Adelanto', 'Observaciones', 'Año'  # ✅ ¡AÑADIDO!
             ]
             existing_columns = [col for col in new_column_order if col in df_pedidos_sorted.columns]
             remaining_columns = [col for col in df_pedidos_sorted.columns if col not in existing_columns]
