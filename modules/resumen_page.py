@@ -1,6 +1,8 @@
 # modules/resumen_page.py
 import streamlit as st
 import pandas as pd
+import json
+from datetime import datetime
 
 def highlight_pedidos_rows(row):
     """Función para resaltar filas según su estado"""
@@ -61,32 +63,53 @@ def show_resumen_page(df_pedidos, current_view):
     """Muestra la página de resumen con estilo de 'Consultar Pedidos'"""
     st.header("Resumen de Pedidos")
     
+    # ✅ Convertir columna 'Año' a entero
+    if not df_pedidos.empty and 'Año' in df_pedidos.columns:
+        df_pedidos['Año'] = pd.to_numeric(df_pedidos['Año'], errors='coerce').fillna(2025).astype('int64')
+
+    # ✅ Selector de año
+    año_actual = datetime.now().year
+
+    if not df_pedidos.empty:
+        años_disponibles = sorted(df_pedidos[df_pedidos['Año'] <= año_actual]['Año'].dropna().unique(), reverse=True)
+    else:
+        años_disponibles = [año_actual]
+
+    año_seleccionado = st.sidebar.selectbox("📅 Año", años_disponibles, key="resumen_año_select")
+
+    # ✅ Filtrar por año primero
+    df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy() if df_pedidos is not None else None
+
+    if df_pedidos_filtrado is None or df_pedidos_filtrado.empty:
+        st.info(f"No hay pedidos en el año {año_seleccionado}")
+        return
+
     # --- FILTROS POR VISTA ---
     if current_view == "Todos los Pedidos":
-        filtered_df = df_pedidos.copy()
-        st.subheader("Todos los Pedidos")
+        filtered_df = df_pedidos_filtrado.copy()
+        st.subheader(f"Todos los Pedidos ({año_seleccionado})")
     elif current_view == "Trabajos Empezados":
-        filtered_df = df_pedidos[
-            (df_pedidos['Inicio Trabajo'] == True) & 
-            (df_pedidos['Pendiente'] == False)
+        filtered_df = df_pedidos_filtrado[
+            (df_pedidos_filtrado['Inicio Trabajo'] == True) & 
+            (df_pedidos_filtrado['Pendiente'] == False)
         ]
-        st.subheader("Trabajos Empezados (no pendientes)")  
+        st.subheader(f"Trabajos Empezados (no pendientes) - {año_seleccionado}")  
     elif current_view == "Trabajos Terminados":
-        filtered_df = df_pedidos[
-            (df_pedidos['Trabajo Terminado'] == True) & 
-            (df_pedidos['Pendiente'] == False)
+        filtered_df = df_pedidos_filtrado[
+            (df_pedidos_filtrado['Trabajo Terminado'] == True) & 
+            (df_pedidos_filtrado['Pendiente'] == False)
         ]
-        st.subheader("Trabajos Terminados (no pendientes)")
+        st.subheader(f"Trabajos Terminados (no pendientes) - {año_seleccionado}")
     elif current_view == "Pedidos Pendientes":
-        filtered_df = df_pedidos[df_pedidos['Pendiente'] == True]
-        st.subheader("Pedidos Pendientes (morado siempre)")
+        filtered_df = df_pedidos_filtrado[df_pedidos_filtrado['Pendiente'] == True]
+        st.subheader(f"Pedidos Pendientes (morado siempre) - {año_seleccionado}")
     elif current_view == "Pedidos sin estado específico":
-        filtered_df = df_pedidos[
-            (df_pedidos['Inicio Trabajo'] == False) & 
-            (df_pedidos['Trabajo Terminado'] == False) & 
-            (df_pedidos['Pendiente'] == False)
+        filtered_df = df_pedidos_filtrado[
+            (df_pedidos_filtrado['Inicio Trabajo'] == False) & 
+            (df_pedidos_filtrado['Trabajo Terminado'] == False) & 
+            (df_pedidos_filtrado['Pendiente'] == False)
         ]
-        st.subheader("Pedidos sin Estado Específico")
+        st.subheader(f"Pedidos sin Estado Específico - {año_seleccionado}")
     else:
         filtered_df = pd.DataFrame()
         st.warning("Vista no reconocida")
@@ -115,7 +138,7 @@ def show_resumen_page(df_pedidos, current_view):
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
 
-        # ✅ Generar columna "Estado" con iconos + "✔️ COMPLETADO"
+        # ✅ Generar columna "Estado" con iconos + ✔️ COMPLETADO"
         def estado_a_icono(row):
             iconos = []
             if row.get('Pendiente', False):
@@ -174,7 +197,7 @@ def show_resumen_page(df_pedidos, current_view):
             hide_index=True
         )
 
-        st.caption(f"Mostrando {len(filtered_df)} de {len(df_pedidos)} pedidos")
+        st.caption(f"Mostrando {len(filtered_df)} de {len(df_pedidos_filtrado)} pedidos del año {año_seleccionado}")
 
         # ✅ Mostrar contador de pedidos COMPLETADOS
         completados = filtered_df[
@@ -185,4 +208,4 @@ def show_resumen_page(df_pedidos, current_view):
         st.info(f"✅ Pedidos COMPLETADOS en esta vista: **{len(completados)}**")
 
     else:
-        st.info(f"No hay pedidos en la categoría: {current_view}")
+        st.info(f"No hay pedidos en la categoría: {current_view} para el año {año_seleccionado}")
