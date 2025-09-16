@@ -1,5 +1,6 @@
 # modules/pedidos_page.py
 import streamlit as st
+import pandas as pd
 from datetime import datetime
 from utils.firestore_utils import load_dataframes_firestore
 
