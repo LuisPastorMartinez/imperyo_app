@@ -1,4 +1,3 @@
-# modules/pedido/crear_pedido.py
 import streamlit as st
 import pandas as pd
 import json
@@ -28,9 +27,13 @@ def show_create(df_pedidos, df_listas):
             st.session_state.num_productos = 1
             st.session_state.force_refresh = str(datetime.now().timestamp())
             st.session_state.reset_form = False
-        st.session_state.ultima_pagina = "Crear"
+        st.session_state.ultima_pagida = "Crear"
 
     st.subheader("Crear Nuevo Pedido")
+
+    # ✅ AÑO ACTUAL (no editable)
+    año_actual = datetime.now().year
+    st.info(f"📅 Año del pedido: **{año_actual}** (solo se puede crear en el año actual)")
 
     # --- Inicializar número de filas de productos ---
     if "num_productos" not in st.session_state:
@@ -176,6 +179,7 @@ def show_create(df_pedidos, df_listas):
                 'Cobrado': convert_to_firestore_type(cobrado),
                 'Retirado': False,  # ❌ No editable en Crear
                 'Pendiente': convert_to_firestore_type(pendiente),
+                'Año': año_actual,  # ✅ ¡AÑADIDO! Año actual
                 'id_documento_firestore': None
             }
 
@@ -187,7 +191,7 @@ def show_create(df_pedidos, df_listas):
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                st.success(f"✅ Pedido {next_id} creado correctamente!")
+                st.success(f"✅ Pedido {next_id} del año {año_actual} creado correctamente!")
                 st.balloons()
                 time.sleep(2)
 

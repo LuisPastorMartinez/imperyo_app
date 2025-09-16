@@ -1,4 +1,3 @@
-# modules/pedido/modificar_pedido.py
 import streamlit as st
 import pandas as pd
 import json
@@ -22,28 +21,45 @@ def safe_to_date(value):
 def show_modify(df_pedidos, df_listas):
     st.subheader("Modificar Pedido Existente")
 
+    año_actual = datetime.now().year
+
+    # ✅ Selector de año (solo años <= actual)
+    if df_pedidos is not None and not df_pedidos.empty:
+        años_disponibles = sorted(df_pedidos[df_pedidos['Año'] <= año_actual]['Año'].dropna().unique(), reverse=True)
+    else:
+        años_disponibles = [año_actual]
+
+    año_seleccionado = st.selectbox("📅 Año del pedido", años_disponibles, key="modify_año_select")
+
+    # ✅ Filtrar pedidos por año
+    df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy() if df_pedidos is not None else None
+
     mod_id = st.number_input("ID del pedido a modificar:", min_value=1, value=1, key="modify_id_input")
     if st.button("Cargar Pedido", key="load_pedido_button"):
-        pedido = df_pedidos[df_pedidos['ID'] == mod_id]
-        if not pedido.empty:
-            st.session_state.pedido_a_modificar = pedido.iloc[0].to_dict()
-            st.session_state.productos = []
-            if "Productos" in st.session_state.pedido_a_modificar:
-                try:
-                    productos_raw = st.session_state.pedido_a_modificar["Productos"]
-                    if isinstance(productos_raw, str) and productos_raw.strip():
-                        st.session_state.productos = json.loads(productos_raw)
-                    elif isinstance(productos_raw, list):
-                        st.session_state.productos = productos_raw
-                    else:
+        if df_pedidos_filtrado is not None:
+            pedido = df_pedidos_filtrado[df_pedidos_filtrado['ID'] == mod_id]
+            if not pedido.empty:
+                st.session_state.pedido_a_modificar = pedido.iloc[0].to_dict()
+                st.session_state.productos = []
+                if "Productos" in st.session_state.pedido_a_modificar:
+                    try:
+                        productos_raw = st.session_state.pedido_a_modificar["Productos"]
+                        if isinstance(productos_raw, str) and productos_raw.strip():
+                            st.session_state.productos = json.loads(productos_raw)
+                        elif isinstance(productos_raw, list):
+                            st.session_state.productos = productos_raw
+                        else:
+                            st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
+                    except json.JSONDecodeError:
                         st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
-                except json.JSONDecodeError:
+                else:
                     st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
+                st.success(f"Pedido {mod_id} del año {año_seleccionado} cargado para modificación")
             else:
-                st.session_state.productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
-            st.success(f"Pedido {mod_id} cargado para modificación")
+                st.warning(f"No existe un pedido con ID {mod_id} en el año {año_seleccionado}")
+                st.session_state.pedido_a_modificar = None
         else:
-            st.warning(f"No existe un pedido con ID {mod_id}")
+            st.warning("No hay pedidos en este año.")
             st.session_state.pedido_a_modificar = None
 
     if 'pedido_a_modificar' in st.session_state and st.session_state.pedido_a_modificar:
@@ -196,10 +212,12 @@ def show_modify(df_pedidos, df_listas):
                 'Cobrado': convert_to_firestore_type(cobrado),
                 'Retirado': convert_to_firestore_type(retirado),
                 'Pendiente': convert_to_firestore_type(pendiente),
+                'Año': año_seleccionado,  # ✅ ¡AÑADIDO!
                 'id_documento_firestore': pedido['id_documento_firestore']
             }
 
-            idx_list = df_pedidos.index[df_pedidos['ID'] == mod_id].tolist()
+            # ✅ Buscar índice por ID + Año
+            idx_list = df_pedidos.index[(df_pedidos['ID'] == mod_id) & (df_pedidos['Año'] == año_seleccionado)].tolist()
             if not idx_list:
                 st.error("No se encontró el pedido para actualizar.")
                 return
@@ -210,7 +228,7 @@ def show_modify(df_pedidos, df_listas):
                 df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
 
             if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                st.success(f"✅ Pedido {mod_id} actualizado correctamente!")
+                st.success(f"✅ Pedido {mod_id} del año {año_seleccionado} actualizado correctamente!")
                 st.balloons()
                 time.sleep(2)
 

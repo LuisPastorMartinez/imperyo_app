@@ -6,6 +6,7 @@ from datetime import datetime, date
 import numpy as np
 import logging
 from firebase_admin import firestore
+
 # Importar función compartida
 from utils.helpers import convert_to_firestore_type
 
@@ -102,7 +103,7 @@ def load_dataframes_firestore():
 
                     # Textos
                     for col in ['Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela', 
-                                'Breve Descripción', 'Tipo de pago', 'Observaciones']:
+                                'Breve Descripción', 'Tipo de pago', 'Observaciones', 'Año']:
                         if col in df.columns:
                             df[col] = df[col].fillna('').astype(str)
             else:
@@ -190,6 +191,7 @@ def create_empty_dataframe(collection_name):
             'Breve Descripción', 'Fecha entrada', 'Fecha Salida', 'Precio',
             'Precio Factura', 'Tipo de pago', 'Adelanto', 'Observaciones',
             'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
+            'Año',  # ✅ ¡AÑADIDO!
             'id_documento_firestore'
         ])
     elif collection_name == 'gastos':

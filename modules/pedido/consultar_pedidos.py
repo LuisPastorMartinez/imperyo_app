@@ -1,7 +1,7 @@
-# pages/pedido/consultar_pedidos.py
 import streamlit as st
 import pandas as pd
 import json
+from datetime import datetime
 from utils.data_utils import limpiar_telefono
 
 def cargar_productos_seguro(productos_json):
@@ -48,6 +48,23 @@ def formatear_primer_producto(productos_json):
 def show_consult(df_pedidos, df_listas):
     st.subheader("Consultar Pedidos")
 
+    año_actual = datetime.now().year
+
+    # ✅ Selector de año (solo años <= actual)
+    if df_pedidos is not None and not df_pedidos.empty:
+        años_disponibles = sorted(df_pedidos[df_pedidos['Año'] <= año_actual]['Año'].dropna().unique(), reverse=True)
+    else:
+        años_disponibles = [año_actual]
+
+    año_seleccionado = st.selectbox("📅 Año", años_disponibles, key="consulta_año_select")
+
+    # ✅ Filtrar pedidos por año
+    df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy() if df_pedidos is not None else None
+
+    if df_pedidos_filtrado is None or df_pedidos_filtrado.empty:
+        st.info(f"No hay pedidos en el año {año_seleccionado}")
+        return
+
     # --- FILTROS ---
     col_f1, col_f2, col_f3, col_f4 = st.columns(4)
     with col_f1:
@@ -63,7 +80,7 @@ def show_consult(df_pedidos, df_listas):
             key="filtro_estado_consulta"
         )
 
-    df_filtrado = df_pedidos.copy()
+    df_filtrado = df_pedidos_filtrado.copy()
 
     # --- APLICAR FILTROS ---
     if filtro_cliente:
@@ -180,13 +197,13 @@ def show_consult(df_pedidos, df_listas):
             hide_index=True
         )
 
-        st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos)} pedidos")
+        st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos_filtrado)} pedidos del año {año_seleccionado}")
 
         # ✅ Botón para exportar a CSV
         st.download_button(
             "📥 Descargar como CSV",
             df_filtrado.to_csv(index=False).encode('utf-8'),
-            "pedidos_filtrados.csv",
+            f"pedidos_{año_seleccionado}_filtrados.csv",
             "text/csv",
             key='download-csv-consulta'
         )

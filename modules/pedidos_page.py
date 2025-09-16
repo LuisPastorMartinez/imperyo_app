@@ -1,12 +1,13 @@
 # modules/pedidos_page.py
 import streamlit as st
+from datetime import datetime
 from utils.firestore_utils import load_dataframes_firestore
 
-# Importamos las funciones de pedido (asegúrate de que existan)1
+# Importamos las funciones de pedido
 try:
     from modules.pedido import show_create, show_consult, show_modify, show_delete
-except ImportError:
-    st.error("❌ Error: No se pudo importar 'modules.pedido'. Verifica que el archivo exista y tenga las funciones necesarias.")
+except ImportError as e:
+    st.error(f"❌ Error al importar 'modules.pedido': {e}")
     st.stop()
 
 def show_pedidos_page(df_pedidos=None, df_listas=None):
@@ -50,6 +51,19 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
     if df_listas.empty:
         st.warning("⚠️ No se encontraron listas de referencia (productos, clubes, etc.).")
 
+    # ✅ Selector de año en la barra lateral
+    año_actual = datetime.now().year
+
+    if not df_pedidos.empty:
+        años_disponibles = sorted(df_pedidos[df_pedidos['Año'] <= año_actual]['Año'].dropna().unique(), reverse=True)
+    else:
+        años_disponibles = [año_actual]
+
+    año_seleccionado = st.sidebar.selectbox("📅 Año", años_disponibles, key="año_selector_principal")
+
+    # ✅ Filtrar DataFrame por año
+    df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy() if df_pedidos is not None else None
+
     # Tabs
     tab1, tab2, tab3, tab4 = st.tabs([
         "Crear Pedido",
@@ -59,16 +73,16 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
     ])
 
     with tab1:
-        show_create(df_pedidos, df_listas)
+        show_create(df_pedidos_filtrado, df_listas)
 
     with tab2:
-        show_consult(df_pedidos, df_listas)
+        show_consult(df_pedidos_filtrado, df_listas)
 
     with tab3:
-        show_modify(df_pedidos, df_listas)
+        show_modify(df_pedidos_filtrado, df_listas)
 
     with tab4:
-        show_delete(df_pedidos, df_listas)
+        show_delete(df_pedidos_filtrado, df_listas)
 
 # Para pruebas locales
 if __name__ == "__main__":

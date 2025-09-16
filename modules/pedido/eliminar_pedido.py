@@ -1,4 +1,3 @@
-# pages/pedido/eliminar_pedido.py
 import streamlit as st
 import pandas as pd
 import time
@@ -20,14 +19,31 @@ def reindexar_ids_visibles(df_pedidos):
 def show_delete(df_pedidos, df_listas):
     st.subheader("Eliminar Pedido")
 
+    año_actual = datetime.now().year
+
+    # ✅ Selector de año (solo años <= actual)
+    if df_pedidos is not None and not df_pedidos.empty:
+        años_disponibles = sorted(df_pedidos[df_pedidos['Año'] <= año_actual]['Año'].dropna().unique(), reverse=True)
+    else:
+        años_disponibles = [año_actual]
+
+    año_seleccionado = st.selectbox("📅 Año del pedido", años_disponibles, key="delete_año_select")
+
+    # ✅ Filtrar pedidos por año
+    df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy() if df_pedidos is not None else None
+
     del_id = st.number_input("ID del pedido a eliminar:", min_value=1, value=1, key="delete_id_input")
     if st.button("Cargar Pedido", key="load_pedido_delete_button"):
-        pedido = df_pedidos[df_pedidos['ID'] == del_id]
-        if not pedido.empty:
-            st.session_state.pedido_a_eliminar = pedido.iloc[0].to_dict()
-            st.success(f"Pedido {del_id} cargado para eliminación")
+        if df_pedidos_filtrado is not None:
+            pedido = df_pedidos_filtrado[df_pedidos_filtrado['ID'] == del_id]
+            if not pedido.empty:
+                st.session_state.pedido_a_eliminar = pedido.iloc[0].to_dict()
+                st.success(f"Pedido {del_id} del año {año_seleccionado} cargado para eliminación")
+            else:
+                st.warning(f"No existe un pedido con ID {del_id} en el año {año_seleccionado}")
+                st.session_state.pedido_a_eliminar = None
         else:
-            st.warning(f"No existe un pedido con ID {del_id}")
+            st.warning("No hay pedidos en este año.")
             st.session_state.pedido_a_eliminar = None
 
     if 'pedido_a_eliminar' in st.session_state and st.session_state.pedido_a_eliminar:
@@ -133,17 +149,19 @@ def show_delete(df_pedidos, df_listas):
                         st.error("Error al eliminar el pedido de Firestore.")
                         return
 
-                    # Eliminar del DataFrame
-                    df_pedidos = df_pedidos[df_pedidos['ID'] != del_id].reset_index(drop=True)
+                    # ✅ Eliminar del DataFrame por ID + Año
+                    df_pedidos = df_pedidos[~((df_pedidos['ID'] == del_id) & (df_pedidos['Año'] == año_seleccionado))].reset_index(drop=True)
 
-                    # 🔁 Reindexar IDs
-                    df_pedidos = reindexar_ids_visibles(df_pedidos)
+                    # 🔁 Reindexar IDs (solo dentro del año)
+                    df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy()
+                    df_pedidos_filtrado = reindexar_ids_visibles(df_pedidos_filtrado)
+                    df_pedidos.update(df_pedidos_filtrado)
 
                     if not save_dataframe_firestore(df_pedidos, 'pedidos'):
                         st.error("Error al guardar los cambios en Firestore.")
                         return
 
-                    st.success(f"✅ Pedido {del_id} eliminado y lista reindexada correctamente!")
+                    st.success(f"✅ Pedido {del_id} del año {año_seleccionado} eliminado y lista reindexada correctamente!")
                     st.balloons()
                     time.sleep(2)
 
