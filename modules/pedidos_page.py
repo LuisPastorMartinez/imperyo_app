@@ -51,6 +51,10 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
     if df_listas.empty:
         st.warning("⚠️ No se encontraron listas de referencia (productos, clubes, etc.).")
 
+    # ✅ Convertir columna 'Año' a entero
+    if not df_pedidos.empty and 'Año' in df_pedidos.columns:
+        df_pedidos['Año'] = pd.to_numeric(df_pedidos['Año'], errors='coerce').fillna(2025).astype('int64')
+
     # ✅ Selector de año en la barra lateral
     año_actual = datetime.now().year
 

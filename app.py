@@ -284,6 +284,8 @@ if check_password():
                 if 'Año' not in df.columns:
                     # ✅ Asignar año 2025 a todos los pedidos existentes
                     df['Año'] = 2025
+                    # ✅ Convertir columna 'Año' a entero
+                    df['Año'] = pd.to_numeric(df['Año'], errors='coerce').fillna(2025).astype('int64')
                     st.session_state.data['df_pedidos'] = df
                     # ✅ Guardar cambios en Firestore
                     if save_dataframe_firestore(df, 'pedidos'):
