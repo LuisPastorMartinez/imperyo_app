@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 import json
+from datetime import datetime  # ✅ ¡AÑADIDO!
 from utils.firestore_utils import delete_document_firestore, save_dataframe_firestore
 from .helpers import convert_to_firestore_type, safe_select_index
 
@@ -19,7 +20,7 @@ def reindexar_ids_visibles(df_pedidos):
 def show_delete(df_pedidos, df_listas):
     st.subheader("Eliminar Pedido")
 
-    año_actual = datetime.now().year
+    año_actual = datetime.now().year  # ← ¡Ahora sí funciona!
 
     # ✅ Selector de año (solo años <= actual)
     if df_pedidos is not None and not df_pedidos.empty:
