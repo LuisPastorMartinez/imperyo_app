@@ -9,6 +9,8 @@ from datetime import datetime
 import time
 import threading
 
+#version correcta 18/09/2025
+
 # --- IMPORTACIONES ADICIONALES PARA APSCHEDULER ---
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
