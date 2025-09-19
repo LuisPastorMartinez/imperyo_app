@@ -1,3 +1,12 @@
+import streamlit as st  # ← ¡IMPORTANTE! Faltaba esta línea
+import pandas as pd
+import json
+from datetime import datetime
+from utils.firestore_utils import get_next_id, save_dataframe_firestore
+from utils.data_utils import limpiar_telefono
+from .helpers import convert_to_firestore_type, safe_select_index
+import time
+
 def show_create(df_pedidos, df_listas):
     # ✅ LIMPIAR ESTADO SI VIENE DE OTRA PÁGINA
     if 'ultima_pagina' not in st.session_state:
