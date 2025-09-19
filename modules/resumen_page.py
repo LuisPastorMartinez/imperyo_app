@@ -115,13 +115,13 @@ def show_resumen_page(df_pedidos, current_view):
     elif current_view == "Pedidos Pendientes":
         filtered_df = df_pedidos_filtrado[df_pedidos_filtrado['Pendiente'] == True]
         st.subheader(f"📌 Pedidos Pendientes - {año_seleccionado}")
-    elif current_view == "Pedidos sin estado específico":
+    elif current_view == "Nuevos Pedidos":  # ← ¡CAMBIADO AQUÍ!
         filtered_df = df_pedidos_filtrado[
             (df_pedidos_filtrado['Inicio Trabajo'] == False) & 
             (df_pedidos_filtrado['Trabajo Terminado'] == False) & 
             (df_pedidos_filtrado['Pendiente'] == False)
         ]
-        st.subheader(f"⚪ Pedidos sin Estado Específico - {año_seleccionado}")
+        st.subheader(f"🆕 Nuevos Pedidos - {año_seleccionado}")  # ← ¡CAMBIADO AQUÍ!
     else:
         filtered_df = pd.DataFrame()
         st.warning("Vista no reconocida")
