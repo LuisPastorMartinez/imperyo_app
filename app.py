@@ -398,29 +398,47 @@ if check_password():
         st.header("📊 Bienvenido a Imperyo Sport")
         st.write("---")
 
-        # KPI Cards
-        col1, col2, col3 = st.columns(3)
+        # --- Filtrar solo pedidos del AÑO 2025 ---
+        df_2025 = df_pedidos[df_pedidos['Año'] == 2025] if 'Año' in df_pedidos.columns else df_pedidos
+
+        # --- Contar por estados en 2025 ---
+        total_2025 = len(df_2025)
+        df_nuevos = df_2025[df_2025['Estado'] == 'Nuevo'] if 'Estado' in df_2025.columns else pd.DataFrame()
+        df_empezados = df_2025[df_2025['Estado'] == 'Empezado'] if 'Estado' in df_2025.columns else pd.DataFrame()
+        df_pendientes = df_2025[df_2025['Estado'] == 'Pendiente'] if 'Estado' in df_2025.columns else pd.DataFrame()
+        df_terminados = df_2025[df_2025['Estado'] == 'Terminado'] if 'Estado' in df_2025.columns else pd.DataFrame()
+
+        total_nuevos = len(df_nuevos)
+        total_empezados = len(df_empezados)
+        total_pendientes = len(df_pendientes)
+        total_terminados = len(df_terminados)
+
+        # --- Mostrar KPIs en columnas ---
+        col1, col2, col3, col4, col5 = st.columns(5)
 
         with col1:
-            st.metric("📦 Total Pedidos", len(df_pedidos))
+            st.metric("📆 2025 Total", total_2025, delta=None, delta_color="off")
         with col2:
-            df_terminados = df_pedidos[df_pedidos['Estado'] == 'Terminado'] if 'Estado' in df_pedidos.columns else pd.DataFrame()
-            st.metric("✅ Terminados", len(df_terminados))
+            st.metric("🆕 Nuevos", total_nuevos, delta=None, delta_color="off")
         with col3:
-            df_pendientes = df_pedidos[df_pedidos['Estado'] == 'Pendiente'] if 'Estado' in df_pedidos.columns else pd.DataFrame()
-            st.metric("⏳ Pendientes", len(df_pendientes))
+            st.metric("🔄 Empezados", total_empezados, delta=None, delta_color="off")
+        with col4:
+            st.metric("⏳ Pendientes", total_pendientes, delta=None, delta_color="off")
+        with col5:
+            st.metric("✅ Terminados", total_terminados, delta=None, delta_color="off")
 
         st.write("---")
-        st.subheader("📅 Últimos 5 Pedidos")
-        if not df_pedidos.empty:
-            df_ultimos = df_pedidos.sort_values('ID', ascending=False).head(5)
+        st.subheader("📅 Últimos 5 Pedidos (2025)")
+        if not df_2025.empty:
+            df_ultimos = df_2025.sort_values('ID', ascending=False).head(5)
             for _, row in df_ultimos.iterrows():
                 cliente = row.get('Cliente', 'N/A')
                 producto = row.get('Producto', 'N/A')
                 fecha_entrada = row.get('Fecha entrada', 'N/A')
-                st.markdown(f"**ID {row['ID']}** — {cliente} — {producto} — 📅 {fecha_entrada}")
+                estado = row.get('Estado', 'N/A')
+                st.markdown(f"**ID {row['ID']}** — {cliente} — {producto} — 📅 {fecha_entrada} — 🏷️ *{estado}*")
         else:
-            st.info("No hay pedidos registrados aún.")
+            st.info("No hay pedidos registrados en 2025 aún.")
 
     elif page == "Ver Datos":
         st.header("🗃️ Datos Cargados de Firestore")
@@ -430,7 +448,7 @@ if check_password():
             new_column_order = [
                 'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
                 'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                'Tipo de pago', 'Adelanto', 'Observaciones', 'Año'
+                'Tipo de pago', 'Adelanto', 'Observaciones', 'Año', 'Estado'
             ]
             existing_columns = [col for col in new_column_order if col in df_pedidos_sorted.columns]
             remaining_columns = [col for col in df_pedidos_sorted.columns if col not in existing_columns]
