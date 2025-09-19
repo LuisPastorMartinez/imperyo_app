@@ -237,7 +237,8 @@ def init_session_state():
             "day": "Sunday",
             "time": "02:00"
         },
-        "last_backup": None
+        "last_backup": None,
+        "selected_year": 2025  # ← AÑADIDO: Año seleccionado por defecto
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -320,7 +321,7 @@ if check_password():
             st.session_state.data = data
 
             # ✅ AÑADIR CAMPO 'AÑO' SI NO EXISTE
-            if 'df_pedidos' in st.session_state.data:
+            if 'df_pedidos' in st.session_state.
                 df = st.session_state.data['df_pedidos']
                 if 'Año' not in df.columns:
                     df['Año'] = 2025
@@ -345,7 +346,7 @@ if check_password():
     # --- ✅ VALIDACIÓN CORREGIDA ---
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
-        if df_name not in st.session_state.data:
+        if df_name not in st.session_state.
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
             st.write("🔍 Claves disponibles:", list(st.session_state.data.keys()))
             st.stop()
@@ -360,7 +361,7 @@ if check_password():
     # --- BOTÓN DE CERRAR SESIÓN MEJORADO ---
     st.sidebar.markdown("---")
     if st.sidebar.button("🚪 Cerrar Sesión", type="primary", use_container_width=True):
-        keys_to_clear = ["authenticated", "data_loaded", "login_attempted", "username_input", "password_input"]
+        keys_to_clear = ["authenticated", "data_loaded", "login_attempted", "username_input", "password_input", "selected_year"]
         for key in keys_to_clear:
             if key in st.session_state:
                 del st.session_state[key]
@@ -398,15 +399,37 @@ if check_password():
         st.header("📊 Bienvenido a Imperyo Sport")
         st.write("---")
 
-        # --- Filtrar solo pedidos del AÑO 2025 ---
-        df_2025 = df_pedidos[df_pedidos['Año'] == 2025] if 'Año' in df_pedidos.columns else df_pedidos
+        # --- Selector de año ---
+        if 'Año' in df_pedidos.columns:
+            años_disponibles = sorted(df_pedidos['Año'].dropna().unique(), reverse=True)
+            if not años_disponibles:
+                años_disponibles = [2025]  # fallback
+        else:
+            años_disponibles = [2025]
 
-        # --- Contar por estados en 2025 ---
-        total_2025 = len(df_2025)
-        df_nuevos = df_2025[df_2025['Estado'] == 'Nuevo'] if 'Estado' in df_2025.columns else pd.DataFrame()
-        df_empezados = df_2025[df_2025['Estado'] == 'Empezado'] if 'Estado' in df_2025.columns else pd.DataFrame()
-        df_pendientes = df_2025[df_2025['Estado'] == 'Pendiente'] if 'Estado' in df_2025.columns else pd.DataFrame()
-        df_terminados = df_2025[df_2025['Estado'] == 'Terminado'] if 'Estado' in df_2025.columns else pd.DataFrame()
+        # Selector en la parte superior
+        selected_year = st.selectbox(
+            "📅 Selecciona el año para ver estadísticas:",
+            options=años_disponibles,
+            index=años_disponibles.index(st.session_state.selected_year) if st.session_state.selected_year in años_disponibles else 0,
+            key="year_selector"
+        )
+
+        # Guardar selección en sesión
+        st.session_state.selected_year = selected_year
+
+        # --- Filtrar pedidos por año seleccionado ---
+        if 'Año' in df_pedidos.columns:
+            df_filtrado = df_pedidos[df_pedidos['Año'] == selected_year]
+        else:
+            df_filtrado = df_pedidos  # Si no hay columna 'Año', mostrar todo
+
+        # --- Contar por estados en el año seleccionado ---
+        total_año = len(df_filtrado)
+        df_nuevos = df_filtrado[df_filtrado['Estado'] == 'Nuevo'] if 'Estado' in df_filtrado.columns else pd.DataFrame()
+        df_empezados = df_filtrado[df_filtrado['Estado'] == 'Empezado'] if 'Estado' in df_filtrado.columns else pd.DataFrame()
+        df_pendientes = df_filtrado[df_filtrado['Estado'] == 'Pendiente'] if 'Estado' in df_filtrado.columns else pd.DataFrame()
+        df_terminados = df_filtrado[df_filtrado['Estado'] == 'Terminado'] if 'Estado' in df_filtrado.columns else pd.DataFrame()
 
         total_nuevos = len(df_nuevos)
         total_empezados = len(df_empezados)
@@ -417,7 +440,7 @@ if check_password():
         col1, col2, col3, col4, col5 = st.columns(5)
 
         with col1:
-            st.metric("📆 2025 Total", total_2025, delta=None, delta_color="off")
+            st.metric(f"📆 {selected_year} Total", total_año, delta=None, delta_color="off")
         with col2:
             st.metric("🆕 Nuevos", total_nuevos, delta=None, delta_color="off")
         with col3:
@@ -428,9 +451,9 @@ if check_password():
             st.metric("✅ Terminados", total_terminados, delta=None, delta_color="off")
 
         st.write("---")
-        st.subheader("📅 Últimos 5 Pedidos (2025)")
-        if not df_2025.empty:
-            df_ultimos = df_2025.sort_values('ID', ascending=False).head(5)
+        st.subheader(f"📅 Últimos 5 Pedidos ({selected_year})")
+        if not df_filtrado.empty:
+            df_ultimos = df_filtrado.sort_values('ID', ascending=False).head(5)
             for _, row in df_ultimos.iterrows():
                 cliente = row.get('Cliente', 'N/A')
                 producto = row.get('Producto', 'N/A')
@@ -438,7 +461,7 @@ if check_password():
                 estado = row.get('Estado', 'N/A')
                 st.markdown(f"**ID {row['ID']}** — {cliente} — {producto} — 📅 {fecha_entrada} — 🏷️ *{estado}*")
         else:
-            st.info("No hay pedidos registrados en 2025 aún.")
+            st.info(f"No hay pedidos registrados en {selected_year} aún.")
 
     elif page == "Ver Datos":
         st.header("🗃️ Datos Cargados de Firestore")
