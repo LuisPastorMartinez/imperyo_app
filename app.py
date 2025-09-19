@@ -9,8 +9,6 @@ from datetime import datetime
 import time
 import threading
 
-#version correcta 18/09/2025
-
 # --- IMPORTACIONES ADICIONALES PARA APSCHEDULER ---
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -24,7 +22,7 @@ sys.path.append(str(Path(__file__).parent))
 # Importaciones desde utils
 from utils.firestore_utils import (
     load_dataframes_firestore,
-    save_dataframe_firestore,  # ✅ ¡AÑADIDO!
+    save_dataframe_firestore,
     delete_document_firestore,
     get_next_id
 )
@@ -84,15 +82,44 @@ h2 {
     font-family: monospace;
     letter-spacing: 0.1em;
 }
+/* Estilo para botones primarios */
+.stButton>button {
+    background-color: #2c3e50;
+    color: white;
+    border-radius: 8px;
+    font-weight: bold;
+}
+.stButton>button:hover {
+    background-color: #1a252f;
+    color: #e0e0e0;
+}
+/* Estilo para métricas */
+[data-testid="stMetricValue"] {
+    font-size: 1.8em !important;
+}
+[data-testid="stMetricLabel"] {
+    font-size: 1.1em !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-# --- HEADER ---
-col_logo, col_title = st.columns([0.1, 0.9])
-with col_logo:
-    st.image("https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1", width=80)
-with col_title:
-    st.header("Imperyo Sport - Gestión de Pedidos y Gastos")
+# --- FUNCIÓN PARA RENDERIZAR EL HEADER MEJORADO ---
+def render_header():
+    logo_url = "https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1"
+    st.markdown(f"""
+    <div style="display: flex; align-items: center; padding: 15px; border-radius: 12px; 
+                background: linear-gradient(to right, #f8f9fa, #e9ecef); 
+                box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px;">
+        <img src="{logo_url}" width="80" style="margin-right: 25px; border-radius: 8px;">
+        <div>
+            <h1 style="margin: 0; color: #2c3e50; font-weight: 700;">Imperyo Sport</h1>
+            <p style="margin: 0; color: #6c757d; font-size: 1.2em;">Gestión de Pedidos y Gastos</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- RENDERIZAR HEADER ---
+render_header()
 
 # --- FUNCIÓN PARA UNIFICAR COLUMNAS ---
 def unificar_columnas(df):
@@ -143,7 +170,7 @@ def unificar_columnas(df):
     
     return df
 
-# --- LÓGICA DE AUTENTICACIÓN ---
+# --- LÓGICA DE AUTENTICACIÓN MEJORADA ---
 def check_password():
     try:
         correct_username = st.secrets["auth"]["username"]
@@ -174,12 +201,24 @@ def check_password():
             st.session_state["login_attempted"] = True
 
     if not st.session_state["authenticated"]:
-        st.text_input("Usuario", key="username_input")
-        st.text_input("Contraseña", type="password", key="password_input")
-        st.button("Iniciar Sesión", on_click=authenticate_user)
+        st.markdown("""
+        <div style="text-align: center; padding: 30px; border-radius: 15px; 
+                    background: #f8f9fa; box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+                    margin: 20px auto; max-width: 400px;">
+            <img src="https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1" 
+                 width="100" style="margin-bottom: 20px; border-radius: 50%;">
+            <h3>🔐 Iniciar Sesión</h3>
+            <p style="color: #6c757d;">Por favor, ingresa tus credenciales para acceder al sistema.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.text_input("👤 Usuario", key="username_input", placeholder="Ingresa tu usuario")
+        st.text_input("🔒 Contraseña", type="password", key="password_input", placeholder="Ingresa tu contraseña")
+        
+        st.button("🚀 Iniciar Sesión", on_click=authenticate_user, use_container_width=True)
 
         if st.session_state["login_attempted"] and not st.session_state["authenticated"]:
-            st.error("Usuario o contraseña incorrectos.")
+            st.error("❌ Usuario o contraseña incorrectos. Inténtalo de nuevo.")
         return False
     else:
         return True
@@ -268,7 +307,7 @@ def start_scheduler():
 # --- LÓGICA PRINCIPAL DE LA APLICACIÓN ---
 if check_password():
     init_session_state()
-    start_scheduler()  # ← ¡INICIA EL SCHEDULER AQUÍ!
+    start_scheduler()
 
     # --- CARGA Y CORRECCIÓN DE DATOS ---
     if not st.session_state.get('data_loaded', False):
@@ -284,18 +323,14 @@ if check_password():
             if 'df_pedidos' in st.session_state.data:
                 df = st.session_state.data['df_pedidos']
                 if 'Año' not in df.columns:
-                    # ✅ Asignar año 2025 a todos los pedidos existentes
                     df['Año'] = 2025
-                    # ✅ Convertir columna 'Año' a entero
                     df['Año'] = pd.to_numeric(df['Año'], errors='coerce').fillna(2025).astype('int64')
                     st.session_state.data['df_pedidos'] = df
-                    # ✅ Guardar cambios en Firestore
                     if save_dataframe_firestore(df, 'pedidos'):
                         st.success("✅ Campo 'Año' añadido a los pedidos existentes.")
                     else:
                         st.error("❌ Error al guardar el campo 'Año' en Firestore.")
 
-                # Aplicar unificación de columnas
                 st.session_state.data['df_pedidos'] = unificar_columnas(st.session_state.data['df_pedidos'])
 
             st.session_state.data_loaded = True
@@ -307,12 +342,12 @@ if check_password():
         st.error("No se cargaron los datos correctamente.")
         st.stop()
 
-    # --- ✅ VALIDACIÓN CORREGIDA: BUSCAR EN st.session_state.data ---
+    # --- ✅ VALIDACIÓN CORREGIDA ---
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
-        if df_name not in st.session_state.data:  # ← ¡CORREGIDO! Sin punto extra
+        if df_name not in st.session_state.data:
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
-            st.write("🔍 Claves disponibles en st.session_state.", list(st.session_state.data.keys()))
+            st.write("🔍 Claves disponibles:", list(st.session_state.data.keys()))
             st.stop()
 
     # --- ASIGNAR DATAFRAMES ---
@@ -322,10 +357,11 @@ if check_password():
     df_listas = st.session_state.data['df_listas']
     df_trabajos = st.session_state.data['df_trabajos']
 
-    # --- BOTÓN DE CERRAR SESIÓN ---
+    # --- BOTÓN DE CERRAR SESIÓN MEJORADO ---
     st.sidebar.markdown("---")
-    if st.sidebar.button("Cerrar Sesión"):
-        for key in ["authenticated", "data_loaded", "login_attempted", "username_input", "password_input"]:
+    if st.sidebar.button("🚪 Cerrar Sesión", type="primary", use_container_width=True):
+        keys_to_clear = ["authenticated", "data_loaded", "login_attempted", "username_input", "password_input"]
+        for key in keys_to_clear:
             if key in st.session_state:
                 del st.session_state[key]
         if 'data' in st.session_state:
@@ -335,17 +371,23 @@ if check_password():
             del st.session_state['scheduler']
         st.rerun()
 
-    # --- NAVEGACIÓN ---
-    st.sidebar.title("Navegación")
-    page = st.sidebar.radio("Ir a:", ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"], key="main_page_radio")
+    # --- NAVEGACIÓN MEJORADA ---
+    st.sidebar.title("🧭 Navegación Principal")
+    page = st.sidebar.radio(
+        "Selecciona una sección:",
+        ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"],
+        key="main_page_radio",
+        index=0,
+        help="Navega entre las diferentes secciones del sistema"
+    )
 
     if 'current_summary_view' not in st.session_state:
         st.session_state.current_summary_view = "Todos los Pedidos"
 
     if page == "Resumen":
-        with st.sidebar.expander("Seleccionar Vista de Resumen", expanded=True):
+        with st.sidebar.expander("📊 Filtrar Resumen", expanded=True):
             selected_summary_view_in_expander = st.radio(
-                "Ver por categoría:",
+                "Ver por estado:",
                 ["Todos los Pedidos", "Trabajos Empezados", "Trabajos Terminados", "Pedidos Pendientes", "Pedidos sin estado específico"],
                 key="summary_view_radio"
             )
@@ -353,37 +395,59 @@ if check_password():
 
     # --- CONTENIDO DE LAS PÁGINAS ---
     if page == "Inicio":
-        st.header("Bienvenido a Imperyo Sport")
+        st.header("📊 Bienvenido a Imperyo Sport")
         st.write("---")
-        st.subheader("Estado General de Pedidos")
-        st.info(f"Total de Pedidos Registrados: **{len(df_pedidos)}**")
+
+        # KPI Cards
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("📦 Total Pedidos", len(df_pedidos))
+        with col2:
+            df_terminados = df_pedidos[df_pedidos['Estado'] == 'Terminado'] if 'Estado' in df_pedidos.columns else pd.DataFrame()
+            st.metric("✅ Terminados", len(df_terminados))
+        with col3:
+            df_pendientes = df_pedidos[df_pedidos['Estado'] == 'Pendiente'] if 'Estado' in df_pedidos.columns else pd.DataFrame()
+            st.metric("⏳ Pendientes", len(df_pendientes))
+
+        st.write("---")
+        st.subheader("📅 Últimos 5 Pedidos")
+        if not df_pedidos.empty:
+            df_ultimos = df_pedidos.sort_values('ID', ascending=False).head(5)
+            for _, row in df_ultimos.iterrows():
+                cliente = row.get('Cliente', 'N/A')
+                producto = row.get('Producto', 'N/A')
+                fecha_entrada = row.get('Fecha entrada', 'N/A')
+                st.markdown(f"**ID {row['ID']}** — {cliente} — {producto} — 📅 {fecha_entrada}")
+        else:
+            st.info("No hay pedidos registrados aún.")
 
     elif page == "Ver Datos":
-        st.header("Datos Cargados de Firestore")
+        st.header("🗃️ Datos Cargados de Firestore")
         st.subheader("Colección 'pedidos'")
         if not df_pedidos.empty:
             df_pedidos_sorted = df_pedidos.sort_values(by='ID', ascending=False)
             new_column_order = [
                 'ID', 'Producto', 'Cliente', 'Club', 'Telefono', 'Breve Descripción',
                 'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura',
-                'Tipo de pago', 'Adelanto', 'Observaciones', 'Año'  # ✅ ¡AÑADIDO!
+                'Tipo de pago', 'Adelanto', 'Observaciones', 'Año'
             ]
             existing_columns = [col for col in new_column_order if col in df_pedidos_sorted.columns]
             remaining_columns = [col for col in df_pedidos_sorted.columns if col not in existing_columns]
             final_column_order = existing_columns + remaining_columns
             df_pedidos_reordered = df_pedidos_sorted[final_column_order]
-            st.dataframe(df_pedidos_reordered)
+            st.dataframe(df_pedidos_reordered, use_container_width=True)
         else:
             st.info("No hay datos en la colección 'pedidos'.")
         
         st.subheader("Colección 'gastos'")
-        st.dataframe(df_gastos)
+        st.dataframe(df_gastos, use_container_width=True)
         st.subheader("Colección 'totales'")
-        st.dataframe(df_totales)
+        st.dataframe(df_totales, use_container_width=True)
         st.subheader("Colección 'listas'")
-        st.dataframe(df_listas)
+        st.dataframe(df_listas, use_container_width=True)
         st.subheader("Colección 'trabajos'")
-        st.dataframe(df_trabajos)
+        st.dataframe(df_trabajos, use_container_width=True)
 
     elif page == "Pedidos":
         show_pedidos_page(df_pedidos, df_listas)
