@@ -249,18 +249,38 @@ def show_resumen_page(df_pedidos, current_view):
 
         st.caption(f"📊 Mostrando {len(filtered_df)} de {len(df_pedidos_filtrado)} pedidos del año {año_seleccionado}")
 
-        # ✅ Botón de exportación
-        if not filtered_df.empty:
-            st.write("---")
-            st.markdown("### 📥 Exportar Datos")
-            
-            # Preparar DataFrame para exportar (sin formateo)
-            df_export = filtered_df.copy()
-            for col in ['Fecha entrada', 'Fecha Salida']:
-                if col in df_export.columns:
-                    df_export[col] = pd.to_datetime(df_export[col], errors='coerce')
-            
-            buffer = io.BytesIO()
+        # ✅ Botón de exportación (¡CORREGIDO!)
+        st.write("---")
+        st.markdown("### 📥 Exportar Datos")
+        
+        # Preparar DataFrame para exportar (limpiar valores no válidos para Excel)
+        df_export = filtered_df.copy()
+        
+        # Limpiar fechas
+        for col in ['Fecha entrada', 'Fecha Salida']:
+            if col in df_export.columns:
+                df_export[col] = pd.to_datetime(df_export[col], errors='coerce')
+                df_export[col] = df_export[col].dt.strftime('%Y-%m-%d').fillna('')
+        
+        # Limpiar números (NaN → 0)
+        numeric_cols = df_export.select_dtypes(include=['number']).columns
+        df_export[numeric_cols] = df_export[numeric_cols].fillna(0)
+        
+        # Limpiar booleanos (NaN → False)
+        bool_cols = df_export.select_dtypes(include=['bool']).columns
+        df_export[bool_cols] = df_export[bool_cols].fillna(False)
+        
+        # Limpiar objetos/texto (NaN → "")
+        object_cols = df_export.select_dtypes(include=['object']).columns
+        df_export[object_cols] = df_export[object_cols].fillna('')
+        
+        # Asegurar que no queden NaT/NaN/inf
+        df_export = df_export.replace([float('inf'), float('-inf')], '')
+        df_export = df_export.where(pd.notnull(df_export), '')
+
+        # Crear buffer Excel
+        buffer = io.BytesIO()
+        try:
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                 df_export.to_excel(writer, index=False, sheet_name='Resumen')
             
@@ -271,6 +291,8 @@ def show_resumen_page(df_pedidos, current_view):
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 type="primary"
             )
+        except Exception as e:
+            st.error(f"❌ Error al generar el archivo Excel: {e}")
 
     else:
         st.info(f"📭 No hay pedidos en la categoría: **{current_view}** para el año **{año_seleccionado}**")
