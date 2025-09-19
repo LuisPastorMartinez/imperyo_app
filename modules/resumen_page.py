@@ -1,8 +1,8 @@
-# modules/resumen_page.py
 import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime
+import io
 
 def highlight_pedidos_rows(row):
     """Función para resaltar filas según su estado"""
@@ -61,61 +61,111 @@ def formatear_primer_producto(productos_json):
 
 def show_resumen_page(df_pedidos, current_view):
     """Muestra la página de resumen con estilo de 'Consultar Pedidos'"""
-    st.header("Resumen de Pedidos")
-    
+    st.header("📊 Resumen de Pedidos")
+    st.write("---")
+
     # ✅ Convertir columna 'Año' a entero
     if not df_pedidos.empty and 'Año' in df_pedidos.columns:
         df_pedidos['Año'] = pd.to_numeric(df_pedidos['Año'], errors='coerce').fillna(2025).astype('int64')
 
-    # ✅ Selector de año
+    # ✅ Selector de año (sincronizado con sesión)
     año_actual = datetime.now().year
 
     if not df_pedidos.empty:
-        años_disponibles = sorted(df_pedidos[df_pedidos['Año'] <= año_actual]['Año'].dropna().unique(), reverse=True)
+        años_disponibles = sorted(df_pedidos['Año'].dropna().unique(), reverse=True)
     else:
         años_disponibles = [año_actual]
 
-    año_seleccionado = st.sidebar.selectbox("📅 Año", años_disponibles, key="resumen_año_select")
+    # Usar el año seleccionado en la sesión (sincronizado con otras páginas)
+    año_seleccionado = st.sidebar.selectbox(
+        "📅 Filtrar por Año",
+        options=años_disponibles,
+        index=años_disponibles.index(st.session_state.get('selected_year', año_actual)) 
+               if st.session_state.get('selected_year', año_actual) in años_disponibles 
+               else 0,
+        key="resumen_año_select"
+    )
+
+    # Guardar selección en sesión
+    st.session_state.selected_year = año_seleccionado
 
     # ✅ Filtrar por año primero
     df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy() if df_pedidos is not None else None
 
     if df_pedidos_filtrado is None or df_pedidos_filtrado.empty:
-        st.info(f"No hay pedidos en el año {año_seleccionado}")
+        st.info(f"📭 No hay pedidos en el año {año_seleccionado}")
         return
 
     # --- FILTROS POR VISTA ---
     if current_view == "Todos los Pedidos":
         filtered_df = df_pedidos_filtrado.copy()
-        st.subheader(f"Todos los Pedidos ({año_seleccionado})")
+        st.subheader(f"📋 Todos los Pedidos ({año_seleccionado})")
     elif current_view == "Trabajos Empezados":
         filtered_df = df_pedidos_filtrado[
             (df_pedidos_filtrado['Inicio Trabajo'] == True) & 
             (df_pedidos_filtrado['Pendiente'] == False)
         ]
-        st.subheader(f"Trabajos Empezados (no pendientes) - {año_seleccionado}")  
+        st.subheader(f"🔵 Trabajos Empezados (no pendientes) - {año_seleccionado}")  
     elif current_view == "Trabajos Terminados":
         filtered_df = df_pedidos_filtrado[
             (df_pedidos_filtrado['Trabajo Terminado'] == True) & 
             (df_pedidos_filtrado['Pendiente'] == False)
         ]
-        st.subheader(f"Trabajos Terminados (no pendientes) - {año_seleccionado}")
+        st.subheader(f"✅ Trabajos Terminados (no pendientes) - {año_seleccionado}")
     elif current_view == "Pedidos Pendientes":
         filtered_df = df_pedidos_filtrado[df_pedidos_filtrado['Pendiente'] == True]
-        st.subheader(f"Pedidos Pendientes (morado siempre) - {año_seleccionado}")
+        st.subheader(f"📌 Pedidos Pendientes - {año_seleccionado}")
     elif current_view == "Pedidos sin estado específico":
         filtered_df = df_pedidos_filtrado[
             (df_pedidos_filtrado['Inicio Trabajo'] == False) & 
             (df_pedidos_filtrado['Trabajo Terminado'] == False) & 
             (df_pedidos_filtrado['Pendiente'] == False)
         ]
-        st.subheader(f"Pedidos sin Estado Específico - {año_seleccionado}")
+        st.subheader(f"⚪ Pedidos sin Estado Específico - {año_seleccionado}")
     else:
         filtered_df = pd.DataFrame()
         st.warning("Vista no reconocida")
 
-    # --- MOSTRAR RESULTADOS ---
+    # --- MOSTRAR KPIs RÁPIDOS ---
     if not filtered_df.empty:
+        total_pedidos = len(filtered_df)
+        completados = len(filtered_df[
+            (filtered_df['Trabajo Terminado'] == True) &
+            (filtered_df['Cobrado'] == True) &
+            (filtered_df['Retirado'] == True)
+        ])
+        pendientes = len(filtered_df[filtered_df['Pendiente'] == True])
+        empezados = len(filtered_df[
+            (filtered_df['Inicio Trabajo'] == True) & 
+            (filtered_df['Pendiente'] == False)
+        ])
+        terminados = len(filtered_df[
+            (filtered_df['Trabajo Terminado'] == True) & 
+            (filtered_df['Pendiente'] == False)
+        ])
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.metric("📦 Total", total_pedidos)
+        with col2:
+            st.metric("✔️ Completados", completados)
+        with col3:
+            st.metric("📌 Pendientes", pendientes)
+        with col4:
+            st.metric("🔵 Empezados", empezados)
+        with col5:
+            st.metric("✅ Terminados", terminados)
+
+        st.write("---")
+
+        # --- BÚSQUEDA RÁPIDA ---
+        search_term = st.text_input("🔍 Buscar en esta vista (Cliente, Producto, ID...)", placeholder="Escribe para filtrar...")
+        if search_term:
+            mask = filtered_df.apply(lambda row: search_term.lower() in str(row).lower(), axis=1)
+            filtered_df = filtered_df[mask]
+            st.info(f"🔎 Se encontraron {len(filtered_df)} resultados para '{search_term}'.")
+
+        # --- PREPARAR DATAFRAME PARA MOSTRAR ---
         df_display = filtered_df.copy()
 
         # ✅ Formatear columna Productos
@@ -172,22 +222,22 @@ def show_resumen_page(df_pedidos, current_view):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla con estilo de "Consultar Pedidos"
+        # ✅ Mostrar tabla con estilo
         st.dataframe(
             df_display[columnas_disponibles].style.apply(highlight_pedidos_rows, axis=1),
             column_config={
                 "Productos": st.column_config.TextColumn(
-                    "Productos",
+                    "🧵 Productos",
                     help="Primer producto del pedido. '+P' indica que hay más productos.",
                     width="medium"
                 ),
                 "Precio": st.column_config.NumberColumn(
-                    "Precio (€)",
+                    "💰 Precio (€)",
                     format="%.2f €",
                     width="small"
                 ),
                 "Estado": st.column_config.TextColumn(
-                    "Estado",
+                    "🏷️ Estado",
                     help="📌 Pendiente | 🔵 Empezado | ✅ Terminado | 📦 Retirado | 💰 Cobrado | ✔️ COMPLETADO",
                     width="medium"
                 ),
@@ -197,15 +247,30 @@ def show_resumen_page(df_pedidos, current_view):
             hide_index=True
         )
 
-        st.caption(f"Mostrando {len(filtered_df)} de {len(df_pedidos_filtrado)} pedidos del año {año_seleccionado}")
+        st.caption(f"📊 Mostrando {len(filtered_df)} de {len(df_pedidos_filtrado)} pedidos del año {año_seleccionado}")
 
-        # ✅ Mostrar contador de pedidos COMPLETADOS
-        completados = filtered_df[
-            (filtered_df['Trabajo Terminado'] == True) &
-            (filtered_df['Cobrado'] == True) &
-            (filtered_df['Retirado'] == True)
-        ]
-        st.info(f"✅ Pedidos COMPLETADOS en esta vista: **{len(completados)}**")
+        # ✅ Botón de exportación
+        if not filtered_df.empty:
+            st.write("---")
+            st.markdown("### 📥 Exportar Datos")
+            
+            # Preparar DataFrame para exportar (sin formateo)
+            df_export = filtered_df.copy()
+            for col in ['Fecha entrada', 'Fecha Salida']:
+                if col in df_export.columns:
+                    df_export[col] = pd.to_datetime(df_export[col], errors='coerce')
+            
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df_export.to_excel(writer, index=False, sheet_name='Resumen')
+            
+            st.download_button(
+                label="📥 Descargar como Excel",
+                data=buffer.getvalue(),
+                file_name=f"resumen_{current_view.replace(' ', '_').lower()}_{año_seleccionado}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary"
+            )
 
     else:
-        st.info(f"No hay pedidos en la categoría: {current_view} para el año {año_seleccionado}")
+        st.info(f"📭 No hay pedidos en la categoría: **{current_view}** para el año **{año_seleccionado}**")
