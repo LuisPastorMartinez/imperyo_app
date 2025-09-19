@@ -389,7 +389,7 @@ if check_password():
         with st.sidebar.expander("📊 Filtrar Resumen", expanded=True):
             selected_summary_view_in_expander = st.radio(
                 "Ver por estado:",
-                ["Todos los Pedidos", "Trabajos Empezados", "Trabajos Terminados", "Pedidos Pendientes", "Pedidos sin estado específico"],
+                ["Todos los Pedidos", "Trabajos Empezados", "Trabajos Terminados", "Pedidos Pendientes", "Nuevos Pedidos"],
                 key="summary_view_radio"
             )
             st.session_state.current_summary_view = selected_summary_view_in_expander
