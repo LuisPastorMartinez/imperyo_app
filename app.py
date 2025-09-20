@@ -346,7 +346,7 @@ if check_password():
     # --- ✅ VALIDACIÓN CORREGIDA ---
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
-        if df_name not in st.session_state.
+        if df_name not in st.session_state.data:
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
             st.write("🔍 Claves disponibles:", list(st.session_state.data.keys()))
             st.stop()
