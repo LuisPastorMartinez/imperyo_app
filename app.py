@@ -321,7 +321,7 @@ if check_password():
             st.session_state.data = data
 
             # ✅ AÑADIR CAMPO 'AÑO' SI NO EXISTE
-            if 'df_pedidos' in st.session_state.
+            if 'df_pedidos' in st.session_state.data:
                 df = st.session_state.data['df_pedidos']
                 if 'Año' not in df.columns:
                     df['Año'] = 2025
