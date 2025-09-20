@@ -418,69 +418,37 @@ if check_password():
         # Guardar selección en sesión
         st.session_state.selected_year = selected_year
 
-	# --- Filtrar pedidos por año seleccionado ---
-	if 'Año' in df_pedidos.columns:
-   	    df_filtrado = df_pedidos[df_pedidos['Año'] == selected_year].copy()
-	else:
-   	    df_filtrado = df_pedidos.copy()
+        # --- Filtrar pedidos por año seleccionado ---
+        if 'Año' in df_pedidos.columns:
+            df_filtrado = df_pedidos[df_pedidos['Año'] == selected_year].copy()
+        else:
+            df_filtrado = df_pedidos.copy()
 
-	# --- CREAR COLUMNA VIRTUAL 'Estado' BASADA EN LA MISMA LÓGICA QUE show_consult() ---
-	def calcular_estado(row):
-   	    # 1. PRIORIDAD MÁXIMA: Pendiente
-   	    if row.get('Pendiente', False):
-       		return 'Pendiente'
-    
+        # --- CREAR COLUMNA VIRTUAL 'Estado' BASADA EN LA MISMA LÓGICA QUE show_consult() ---
+        def calcular_estado(row):
+            # 1. PRIORIDAD MÁXIMA: Pendiente
+            if row.get('Pendiente', False):
+                return 'Pendiente'
+            
             # 2. Verificar si está COMPLETADO (Terminado + Cobrado + Retirado)
-	    if (row.get('Trabajo Terminado', False) and
+            if (row.get('Trabajo Terminado', False) and
                 row.get('Cobrado', False) and
                 row.get('Retirado', False)):
                 return 'Completado'
-    
-   	    # 3. Si está Terminado (sin ser Completado)
-   	    if row.get('Trabajo Terminado', False):
-       	        return 'Terminado'
-    
-   	    # 4. Si está Empezado
-   	    if row.get('Inicio Trabajo', False):
+            
+            # 3. Si está Terminado (sin ser Completado)
+            if row.get('Trabajo Terminado', False):
+                return 'Terminado'
+            
+            # 4. Si está Empezado
+            if row.get('Inicio Trabajo', False):
                 return 'Empezado'
-    
-   	    # 5. Por defecto: Nuevo
-    	    return 'Nuevo'
+            
+            # 5. Por defecto: Nuevo
+            return 'Nuevo'
 
         df_filtrado['Estado'] = df_filtrado.apply(calcular_estado, axis=1)
         st.info("✅ Columna 'Estado' calculada según la misma lógica que la tabla de pedidos.")
-	
- 
-        # --- Asegurar que la columna 'Estado' exista ---
-        if 'Estado' not in df_filtrado.columns:
-            # Buscar variantes
-            possible_estado_cols = [col for col in df_filtrado.columns if 'estado' in col.lower()]
-            if possible_estado_cols:
-                # Tomar la primera coincidencia
-                real_estado_col = possible_estado_cols[0]
-                df_filtrado['Estado'] = df_filtrado[real_estado_col].fillna('Pendiente').astype(str)
-                st.warning(f"⚠️ Se usó la columna '{real_estado_col}' como 'Estado'.")
-            else:
-                df_filtrado['Estado'] = 'Pendiente'
-                st.warning("⚠️ No se encontró columna de estado. Todos los pedidos se marcan como 'Pendiente'.")
-
-        # --- Estandarizar valores de Estado ---
-        # Mapeo común de estados
-        mapeo_estados = {
-            'nuevo': 'Nuevo',
-            'new': 'Nuevo',
-            'empezado': 'Empezado',
-            'iniciado': 'Empezado',
-            'started': 'Empezado',
-            'pendiente': 'Pendiente',
-            'pending': 'Pendiente',
-            'terminado': 'Terminado',
-            'finalizado': 'Terminado',
-            'completed': 'Terminado',
-            'done': 'Terminado'
-        }
-
-        df_filtrado['Estado'] = df_filtrado['Estado'].str.strip().str.title().replace(mapeo_estados)
 
         # --- Contar por estados en el año seleccionado ---
         total_año = len(df_filtrado)
