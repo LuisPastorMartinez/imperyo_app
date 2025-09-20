@@ -1,4 +1,5 @@
-import streamlit as st  # ← ¡IMPORTANTE! Faltaba esta línea
+#Crear pedido
+import streamlit as st  
 import pandas as pd
 import json
 from datetime import datetime

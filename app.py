@@ -418,12 +418,39 @@ if check_password():
         # Guardar selección en sesión
         st.session_state.selected_year = selected_year
 
-        # --- Filtrar pedidos por año seleccionado ---
-        if 'Año' in df_pedidos.columns:
-            df_filtrado = df_pedidos[df_pedidos['Año'] == selected_year].copy()
-        else:
-            df_filtrado = df_pedidos.copy()  # Si no hay columna 'Año', mostrar todo
+	# --- Filtrar pedidos por año seleccionado ---
+	if 'Año' in df_pedidos.columns:
+   	    df_filtrado = df_pedidos[df_pedidos['Año'] == selected_year].copy()
+	else:
+   	    df_filtrado = df_pedidos.copy()
 
+	# --- CREAR COLUMNA VIRTUAL 'Estado' BASADA EN LA MISMA LÓGICA QUE show_consult() ---
+	def calcular_estado(row):
+   	    # 1. PRIORIDAD MÁXIMA: Pendiente
+   	    if row.get('Pendiente', False):
+       		return 'Pendiente'
+    
+            # 2. Verificar si está COMPLETADO (Terminado + Cobrado + Retirado)
+	    if (row.get('Trabajo Terminado', False) and
+                row.get('Cobrado', False) and
+                row.get('Retirado', False)):
+                return 'Completado'
+    
+   	    # 3. Si está Terminado (sin ser Completado)
+   	    if row.get('Trabajo Terminado', False):
+       	        return 'Terminado'
+    
+   	    # 4. Si está Empezado
+   	    if row.get('Inicio Trabajo', False):
+                return 'Empezado'
+    
+   	    # 5. Por defecto: Nuevo
+    	    return 'Nuevo'
+
+        df_filtrado['Estado'] = df_filtrado.apply(calcular_estado, axis=1)
+        st.info("✅ Columna 'Estado' calculada según la misma lógica que la tabla de pedidos.")
+	
+ 
         # --- Asegurar que la columna 'Estado' exista ---
         if 'Estado' not in df_filtrado.columns:
             # Buscar variantes
