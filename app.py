@@ -321,7 +321,7 @@ if check_password():
             st.session_state.data = data
 
             # ✅ AÑADIR CAMPO 'AÑO' SI NO EXISTE
-            if 'df_pedidos' in st.session_state.data:
+            if 'df_pedidos' in st.session_state.
                 df = st.session_state.data['df_pedidos']
                 if 'Año' not in df.columns:
                     df['Año'] = 2025
@@ -346,7 +346,7 @@ if check_password():
     # --- ✅ VALIDACIÓN CORREGIDA ---
     required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
     for df_name in required_dfs:
-        if df_name not in st.session_state.data:
+        if df_name not in st.session_state.
             st.error(f"Error: No se encontró el DataFrame '{df_name}' en los datos cargados.")
             st.write("🔍 Claves disponibles:", list(st.session_state.data.keys()))
             st.stop()
@@ -475,80 +475,6 @@ if check_password():
             st.metric("⏳ Pendientes", total_pendientes)
         with col5:
             st.metric("✅ Terminados", total_terminados)
-
-        st.write("---")
-
-        # --- GRÁFICOS DE TENDENCIAS ---
-        st.subheader("📈 Tendencias Mensuales")
-
-        # Verificar que 'Fecha entrada' exista y sea datetime
-        if 'Fecha entrada' in df_filtrado.columns and pd.api.types.is_datetime64_any_dtype(df_filtrado['Fecha entrada']):
-            df_filtrado['Mes'] = df_filtrado['Fecha entrada'].dt.month
-            df_filtrado['MesNombre'] = df_filtrado['Fecha entrada'].dt.strftime('%B')
-
-            # Pedidos por mes
-            pedidos_por_mes = df_filtrado.groupby('MesNombre').size().reindex([
-                'January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'
-            ], fill_value=0)
-
-            # Ingresos por mes (asegurar que 'Precio' sea numérico)
-            if 'Precio' in df_filtrado.columns:
-                df_filtrado['Precio'] = pd.to_numeric(df_filtrado['Precio'], errors='coerce').fillna(0)
-                ingresos_por_mes = df_filtrado.groupby('MesNombre')['Precio'].sum().reindex([
-                    'January', 'February', 'March', 'April', 'May', 'June',
-                    'July', 'August', 'September', 'October', 'November', 'December'
-                ], fill_value=0)
-            else:
-                st.warning("⚠️ No se encontró la columna 'Precio'. No se puede mostrar ingresos.")
-                ingresos_por_mes = None
-
-            # Convertir nombres de meses a español
-            meses_es = {
-                'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo', 'April': 'Abril',
-                'May': 'Mayo', 'June': 'Junio', 'July': 'Julio', 'August': 'Agosto',
-                'September': 'Septiembre', 'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
-            }
-            pedidos_por_mes.index = pedidos_por_mes.index.map(meses_es)
-            if ingresos_por_mes is not None:
-                ingresos_por_mes.index = ingresos_por_mes.index.map(meses_es)
-
-            # Mostrar gráficos con Plotly
-            try:
-                import plotly.express as px
-
-                col_chart1, col_chart2 = st.columns(2)
-
-                with col_chart1:
-                    fig1 = px.bar(
-                        x=pedidos_por_mes.index,
-                        y=pedidos_por_mes.values,
-                        labels={'x': 'Mes', 'y': 'Cantidad de Pedidos'},
-                        title="📦 Pedidos por Mes",
-                        color_discrete_sequence=['#2c3e50']
-                    )
-                    fig1.update_layout(xaxis_tickangle=-45)
-                    st.plotly_chart(fig1, use_container_width=True)
-
-                if ingresos_por_mes is not None:
-                    with col_chart2:
-                        fig2 = px.bar(
-                            x=ingresos_por_mes.index,
-                            y=ingresos_por_mes.values,
-                            labels={'x': 'Mes', 'y': 'Ingresos ($)'}, 
-                            title="💰 Ingresos por Mes",
-                            color_discrete_sequence=['#27ae60']
-                        )
-                        fig2.update_layout(xaxis_tickangle=-45)
-                        st.plotly_chart(fig2, use_container_width=True)
-                else:
-                    with col_chart2:
-                        st.info("ℹ️ Gráfico de ingresos no disponible.")
-            except Exception as e:
-                st.error(f"❌ Error al generar gráficos: {e}")
-
-        else:
-            st.warning("⚠️ La columna 'Fecha entrada' no existe o no está en formato fecha. No se pueden mostrar tendencias.")
 
         st.write("---")
 
