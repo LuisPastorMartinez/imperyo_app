@@ -42,7 +42,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- CSS PERSONALIZADO MEJORADO PARA MÓVIL ---
+# --- CSS PERSONALIZADO ---
 st.markdown("""
 <style>
 .stImage > img {
@@ -77,16 +77,6 @@ h2 {
     .pc-only {
         display: none;
     }
-    /* Botones más grandes en móvil */
-    .stButton>button {
-        font-size: 1.2em !important;
-        padding: 12px 24px !important;
-    }
-    /* Inputs más grandes */
-    input, select, textarea {
-        font-size: 1.1em !important;
-        padding: 10px !important;
-    }
 }
 .telefono-input {
     font-family: monospace;
@@ -110,16 +100,12 @@ h2 {
 [data-testid="stMetricLabel"] {
     font-size: 1.1em !important;
 }
-/* Gráficos más responsivos */
-.plotly-graph-div {
-    width: 100% !important;
-}
 </style>
 """, unsafe_allow_html=True)
 
 # --- FUNCIÓN PARA RENDERIZAR EL HEADER MEJORADO ---
 def render_header():
-    logo_url = "https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1"
+    logo_url = "  https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1"
     st.markdown(f"""
     <div style="display: flex; align-items: center; padding: 15px; border-radius: 12px; 
                 background: linear-gradient(to right, #f8f9fa, #e9ecef); 
@@ -219,7 +205,7 @@ def check_password():
         <div style="text-align: center; padding: 30px; border-radius: 15px; 
                     background: #f8f9fa; box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
                     margin: 20px auto; max-width: 400px;">
-            <img src="https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1" 
+            <img src="  https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1" 
                  width="100" style="margin-bottom: 20px; border-radius: 50%;">
             <h3>🔐 Iniciar Sesión</h3>
             <p style="color: #6c757d;">Por favor, ingresa tus credenciales para acceder al sistema.</p>
@@ -410,7 +396,7 @@ if check_password():
 
     # --- CONTENIDO DE LAS PÁGINAS ---
     if page == "Inicio":
-        st.header("📊 Dashboard Ejecutivo - Imperyo Sport")
+        st.header("📊 Bienvenido a Imperyo Sport")
         st.write("---")
 
         # --- Selector de año ---
@@ -421,6 +407,7 @@ if check_password():
         else:
             años_disponibles = [2025]
 
+        # Selector en la parte superior
         selected_year = st.selectbox(
             "📅 Selecciona el año para ver estadísticas:",
             options=años_disponibles,
@@ -428,98 +415,40 @@ if check_password():
             key="year_selector"
         )
 
+        # Guardar selección en sesión
         st.session_state.selected_year = selected_year
 
         # --- Filtrar pedidos por año seleccionado ---
         if 'Año' in df_pedidos.columns:
-            df_filtrado = df_pedidos[df_pedidos['Año'] == selected_year].copy()
+            df_filtrado = df_pedidos[df_pedidos['Año'] == selected_year]
         else:
-            df_filtrado = df_pedidos.copy()
+            df_filtrado = df_pedidos  # Si no hay columna 'Año', mostrar todo
 
-        # --- Asegurar columnas necesarias ---
-        if 'Estado' not in df_filtrado.columns:
-            df_filtrado['Estado'] = 'Pendiente'
-        if 'Precio' not in df_filtrado.columns:
-            df_filtrado['Precio'] = 0
-        if 'Fecha entrada' not in df_filtrado.columns:
-            st.warning("⚠️ No se encontró la columna 'Fecha entrada'. Los gráficos de tendencias no estarán disponibles.")
-            df_filtrado['Fecha entrada'] = pd.NaT
-
-        # --- Contar por estados ---
+        # --- Contar por estados en el año seleccionado ---
         total_año = len(df_filtrado)
-        total_nuevos = len(df_filtrado[df_filtrado['Estado'] == 'Nuevo'])
-        total_empezados = len(df_filtrado[df_filtrado['Estado'] == 'Empezado'])
-        total_pendientes = len(df_filtrado[df_filtrado['Estado'] == 'Pendiente'])
-        total_terminados = len(df_filtrado[df_filtrado['Estado'] == 'Terminado'])
+        df_nuevos = df_filtrado[df_filtrado['Estado'] == 'Nuevo'] if 'Estado' in df_filtrado.columns else pd.DataFrame()
+        df_empezados = df_filtrado[df_filtrado['Estado'] == 'Empezado'] if 'Estado' in df_filtrado.columns else pd.DataFrame()
+        df_pendientes = df_filtrado[df_filtrado['Estado'] == 'Pendiente'] if 'Estado' in df_filtrado.columns else pd.DataFrame()
+        df_terminados = df_filtrado[df_filtrado['Estado'] == 'Terminado'] if 'Estado' in df_filtrado.columns else pd.DataFrame()
+
+        total_nuevos = len(df_nuevos)
+        total_empezados = len(df_empezados)
+        total_pendientes = len(df_pendientes)
+        total_terminados = len(df_terminados)
 
         # --- Mostrar KPIs en columnas ---
         col1, col2, col3, col4, col5 = st.columns(5)
-        with col1: st.metric(f"📆 {selected_year} Total", total_año)
-        with col2: st.metric("🆕 Nuevos", total_nuevos)
-        with col3: st.metric("🔄 Empezados", total_empezados)
-        with col4: st.metric("⏳ Pendientes", total_pendientes)
-        with col5: st.metric("✅ Terminados", total_terminados)
 
-        st.write("---")
-
-        # --- GRÁFICOS DE TENDENCIAS ---
-        st.subheader("📈 Tendencias Mensuales")
-
-        if pd.api.types.is_datetime64_any_dtype(df_filtrado['Fecha entrada']):
-            df_filtrado['Mes'] = df_filtrado['Fecha entrada'].dt.month
-            df_filtrado['MesNombre'] = df_filtrado['Fecha entrada'].dt.strftime('%B')
-
-            # Pedidos por mes
-            pedidos_por_mes = df_filtrado.groupby('MesNombre').size().reindex([
-                'January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'
-            ], fill_value=0)
-
-            # Ingresos por mes
-            df_filtrado['Precio'] = pd.to_numeric(df_filtrado['Precio'], errors='coerce').fillna(0)
-            ingresos_por_mes = df_filtrado.groupby('MesNombre')['Precio'].sum().reindex([
-                'January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'
-            ], fill_value=0)
-
-            # Convertir índices a español
-            meses_es = {
-                'January': 'Enero', 'February': 'Febrero', 'March': 'Marzo', 'April': 'Abril',
-                'May': 'Mayo', 'June': 'Junio', 'July': 'Julio', 'August': 'Agosto',
-                'September': 'Septiembre', 'October': 'Octubre', 'November': 'Noviembre', 'December': 'Diciembre'
-            }
-            pedidos_por_mes.index = pedidos_por_mes.index.map(meses_es)
-            ingresos_por_mes.index = ingresos_por_mes.index.map(meses_es)
-
-            # Mostrar gráficos con Plotly
-            import plotly.express as px
-
-            col_chart1, col_chart2 = st.columns(2)
-
-            with col_chart1:
-                fig1 = px.bar(
-                    x=pedidos_por_mes.index,
-                    y=pedidos_por_mes.values,
-                    labels={'x': 'Mes', 'y': 'Cantidad de Pedidos'},
-                    title="📦 Pedidos por Mes",
-                    color_discrete_sequence=['#2c3e50']
-                )
-                fig1.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig1, use_container_width=True)
-
-            with col_chart2:
-                fig2 = px.bar(
-                    x=ingresos_por_mes.index,
-                    y=ingresos_por_mes.values,
-                    labels={'x': 'Mes', 'y': 'Ingresos ($)'}, 
-                    title="💰 Ingresos por Mes",
-                    color_discrete_sequence=['#27ae60']
-                )
-                fig2.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig2, use_container_width=True)
-
-        else:
-            st.warning("⚠️ Las fechas no están en formato válido. No se pueden mostrar gráficos de tendencias.")
+        with col1:
+            st.metric(f"📆 {selected_year} Total", total_año, delta=None, delta_color="off")
+        with col2:
+            st.metric("🆕 Nuevos", total_nuevos, delta=None, delta_color="off")
+        with col3:
+            st.metric("🔄 Empezados", total_empezados, delta=None, delta_color="off")
+        with col4:
+            st.metric("⏳ Pendientes", total_pendientes, delta=None, delta_color="off")
+        with col5:
+            st.metric("✅ Terminados", total_terminados, delta=None, delta_color="off")
 
         st.write("---")
         st.subheader(f"📅 Últimos 5 Pedidos ({selected_year})")
