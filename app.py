@@ -442,7 +442,7 @@ if check_password():
         if 'Precio' not in df_filtrado.columns:
             df_filtrado['Precio'] = 0
         if 'Fecha entrada' not in df_filtrado.columns:
-            st.warning(⚠️ No se encontró la columna 'Fecha entrada'. Los gráficos de tendencias no estarán disponibles.")
+              st.warning("⚠️ No se encontró la columna 'Fecha entrada'. Los gráficos de tendencias no estarán disponibles.")
             df_filtrado['Fecha entrada'] = pd.NaT
 
         # --- Contar por estados ---
