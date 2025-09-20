@@ -9,6 +9,12 @@ except ImportError as e:
     st.error(f"❌ Error al importar 'modules.pedido': {e}")
     st.stop()
 
+# --- IMPORTAR UTILS DE EMAIL ---
+try:
+    from utils.email_utils import send_completion_email
+except ImportError:
+    st.warning("⚠️ No se encontró 'utils/email_utils.py'. Las notificaciones por email no estarán disponibles hasta que se cree el archivo.")
+
 def show_pedidos_page(df_pedidos=None, df_listas=None):
     """
     Página principal de Pedidos.
@@ -102,6 +108,97 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
         else:
             df_filtrado_busqueda = df_pedidos_filtrado
 
+        # --- ACCIONES RÁPIDAS: CAMBIAR ESTADO ---
+        if not df_filtrado_busqueda.empty:
+            st.markdown("### 🚀 Acciones Rápidas — Cambiar Estado")
+
+            # Crear copia para edición
+            df_edit = df_filtrado_busqueda.copy()
+
+            # Asegurar columna Estado
+            if 'Estado' not in df_edit.columns:
+                df_edit['Estado'] = 'Pendiente'
+
+            # Definir estados posibles
+            estados_posibles = ['Nuevo', 'Empezado', 'Pendiente', 'Terminado']
+
+            # Mostrar tabla editable con selectbox por fila
+            for idx, row in df_edit.iterrows():
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    st.write(f"**ID {row['ID']}** — {row.get('Cliente', 'N/A')} — {row.get('Producto', 'N/A')}")
+                with col2:
+                    nuevo_estado = st.selectbox(
+                        f"Estado",
+                        options=estados_posibles,
+                        index=estados_posibles.index(row['Estado']) if row['Estado'] in estados_posibles else 0,
+                        key=f"estado_{row['ID']}",
+                        label_visibility="collapsed"
+                    )
+                    df_edit.at[idx, 'Estado'] = nuevo_estado
+                with col3:
+                    # Si cambió el estado, mostrar indicador
+                    if nuevo_estado != row['Estado']:
+                        st.markdown("🔄 **Cambio detectado**")
+
+            # Botón para guardar todos los cambios
+            if st.button("💾 Guardar Todos los Cambios", type="primary", use_container_width=True):
+                cambios_realizados = False
+                ids_actualizados = []
+
+                for idx, row in df_edit.iterrows():
+                    id_pedido = row['ID']
+                    nuevo_estado = row['Estado']
+                    original_row = df_pedidos_filtrado[df_pedidos_filtrado['ID'] == id_pedido].iloc[0]
+                    estado_original = original_row['Estado'] if 'Estado' in original_row else 'Pendiente'
+
+                    if nuevo_estado != estado_original:
+                        # Actualizar en el DataFrame original
+                        mask_original = df_pedidos['ID'] == id_pedido
+                        df_pedidos.loc[mask_original, 'Estado'] = nuevo_estado
+
+                        # Guardar en Firestore
+                        if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                            cambios_realizados = True
+                            ids_actualizados.append(id_pedido)
+
+                            # 📩 ENVIAR EMAIL SI CAMBIA A "TERMINADO"
+                            if nuevo_estado == "Terminado" and 'email_utils' in globals():
+                                try:
+                                    # Obtener datos del cliente
+                                    cliente = row.get('Cliente', 'Cliente')
+                                    email = row.get('Email', None)  # ← Asegúrate de tener esta columna
+                                    producto = row.get('Producto', 'tu pedido')
+                                    fecha_salida = row.get('Fecha Salida', 'N/A')
+
+                                    if email and "@" in str(email):
+                                        success = send_completion_email(
+                                            to_email=email,
+                                            client_name=cliente,
+                                            product_name=producto,
+                                            delivery_date=str(fecha_salida)
+                                        )
+                                        if success:
+                                            st.success(f"✉️ Email enviado a {cliente} ({email})")
+                                        else:
+                                            st.warning(f"⚠️ No se pudo enviar email a {cliente}")
+                                    else:
+                                        st.info(f"ℹ️ No se envió email: {cliente} no tiene email registrado.")
+                                except Exception as e:
+                                    st.error(f"❌ Error al enviar email: {e}")
+                        else:
+                            st.error(f"❌ Error al guardar el pedido ID {id_pedido} en Firestore.")
+
+                if cambios_realizados:
+                    # Actualizar sesión
+                    st.session_state.data['df_pedidos'] = df_pedidos
+                    st.success(f"✅ ¡{len(ids_actualizados)} pedidos actualizados correctamente!")
+                    st.rerun()  # Refrescar para ver cambios
+                else:
+                    st.info("ℹ️ No se detectaron cambios en los estados.")
+
+        # Mostrar tabla completa (solo lectura)
+        st.markdown("### 📊 Vista de Pedidos")
         show_consult(df_filtrado_busqueda, df_listas)
 
     with tab3:
