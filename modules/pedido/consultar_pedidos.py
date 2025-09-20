@@ -280,10 +280,24 @@ def show_consult(df_pedidos, df_listas):
         # Preparar DataFrame para exportar
         df_export = df_filtrado.copy()
         
-        # Limpiar fechas
-        for col in ['Fecha entrada', 'Fecha Salida']:
+        # Limpiar fechas: eliminar zonas horarias y convertir a naive
+        date_columns = ['Fecha entrada', 'Fecha Salida']
+        for col in date_columns:
             if col in df_export.columns:
+                # Convertir a datetime primero
                 df_export[col] = pd.to_datetime(df_export[col], errors='coerce')
+                # Eliminar zona horaria si existe
+                df_export[col] = df_export[col].dt.tz_localize(None)
+                # Opcional: formatear como string si prefieres
+                # df_export[col] = df_export[col].dt.strftime('%Y-%m-%d').fillna('')
+        
+        # También limpiar otras columnas de fecha que puedan existir
+        # Buscar todas las columnas de tipo datetime
+        datetime_cols = df_export.select_dtypes(include=['datetime64[ns, UTC]', 'datetime64[ns]']).columns
+        for col in datetime_cols:
+            if col not in date_columns:  # Ya procesadas
+                df_export[col] = pd.to_datetime(df_export[col], errors='coerce')
+                df_export[col] = df_export[col].dt.tz_localize(None)
         
         buffer = io.BytesIO()
         try:
@@ -299,6 +313,4 @@ def show_consult(df_pedidos, df_listas):
             )
         except Exception as e:
             st.error(f"❌ Error al generar el archivo Excel: {e}")
-
-    else:
-        st.info("📭 No se encontraron pedidos con los filtros aplicados")
+            st.code(str(e))  # Para debugging, puedes quitarlo luego
