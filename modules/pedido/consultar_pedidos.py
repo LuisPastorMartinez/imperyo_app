@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime
+import io
 from utils.data_utils import limpiar_telefono
 
 def cargar_productos_seguro(productos_json):
@@ -45,44 +46,117 @@ def formatear_primer_producto(productos_json):
     except Exception:
         return "Error"
 
-def show_consult(df_pedidos, df_listas):
-    st.subheader("Consultar Pedidos")
+def highlight_pedidos_rows(row):
+    """Función para resaltar filas según su estado"""
+    styles = [''] * len(row)
+    
+    pendiente = row.get('Pendiente', False)
+    terminado = row.get('Trabajo Terminado', False)
+    retirado = row.get('Retirado', False)
+    cobrado = row.get('Cobrado', False)
+    
+    # ✅ Nueva lógica: si está Terminado + Cobrado + Retirado → verde
+    if terminado and cobrado and retirado:
+        styles = ['background-color: #00B050'] * len(row)  # Verde para completado
+    elif pendiente:
+        styles = ['background-color: #FF00FF'] * len(row)  # Morado para pendientes
+    elif terminado and retirado:
+        styles = ['background-color: #00B050'] * len(row)  # Verde para terminados+retirados
+    elif terminado:
+        styles = ['background-color: #FFC000'] * len(row)  # Amarillo para solo terminados
+    elif row.get('Inicio Trabajo', False):
+        styles = ['background-color: #0070C0'] * len(row)  # Azul para empezados no pendientes
 
+    return styles
+
+def show_consult(df_pedidos, df_listas):
+    st.subheader("📋 Consultar y Filtrar Pedidos")
+    st.write("---")
+
+    # ✅ Convertir columna 'Año' a entero
+    if not df_pedidos.empty and 'Año' in df_pedidos.columns:
+        df_pedidos['Año'] = pd.to_numeric(df_pedidos['Año'], errors='coerce').fillna(2025).astype('int64')
+
+    # ✅ Selector de año (sincronizado con sesión)
     año_actual = datetime.now().year
 
-    # ✅ Selector de año (solo años <= actual)
     if df_pedidos is not None and not df_pedidos.empty:
-        años_disponibles = sorted(df_pedidos[df_pedidos['Año'] <= año_actual]['Año'].dropna().unique(), reverse=True)
+        años_disponibles = sorted(df_pedidos['Año'].dropna().unique(), reverse=True)
     else:
         años_disponibles = [año_actual]
 
-    año_seleccionado = st.selectbox("📅 Año", años_disponibles, key="consulta_año_select")
+    # Usar el año seleccionado en la sesión (sincronizado con otras páginas)
+    año_seleccionado = st.selectbox(
+        "📅 Filtrar por Año",
+        options=años_disponibles,
+        index=años_disponibles.index(st.session_state.get('selected_year', año_actual)) 
+               if st.session_state.get('selected_year', año_actual) in años_disponibles 
+               else 0,
+        key="consulta_año_select"
+    )
+
+    # Guardar selección en sesión
+    st.session_state.selected_year = año_seleccionado
 
     # ✅ Filtrar pedidos por año
     df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy() if df_pedidos is not None else None
 
     if df_pedidos_filtrado is None or df_pedidos_filtrado.empty:
-        st.info(f"No hay pedidos en el año {año_seleccionado}")
+        st.info(f"📭 No hay pedidos en el año {año_seleccionado}")
         return
 
-    # --- FILTROS ---
-    col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-    with col_f1:
-        filtro_cliente = st.text_input("Cliente", key="filtro_cliente_consulta")
-    with col_f2:
-        filtro_club = st.text_input("Club", key="filtro_club_consulta")
-    with col_f3:
-        filtro_telefono = st.text_input("Teléfono", key="filtro_telefono_consulta")
-    with col_f4:
-        filtro_estado = st.selectbox(
-            "Estado",
-            options=["", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado", "Completado"],
-            key="filtro_estado_consulta"
-        )
+    # --- KPIs RÁPIDOS ---
+    total_pedidos = len(df_pedidos_filtrado)
+    completados = len(df_pedidos_filtrado[
+        (df_pedidos_filtrado['Trabajo Terminado'] == True) &
+        (df_pedidos_filtrado['Cobrado'] == True) &
+        (df_pedidos_filtrado['Retirado'] == True)
+    ])
+    pendientes = len(df_pedidos_filtrado[df_pedidos_filtrado['Pendiente'] == True])
+    empezados = len(df_pedidos_filtrado[df_pedidos_filtrado['Inicio Trabajo'] == True])
+    terminados = len(df_pedidos_filtrado[df_pedidos_filtrado['Trabajo Terminado'] == True])
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        st.metric("📦 Total", total_pedidos)
+    with col2:
+        st.metric("✔️ Completados", completados)
+    with col3:
+        st.metric("📌 Pendientes", pendientes)
+    with col4:
+        st.metric("🔵 Empezados", empezados)
+    with col5:
+        st.metric("✅ Terminados", terminados)
+
+    st.write("---")
+
+    # --- BÚSQUEDA GLOBAL ---
+    search_term = st.text_input("🔍 Búsqueda global (Cliente, Producto, Teléfono, ID...)", placeholder="Escribe para filtrar todos los campos...")
+    
+    # --- FILTROS AVANZADOS ---
+    with st.expander("⚙️ Filtros Avanzados", expanded=True):
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        with col_f1:
+            filtro_cliente = st.text_input("👤 Cliente", key="filtro_cliente_consulta")
+        with col_f2:
+            filtro_club = st.text_input("⚽ Club", key="filtro_club_consulta")
+        with col_f3:
+            filtro_telefono = st.text_input("📱 Teléfono", key="filtro_telefono_consulta")
+        with col_f4:
+            filtro_estado = st.selectbox(
+                "🏷️ Estado",
+                options=["", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado", "Completado"],
+                key="filtro_estado_consulta"
+            )
 
     df_filtrado = df_pedidos_filtrado.copy()
 
-    # --- APLICAR FILTROS ---
+    # --- APLICAR FILTRO GLOBAL ---
+    if search_term:
+        mask = df_filtrado.apply(lambda row: search_term.lower() in str(row).lower(), axis=1)
+        df_filtrado = df_filtrado[mask]
+
+    # --- APLICAR FILTROS ESPECÍFICOS ---
     if filtro_cliente:
         df_filtrado = df_filtrado[df_filtrado['Cliente'].str.contains(filtro_cliente, case=False, na=False)]
 
@@ -172,22 +246,22 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla
+        # ✅ Mostrar tabla con estilo
         st.dataframe(
-            df_display[columnas_disponibles],
+            df_display[columnas_disponibles].style.apply(highlight_pedidos_rows, axis=1),
             column_config={
                 "Productos": st.column_config.TextColumn(
-                    "Productos",
+                    "🧵 Productos",
                     help="Primer producto del pedido. '+P' indica que hay más productos.",
                     width="medium"
                 ),
                 "Precio": st.column_config.NumberColumn(
-                    "Precio (€)",
+                    "💰 Precio (€)",
                     format="%.2f €",
                     width="small"
                 ),
                 "Estado": st.column_config.TextColumn(
-                    "Estado",
+                    "🏷️ Estado",
                     help="📌 Pendiente | 🔵 Empezado | ✅ Terminado | 📦 Retirado | 💰 Cobrado | ✔️ COMPLETADO",
                     width="medium"
                 ),
@@ -197,15 +271,34 @@ def show_consult(df_pedidos, df_listas):
             hide_index=True
         )
 
-        st.caption(f"Mostrando {len(df_filtrado)} de {len(df_pedidos_filtrado)} pedidos del año {año_seleccionado}")
+        st.caption(f"📊 Mostrando {len(df_filtrado)} de {len(df_pedidos_filtrado)} pedidos del año {año_seleccionado}")
 
-        # ✅ Botón para exportar a CSV
-        st.download_button(
-            "📥 Descargar como CSV",
-            df_filtrado.to_csv(index=False).encode('utf-8'),
-            f"pedidos_{año_seleccionado}_filtrados.csv",
-            "text/csv",
-            key='download-csv-consulta'
-        )
+        # ✅ Botón de exportación a Excel
+        st.write("---")
+        st.markdown("### 📥 Exportar Datos")
+        
+        # Preparar DataFrame para exportar
+        df_export = df_filtrado.copy()
+        
+        # Limpiar fechas
+        for col in ['Fecha entrada', 'Fecha Salida']:
+            if col in df_export.columns:
+                df_export[col] = pd.to_datetime(df_export[col], errors='coerce')
+        
+        buffer = io.BytesIO()
+        try:
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df_export.to_excel(writer, index=False, sheet_name='Pedidos')
+            
+            st.download_button(
+                label="📥 Descargar como Excel",
+                data=buffer.getvalue(),
+                file_name=f"pedidos_{año_seleccionado}_filtrados.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary"
+            )
+        except Exception as e:
+            st.error(f"❌ Error al generar el archivo Excel: {e}")
+
     else:
-        st.info("No se encontraron pedidos con los filtros aplicados")
+        st.info("📭 No se encontraron pedidos con los filtros aplicados")
