@@ -38,6 +38,7 @@ from modules.pedidos_page import show_pedidos_page
 from modules.gastos_page import show_gastos_page
 from modules.resumen_page import show_resumen_page
 from modules.config_page import show_config_page
+from modules.analisis_productos_page import show_analisis_productos_page 
 
 # --- CONSTANTES ---
 LOGO_URL = "https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1"
@@ -241,10 +242,7 @@ if check_password():
             st.info(f"No hay pedidos en {selected_year}.")
 
     elif page == "Ver Datos":
-        st.header("🗃️ Datos Cargados de Firestore")
-        for name, df in st.session_state.data.items():
-            st.subheader(f"Colección '{name.replace('df_', '')}'")
-            st.dataframe(df, use_container_width=True)
+        show_analisis_productos_page(df_pedidos)
 
     elif page == "Pedidos":
         show_pedidos_page(df_pedidos, df_listas)
