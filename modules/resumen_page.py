@@ -96,7 +96,7 @@ def show_resumen_page(df_pedidos, current_view):
         st.info(f"📭 No hay pedidos en el año {año_seleccionado}")
         return
 
-    # --- FILTROS POR VISTA ---
+        # --- FILTROS POR VISTA ---
     if current_view == "Todos los Pedidos":
         filtered_df = df_pedidos_filtrado.copy()
         st.subheader(f"📋 Todos los Pedidos ({año_seleccionado})")
@@ -112,6 +112,13 @@ def show_resumen_page(df_pedidos, current_view):
             (df_pedidos_filtrado['Pendiente'] == False)
         ]
         st.subheader(f"✅ Trabajos Terminados (no pendientes) - {año_seleccionado}")
+    elif current_view == "Trabajos Completados":
+        filtered_df = df_pedidos_filtrado[
+            (df_pedidos_filtrado['Trabajo Terminado'] == True) &
+            (df_pedidos_filtrado['Cobrado'] == True) &
+            (df_pedidos_filtrado['Retirado'] == True)
+        ]
+        st.subheader(f"✔️ Trabajos Completados - {año_seleccionado}")
     elif current_view == "Pedidos Pendientes":
         filtered_df = df_pedidos_filtrado[df_pedidos_filtrado['Pendiente'] == True]
         st.subheader(f"📌 Pedidos Pendientes - {año_seleccionado}")
