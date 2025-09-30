@@ -290,32 +290,29 @@ def show_create(df_pedidos, df_listas):
                 if save_dataframe_firestore(df_pedidos, 'pedidos'):
                     st.success(f"🎉 ¡Pedido **{next_id}** del año **{año_actual}** creado correctamente!")
                     st.balloons()
-                    
+    
                     # ✅ ENVIAR NOTIFICACIÓN POR TELEGRAM
                     try:
                         from utils.notifications import enviar_telegram
-                        
-                        # Obtener precio a mostrar (el que sea > 0)
                         precio_mostrar = precio if precio > 0 else precio_factura if precio_factura > 0 else 0.0
-                        
                         mensaje = f"🆕 <b>Nuevo pedido</b>\nID: {next_id}\nCliente: {cliente}\nEquipo: {club}\nPrecio: {precio_mostrar:.2f} €"
                         enviar_telegram(
                             mensaje=mensaje,
                             bot_token=st.secrets["telegram"]["bot_token"],
                             chat_id=st.secrets["telegram"]["chat_id"]
                         )
-                    except Exception as e:
-                        st.warning(f"⚠️ No se pudo enviar notificación: {e}")
+                     except Exception as e:
+                     st.warning(f"⚠️ No se pudo enviar notificación: {e}")
 
-                    if 'data' not in st.session_state:
-                        st.session_state['data'] = {}
-                    st.session_state.data['df_pedidos'] = df_pedidos
-
-                    st.session_state.reset_form = True
-                    st.session_state.force_refresh = str(datetime.now().timestamp())
-                    
-                    # Limpiar formulario
-                    time.sleep(2)
-                    st.rerun()
+                     # ✅ ACTUALIZAR SESIÓN Y MARCAR PARA RECARGAR DATOS
+                     st.session_state.data['df_pedidos'] = df_pedidos
+                     st.session_state.data_loaded = False  # ← ¡ESTO ES CLAVE!
+    
+                     st.session_state.reset_form = True
+                     st.session_state.force_refresh = str(datetime.now().timestamp())
+    
+                     time.sleep(1)
+                     st.rerun()
+     
                 else:
                     st.error("❌ Error al crear el pedido. Por favor, inténtelo de nuevo.")
