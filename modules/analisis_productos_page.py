@@ -3,7 +3,7 @@ import pandas as pd
 
 def show_analisis_productos_page(df_pedidos):
     """
-    Muestra un análisis detallado de productos usando 'Precio Factura' (o 'Precio' si no existe).
+    Muestra un análisis detallado con columnas separadas para 'Precio', 'Precio Factura' y su suma total.
     """
     st.header("📊 Análisis de Productos")
     st.write("---")
@@ -12,23 +12,20 @@ def show_analisis_productos_page(df_pedidos):
         st.info("📭 No hay pedidos registrados aún.")
         return
 
-    # Validar columna 'Producto'
+    # Validar columnas obligatorias
     if 'Producto' not in df_pedidos.columns:
-        st.error("❌ La columna 'Producto' no existe en los pedidos.")
+        st.error("❌ Falta la columna 'Producto'.")
+        return
+        
+    if 'Precio' not in df_pedidos.columns:
+        st.error("❌ Falta la columna 'Precio'.")
+        return
+        
+    if 'Precio Factura' not in df_pedidos.columns:
+        st.error("❌ Falta la columna 'Precio Factura'.")
         return
 
-    # --- Seleccionar columna de precio: prioridad a 'Precio Factura' ---
-    if 'Precio Factura' in df_pedidos.columns:
-        columna_precio = 'Precio Factura'
-        st.caption("💡 Usando columna: **'Precio Factura'**")
-    elif 'Precio' in df_pedidos.columns:
-        columna_precio = 'Precio'
-        st.caption("💡 Usando columna: **'Precio'** (no se encontró 'Precio Factura')")
-    else:
-        st.error("❌ No se encontró ninguna columna de precio ('Precio Factura' o 'Precio').")
-        return
-
-    # --- Filtrar pedidos completados (Terminado + Cobrado + Retirado) ---
+    # --- Filtrar pedidos completados ---
     df_completados = df_pedidos[
         (df_pedidos['Trabajo Terminado'] == True) &
         (df_pedidos['Cobrado'] == True) &
@@ -36,64 +33,83 @@ def show_analisis_productos_page(df_pedidos):
     ].copy()
 
     if df_completados.empty:
-        st.warning("⚠️ No hay pedidos completados. Mostrando todos los pedidos para el análisis.")
+        st.warning("⚠️ No hay pedidos completados. Mostrando todos los pedidos.")
         df_completados = df_pedidos.copy()
 
-    # --- Asegurar que la columna de precio sea numérica ---
-    df_completados[columna_precio] = pd.to_numeric(df_completados[columna_precio], errors='coerce').fillna(0)
+    # --- Asegurar que ambas columnas sean numéricas ---
+    for col in ['Precio', 'Precio Factura']:
+        df_completados[col] = pd.to_numeric(df_completados[col], errors='coerce').fillna(0)
+
+    # --- Calcular columna total ---
+    df_completados['Total'] = df_completados['Precio'] + df_completados['Precio Factura']
 
     # --- Agrupar por producto ---
     analisis = df_completados.groupby('Producto').agg(
         Unidades=('Producto', 'count'),
-        Ingresos=(columna_precio, 'sum')
+        Suma_Precio=('Precio', 'sum'),
+        Suma_Precio_Factura=('Precio Factura', 'sum'),
+        Suma_Total=('Total', 'sum')
     ).reset_index()
 
-    if analisis.empty or analisis['Ingresos'].sum() == 0:
-        st.info("📭 No hay datos suficientes para el análisis.")
+    if analisis.empty:
+        st.info("📭 No hay datos para analizar.")
         return
 
-    # Ordenar por ingresos (más rentable primero)
-    analisis = analisis.sort_values('Ingresos', ascending=False).reset_index(drop=True)
+    # Ordenar por suma total (más rentable primero)
+    analisis = analisis.sort_values('Suma_Total', ascending=False).reset_index(drop=True)
 
     # --- Métricas generales ---
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("👕 Productos Únicos", len(analisis))
+        st.metric("👕 Productos", len(analisis))
     with col2:
-        st.metric("🔢 Total Unidades", int(analisis['Unidades'].sum()))
+        st.metric("🔢 Unidades", int(analisis['Unidades'].sum()))
     with col3:
-        st.metric("💰 Ingresos Totales", f"{analisis['Ingresos'].sum():,.2f} €")
+        st.metric("💶 Precio Base", f"{analisis['Suma_Precio'].sum():,.2f} €")
+    with col4:
+        st.metric("🧾 Precio Factura", f"{analisis['Suma_Precio_Factura'].sum():,.2f} €")
+
+    st.write("---")
+    st.metric("💰 **INGRESOS TOTALES**", f"{analisis['Suma_Total'].sum():,.2f} €")
 
     st.write("---")
 
     # --- Producto más vendido y más rentable ---
     mas_vendido = analisis.loc[analisis['Unidades'].idxmax()]
-    mas_rentable = analisis.iloc[0]  # Ya está ordenado por ingresos
+    mas_rentable = analisis.iloc[0]
 
-    col4, col5 = st.columns(2)
-    with col4:
-        st.success(f"🔝 **Más Vendido**\n\n**{mas_vendido['Producto']}**\n{int(mas_vendido['Unidades'])} unidades")
+    col5, col6 = st.columns(2)
     with col5:
-        st.success(f"💎 **Más Rentable**\n\n**{mas_rentable['Producto']}**\n{mas_rentable['Ingresos']:,.2f} €")
+        st.success(f"🔝 **Más Vendido**\n\n**{mas_vendido['Producto']}**\n{int(mas_vendido['Unidades'])} unidades")
+    with col6:
+        st.success(f"💎 **Más Rentable**\n\n**{mas_rentable['Producto']}**\n{mas_rentable['Suma_Total']:,.2f} €")
 
     st.write("---")
 
     # --- Tabla detallada ---
     st.subheader("📋 Desglose por Producto")
     analisis_display = analisis.copy()
-    analisis_display['Ingresos Formateado'] = analisis_display['Ingresos'].apply(lambda x: f"{x:,.2f} €")
-    
+    for col in ['Suma_Precio', 'Suma_Precio_Factura', 'Suma_Total']:
+        analisis_display[col] = analisis_display[col].apply(lambda x: f"{x:,.2f} €")
+
     st.dataframe(
-        analisis_display[['Producto', 'Unidades', 'Ingresos Formateado']].rename(columns={
+        analisis_display[[
+            'Producto', 'Unidades', 
+            'Suma_Precio', 'Suma_Precio_Factura', 'Suma_Total'
+        ]].rename(columns={
             'Producto': 'Producto',
             'Unidades': 'Unidades Vendidas',
-            'Ingresos Formateado': 'Ingresos Totales'
+            'Suma_Precio': 'Total Precio Base',
+            'Suma_Precio_Factura': 'Total Precio Factura',
+            'Suma_Total': 'Ingresos Totales'
         }),
         use_container_width=True,
         hide_index=True,
         column_config={
             "Unidades Vendidas": st.column_config.NumberColumn("👕 Unidades", format="%d"),
-            "Ingresos Totales": st.column_config.TextColumn("💰 Ingresos", width="medium")
+            "Total Precio Base": st.column_config.TextColumn("💶 Base", width="small"),
+            "Total Precio Factura": st.column_config.TextColumn("🧾 Factura", width="small"),
+            "Ingresos Totales": st.column_config.TextColumn("💰 Total", width="medium")
         }
     )
 
@@ -103,7 +119,6 @@ def show_analisis_productos_page(df_pedidos):
     st.download_button(
         "📥 Descargar análisis como CSV",
         csv,
-        "analisis_productos.csv",
-        "text/csv",
-        key='download-csv'
+        "analisis_productos_completo.csv",
+        "text/csv"
     )
