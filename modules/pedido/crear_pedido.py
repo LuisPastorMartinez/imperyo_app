@@ -1,4 +1,4 @@
-#Crear pedido
+# Crear pedido
 import streamlit as st  
 import pandas as pd
 import json
@@ -290,7 +290,7 @@ def show_create(df_pedidos, df_listas):
                 if save_dataframe_firestore(df_pedidos, 'pedidos'):
                     st.success(f"🎉 ¡Pedido **{next_id}** del año **{año_actual}** creado correctamente!")
                     st.balloons()
-    
+                    
                     # ✅ ENVIAR NOTIFICACIÓN POR TELEGRAM
                     try:
                         from utils.notifications import enviar_telegram
@@ -301,18 +301,17 @@ def show_create(df_pedidos, df_listas):
                             bot_token=st.secrets["telegram"]["bot_token"],
                             chat_id=st.secrets["telegram"]["chat_id"]
                         )
-                     except Exception as e:
-                     st.warning(f"⚠️ No se pudo enviar notificación: {e}")
+                    except Exception as e:
+                        st.warning(f"⚠️ No se pudo enviar notificación: {e}")
 
-                     # ✅ ACTUALIZAR SESIÓN Y MARCAR PARA RECARGAR DATOS
-                     st.session_state.data['df_pedidos'] = df_pedidos
-                     st.session_state.data_loaded = False  # ← ¡ESTO ES CLAVE!
-    
-                     st.session_state.reset_form = True
-                     st.session_state.force_refresh = str(datetime.now().timestamp())
-    
-                     time.sleep(1)
-                     st.rerun()
-     
+                    # ✅ ACTUALIZAR SESIÓN Y MARCAR PARA RECARGAR DATOS
+                    st.session_state.data['df_pedidos'] = df_pedidos
+                    st.session_state.data_loaded = False  # ← ¡ESTO ES CLAVE!
+                    
+                    st.session_state.reset_form = True
+                    st.session_state.force_refresh = str(datetime.now().timestamp())
+                    
+                    time.sleep(1)
+                    st.rerun()
                 else:
                     st.error("❌ Error al crear el pedido. Por favor, inténtelo de nuevo.")
