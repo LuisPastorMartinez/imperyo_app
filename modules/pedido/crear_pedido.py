@@ -220,15 +220,15 @@ def show_create(df_pedidos, df_listas):
                 placeholder="Notas internas, acuerdos, etc."
             )
 
-        # ✅ ESTADO INICIAL: ahora con opción "Sin estado"
+        # ✅ ESTADOS INDEPENDIENTES (checkboxes)
         st.write("### 🏷️ Estado del pedido")
-        estado = st.radio(
-            "Selecciona el estado inicial (opcional):",
-            options=["Sin estado", "Empezado", "Cobrado", "Pendiente"],
-            index=0,  # "Sin estado" por defecto → ningún estado activo
-            horizontal=True,
-            key=f"estado_{suffix}"
-        )
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            empezado = st.checkbox("Empezado", value=False, key=f"empezado_{suffix}")
+        with col_b:
+            cobrado = st.checkbox("Cobrado", value=False, key=f"cobrado_{suffix}")
+        with col_c:
+            pendiente = st.checkbox("Pendiente", value=False, key=f"pendiente_{suffix}")
 
         submitted = st.form_submit_button("✅ Guardar Nuevo Pedido", type="primary", use_container_width=True)
 
@@ -244,16 +244,7 @@ def show_create(df_pedidos, df_listas):
 
             productos_json = json.dumps(productos_temp)
 
-            # ✅ Mapeo corregido: ningún estado activo si se elige "Sin estado"
-            if estado == "Empezado":
-                empezado, cobrado, pendiente = True, False, False
-            elif estado == "Cobrado":
-                empezado, cobrado, pendiente = False, True, False
-            elif estado == "Pendiente":
-                empezado, cobrado, pendiente = False, False, True
-            else:  # "Sin estado"
-                empezado, cobrado, pendiente = False, False, False
-
+            # ✅ Los valores de los checkboxes se usan directamente
             new_pedido = {
                 'ID': next_id,
                 'Productos': productos_json,
