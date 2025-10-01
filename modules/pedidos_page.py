@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Importamos las funciones de pedido
 try:
-    from modules.pedido import show_create, show_consult, show_modify, show_delete
+    from modules.pedido_page import show_create, show_consult, show_modify, show_delete
 except ImportError as e:
     st.error(f"❌ Error al importar 'modules.pedido': {e}")
     st.stop()
