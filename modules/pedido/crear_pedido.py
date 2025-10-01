@@ -220,11 +220,12 @@ def show_create(df_pedidos, df_listas):
                 placeholder="Notas internas, acuerdos, etc."
             )
 
+        # ✅ ESTADO INICIAL: ahora con opción "Sin estado"
         st.write("### 🏷️ Estado del pedido")
         estado = st.radio(
-            "Selecciona el estado inicial:",
-            options=["Empezado", "Cobrado", "Pendiente"],
-            index=0,
+            "Selecciona el estado inicial (opcional):",
+            options=["Sin estado", "Empezado", "Cobrado", "Pendiente"],
+            index=0,  # "Sin estado" por defecto → ningún estado activo
             horizontal=True,
             key=f"estado_{suffix}"
         )
@@ -243,9 +244,15 @@ def show_create(df_pedidos, df_listas):
 
             productos_json = json.dumps(productos_temp)
 
-            empezado = estado == "Empezado"
-            cobrado = estado == "Cobrado"
-            pendiente = estado == "Pendiente"
+            # ✅ Mapeo corregido: ningún estado activo si se elige "Sin estado"
+            if estado == "Empezado":
+                empezado, cobrado, pendiente = True, False, False
+            elif estado == "Cobrado":
+                empezado, cobrado, pendiente = False, True, False
+            elif estado == "Pendiente":
+                empezado, cobrado, pendiente = False, False, True
+            else:  # "Sin estado"
+                empezado, cobrado, pendiente = False, False, False
 
             new_pedido = {
                 'ID': next_id,
