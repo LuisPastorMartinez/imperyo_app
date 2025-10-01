@@ -5,18 +5,18 @@ from firebase_admin import credentials, firestore
 from datetime import datetime, date
 import numpy as np
 import logging
-from firebase_admin import firestore
 
 # Importar función compartida
 from utils.helpers import convert_to_firestore_type
 
-# Configuración de colecciones
+# Configuración de colecciones — ¡AÑADIMOS 'posibles_clientes'!
 COLLECTION_NAMES = {
     'pedidos': 'pedidos',
     'gastos': 'gastos',
     'totales': 'totales', 
     'listas': 'listas',
-    'trabajos': 'trabajos'
+    'trabajos': 'trabajos',
+    'posibles_clientes': 'posibles_clientes'  # ✅ NUEVO
 }
 
 # Configurar logging
@@ -106,6 +106,17 @@ def load_dataframes_firestore():
                                 'Breve Descripción', 'Tipo de pago', 'Observaciones', 'Año']:
                         if col in df.columns:
                             df[col] = df[col].fillna('').astype(str)
+
+                elif key == 'posibles_clientes':
+                    # Procesamiento para posibles clientes
+                    for col in ['Fecha contacto']:
+                        if col in df.columns:
+                            df[col] = pd.to_datetime(df[col], errors='coerce')
+                    for col in ['Cliente', 'Telefono', 'Club', 'Mensaje', 'Observaciones']:
+                        if col in df.columns:
+                            df[col] = df[col].fillna('').astype(str)
+                    if 'Año' in df.columns:
+                        df['Año'] = pd.to_numeric(df['Año'], errors='coerce').fillna(0).astype('int64')
             else:
                 df = create_empty_dataframe(collection_name)
 
@@ -191,11 +202,16 @@ def create_empty_dataframe(collection_name):
             'Breve Descripción', 'Fecha entrada', 'Fecha Salida', 'Precio',
             'Precio Factura', 'Tipo de pago', 'Adelanto', 'Observaciones',
             'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
-            'Año',  # ✅ ¡AÑADIDO!
+            'Año',
             'id_documento_firestore'
         ])
     elif collection_name == 'gastos':
         return pd.DataFrame(columns=['ID', 'Fecha', 'Concepto', 'Importe', 'Tipo', 'id_documento_firestore'])
+    elif collection_name == 'posibles_clientes':
+        return pd.DataFrame(columns=[
+            'Cliente', 'Telefono', 'Club', 'Mensaje', 'Observaciones',
+            'Fecha contacto', 'Año', 'id_documento_firestore'
+        ])
     return pd.DataFrame()
 
 def get_next_id(df, id_column_name):
@@ -205,3 +221,33 @@ def get_next_id(df, id_column_name):
     df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
     df_clean = df.dropna(subset=[id_column_name])
     return 1 if df_clean.empty else int(df_clean[id_column_name].max()) + 1
+
+
+# ✅ NUEVA FUNCIÓN: guardar un solo documento
+def save_single_document_firestore(document_data: dict, collection_name: str) -> bool:
+    """Guarda un único documento en la colección especificada."""
+    client = get_firestore_client()
+    if client is None:
+        return False
+
+    try:
+        # Sanitizar datos
+        sanitized_data = {}
+        for k, v in document_data.items():
+            if v is pd.NaT:
+                sanitized_data[k] = None
+            elif isinstance(v, pd.Timestamp):
+                sanitized_data[k] = v.to_pydatetime()
+            elif isinstance(v, (pd.Series, pd.DataFrame)):
+                continue  # Ignorar estructuras complejas
+            else:
+                sanitized_data[k] = convert_to_firestore_type(v)
+
+        # Guardar en Firestore
+        doc_ref = client.collection(collection_name).document()
+        doc_ref.set(sanitized_data)
+        return True
+    except Exception as e:
+        st.error(f"Error guardando documento en '{collection_name}': {e}")
+        logger.error(f"Error guardando documento en '{collection_name}': {e}")
+        return False
