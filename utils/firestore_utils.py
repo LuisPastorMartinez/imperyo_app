@@ -29,14 +29,17 @@ def get_firestore_client():
                 st.error("Error: No se encontraron credenciales de Firestore en secrets.")
                 return None
 
-            # 🔥 CORRECCIÓN CLAVE: Detectar si st.secrets["firestore"] ya es dict
+            # 🔥 CORRECCIÓN DEFINITIVA: Detectar si es dict o str
             secret_value = st.secrets["firestore"]
+            
+            # Si ya es un diccionario (Streamlit Cloud), usarlo directamente
             if isinstance(secret_value, dict):
-                creds_dict = secret_value  # ✅ Ya es dict (Streamlit Cloud)
+                creds_dict = dict(secret_value)  # Convertir AttrDict a dict normal
             else:
+                # Si es una cadena (local), parsearla como JSON
                 import json
-                creds_dict = json.loads(secret_value)  # ✅ Es cadena (local)
-
+                creds_dict = json.loads(secret_value)
+            
             if not firebase_admin._apps:
                 cred = credentials.Certificate(creds_dict)
                 firebase_admin.initialize_app(cred)
