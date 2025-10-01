@@ -3,20 +3,18 @@ import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime
-import numpy as np
 import logging
 
 # Importar función compartida
 from utils.helpers import convert_to_firestore_type
 
-# Configuración de colecciones
+# Configuración de colecciones (SOLO LAS ORIGINALES)
 COLLECTION_NAMES = {
     'pedidos': 'pedidos',
     'gastos': 'gastos',
     'totales': 'totales', 
     'listas': 'listas',
-    'trabajos': 'trabajos',
-    'posibles_clientes': 'posibles_clientes'
+    'trabajos': 'trabajos'
 }
 
 logger = logging.getLogger(__name__)
@@ -29,16 +27,9 @@ def get_firestore_client():
                 st.error("Error: No se encontraron credenciales de Firestore en secrets.")
                 return None
 
-            # 🔥 CORRECCIÓN DEFINITIVA: Detectar si es dict o str
-            secret_value = st.secrets["firestore"]
-            
-            # Si ya es un diccionario (Streamlit Cloud), usarlo directamente
-            if isinstance(secret_value, dict):
-                creds_dict = dict(secret_value)  # Convertir AttrDict a dict normal
-            else:
-                # Si es una cadena (local), parsearla como JSON
-                import json
-                creds_dict = json.loads(secret_value)
+            # 🔥 Versión segura: asume que st.secrets["firestore"] YA ES UN DICCIONARIO
+            # (así funciona en Streamlit Cloud)
+            creds_dict = dict(st.secrets["firestore"])
             
             if not firebase_admin._apps:
                 cred = credentials.Certificate(creds_dict)
@@ -47,13 +38,14 @@ def get_firestore_client():
             st.session_state.firestore_client = firestore.client()
         except Exception as e:
             st.error(f"Error inicializando Firestore: {e}")
-            logger.error(f"Error inicializando Firestore: {e}", exc_info=True)
+            logger.error(f"Error inicializando Firestore: {e}")
             return None
     return st.session_state.firestore_client
 
 db = get_firestore_client()
 
 def _sanitize_dataframe_for_firestore(df: pd.DataFrame) -> pd.DataFrame:
+    """Aplica conversión celda a celda usando la función compartida."""
     if df is None or df.empty:
         return df
     df = df.copy()
@@ -113,27 +105,6 @@ def load_dataframes_firestore():
                                 'Breve Descripción', 'Tipo de pago', 'Observaciones', 'Año']:
                         if col in df.columns:
                             df[col] = df[col].fillna('').astype(str)
-
-                elif key == 'posibles_clientes':
-                    # Fechas
-                    if 'Fecha contacto' in df.columns:
-                        df['Fecha contacto'] = pd.to_datetime(df['Fecha contacto'], errors='coerce')
-                    # Año
-                    if 'Año' in df.columns:
-                        df['Año'] = pd.to_numeric(df['Año'], errors='coerce').fillna(datetime.now().year).astype('int64')
-                    # Textos
-                    for col in ['Cliente', 'Telefono', 'Club', 'Mensaje', 'Observaciones']:
-                        if col in df.columns:
-                            df[col] = df[col].fillna('').astype(str)
-
-                elif key == 'gastos':
-                    if 'Fecha' in df.columns:
-                        df['Fecha'] = pd.to_datetime(df['Fecha'], errors='coerce')
-                    if 'ID' in df.columns:
-                        df['ID'] = pd.to_numeric(df['ID'], errors='coerce').fillna(0).astype('int64')
-                    if 'Importe' in df.columns:
-                        df['Importe'] = pd.to_numeric(df['Importe'], errors='coerce').fillna(0.0).astype('float64')
-
             else:
                 df = create_empty_dataframe(collection_name)
 
@@ -142,10 +113,11 @@ def load_dataframes_firestore():
         return data
     except Exception as e:
         st.error(f"Error cargando datos: {e}")
-        logger.error(f"Error cargando datos: {e}", exc_info=True)
+        logger.error(f"Error cargando datos: {e}")
         return None
 
 def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
+    """Guarda un DataFrame en Firestore usando batch para mayor eficiencia."""
     if db is None:
         return False
 
@@ -155,18 +127,23 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
 
     try:
         df = _sanitize_dataframe_for_firestore(df)
+
         batch = db.batch()
         collection_ref = db.collection(collection_name)
 
+        # Si no es pedidos, borrar todo y reescribir (como antes)
         if collection_key != 'pedidos':
             docs = collection_ref.stream()
             for doc in docs:
                 batch.delete(doc.reference)
 
+        # Guardar cada fila
         for _, row in df.iterrows():
             record = row.drop('id_documento_firestore', errors='ignore').to_dict()
+
+            # Limpieza final por si acaso
             for k, v in list(record.items()):
-                if v is pd.NaT or (isinstance(v, float) and np.isnan(v)):
+                if v is pd.NaT:
                     record[k] = None
                 elif isinstance(v, pd.Timestamp):
                     record[k] = v.to_pydatetime()
@@ -176,6 +153,7 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
                 doc_ref = collection_ref.document(doc_id)
             else:
                 doc_ref = collection_ref.document()
+
             batch.set(doc_ref, record)
 
         batch.commit()
@@ -183,62 +161,11 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
 
     except Exception as e:
         st.error(f"Error guardando en Firestore: {e}")
-        logger.error(f"Error guardando en Firestore: {e}", exc_info=True)
-        return False
-
-def save_single_document_firestore(data: dict, collection_key: str) -> bool:
-    """Guarda un único documento (ideal para 'posibles_clientes')."""
-    if db is None:
-        return False
-
-    collection_name = COLLECTION_NAMES.get(collection_key)
-    if not collection_name:
-        return False
-
-    try:
-        sanitized_data = {}
-        for k, v in data.items():
-            if v is None or (isinstance(v, float) and np.isnan(v)):
-                sanitized_data[k] = None
-            elif hasattr(v, 'to_pydatetime'):  # pd.Timestamp
-                sanitized_data[k] = v.to_pydatetime()
-            else:
-                sanitized_data[k] = convert_to_firestore_type(v)
-
-        db.collection(collection_name).add(sanitized_data)
-        return True
-    except Exception as e:
-        st.error(f"Error guardando en '{collection_name}': {e}")
-        logger.error(f"Error guardando en '{collection_name}': {e}", exc_info=True)
-        return False
-
-def update_single_document_firestore(doc_id: str, data: dict, collection_key: str) -> bool:
-    """Actualiza un documento existente."""
-    if db is None:
-        return False
-
-    collection_name = COLLECTION_NAMES.get(collection_key)
-    if not collection_name:
-        return False
-
-    try:
-        sanitized_data = {}
-        for k, v in data.items():
-            if v is None or (isinstance(v, float) and np.isnan(v)):
-                sanitized_data[k] = None
-            elif hasattr(v, 'to_pydatetime'):
-                sanitized_data[k] = v.to_pydatetime()
-            else:
-                sanitized_data[k] = convert_to_firestore_type(v)
-
-        db.collection(collection_name).document(doc_id).set(sanitized_data, merge=True)
-        return True
-    except Exception as e:
-        st.error(f"Error actualizando en '{collection_name}': {e}")
-        logger.error(f"Error actualizando en '{collection_name}': {e}", exc_info=True)
+        logger.error(f"Error guardando en Firestore: {e}")
         return False
 
 def delete_document_firestore(collection_key, doc_id):
+    """Elimina un documento específico"""
     if db is None:
         return False
 
@@ -251,29 +178,26 @@ def delete_document_firestore(collection_key, doc_id):
         return True
     except Exception as e:
         st.error(f"Error eliminando documento: {e}")
-        logger.error(f"Error eliminando documento: {e}", exc_info=True)
+        logger.error(f"Error eliminando documento: {e}")
         return False
 
 def create_empty_dataframe(collection_name):
+    """Crea DataFrames vacíos con la estructura correcta"""
     if collection_name == 'pedidos':
         return pd.DataFrame(columns=[
             'ID', 'Producto', 'Cliente', 'Telefono', 'Club', 'Talla', 'Tela',
             'Breve Descripción', 'Fecha entrada', 'Fecha Salida', 'Precio',
             'Precio Factura', 'Tipo de pago', 'Adelanto', 'Observaciones',
             'Inicio Trabajo', 'Cobrado', 'Retirado', 'Pendiente', 'Trabajo Terminado',
-            'Año', 'id_documento_firestore'
+            'Año',  # ✅ ¡AÑADIDO!
+            'id_documento_firestore'
         ])
     elif collection_name == 'gastos':
         return pd.DataFrame(columns=['ID', 'Fecha', 'Concepto', 'Importe', 'Tipo', 'id_documento_firestore'])
-    elif collection_name == 'posibles_clientes':
-        return pd.DataFrame(columns=[
-            'Cliente', 'Telefono', 'Club', 'Mensaje', 'Observaciones',
-            'Fecha contacto', 'Año', 'id_documento_firestore'
-        ])
-    else:
-        return pd.DataFrame()
+    return pd.DataFrame()
 
 def get_next_id(df, id_column_name):
+    """Obtiene el próximo ID disponible"""
     if df.empty or id_column_name not in df.columns:
         return 1
     df[id_column_name] = pd.to_numeric(df[id_column_name], errors='coerce')
