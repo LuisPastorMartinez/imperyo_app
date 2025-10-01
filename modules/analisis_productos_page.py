@@ -1,10 +1,38 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import json
+
+def extraer_primer_producto(productos_json):
+    """Extrae el nombre del primer producto desde JSON o devuelve el valor original."""
+    if pd.isna(productos_json) or productos_json == "" or productos_json is None:
+        return "Sin producto"
+    
+    try:
+        # Si es string JSON
+        if isinstance(productos_json, str):
+            productos = json.loads(productos_json)
+        # Si ya es lista (raro, pero posible)
+        elif isinstance(productos_json, list):
+            productos = productos_json
+        else:
+            return str(productos_json)
+        
+        if isinstance(productos, list) and len(productos) > 0:
+            primer_producto = productos[0]
+            if isinstance(primer_producto, dict):
+                return primer_producto.get("Producto", "Sin producto")
+            else:
+                return str(primer_producto)
+        else:
+            return "Sin producto"
+    except (json.JSONDecodeError, TypeError, KeyError, IndexError):
+        return str(productos_json) if not pd.isna(productos_json) else "Sin producto"
 
 def show_analisis_productos_page(df_pedidos):
     """
-    Muestra análisis de productos con selector de año y ambas columnas de precio.
+    Muestra análisis de productos compatible con pedidos antiguos (columna 'Producto') 
+    y nuevos (columna 'Productos' en JSON).
     """
     st.header("📊 Análisis de Productos")
     st.write("---")
@@ -13,43 +41,48 @@ def show_analisis_productos_page(df_pedidos):
         st.info("📭 No hay pedidos registrados aún.")
         return
 
-    # Validar columna obligatoria
-    if 'Producto' not in df_pedidos.columns:
-        st.error("❌ Falta la columna 'Producto'.")
-        return
-
     # --- Asegurar columna 'Año' ---
     if 'Año' not in df_pedidos.columns:
-        st.warning("⚠️ Columna 'Año' no encontrada. Usando año actual para todos los pedidos.")
+        st.warning("⚠️ Columna 'Año' no encontrada. Usando año actual.")
         df_pedidos['Año'] = datetime.now().year
     else:
-        # Convertir a entero y limpiar
         df_pedidos['Año'] = pd.to_numeric(df_pedidos['Año'], errors='coerce').fillna(datetime.now().year).astype('int64')
 
     # --- Selector de año ---
     años_disponibles = sorted(df_pedidos['Año'].dropna().unique(), reverse=True)
-    if not años_disponibles:
-        años_disponibles = [datetime.now().year]
-    
     año_seleccionado = st.selectbox(
         "📅 Selecciona el año para analizar:",
-        options=años_disponibles,
+        options=años_disponibles if años_disponibles else [datetime.now().year],
         index=0,
         key="analisis_año_selector"
     )
 
-    # --- Filtrar por año seleccionado ---
     df_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy()
 
-    # --- Verificar qué columnas de precio existen ---
+    # --- Crear columna 'Producto_Unificado' ---
+    if 'Producto' in df_filtrado.columns and 'Productos' in df_filtrado.columns:
+        # Usar 'Producto' si está disponible, si no, extraer de 'Productos'
+        df_filtrado['Producto_Unificado'] = df_filtrado.apply(
+            lambda row: row['Producto'] if pd.notna(row['Producto']) and row['Producto'] != "" else extraer_primer_producto(row['Productos']),
+            axis=1
+        )
+    elif 'Producto' in df_filtrado.columns:
+        df_filtrado['Producto_Unificado'] = df_filtrado['Producto'].fillna("Sin producto")
+    elif 'Productos' in df_filtrado.columns:
+        df_filtrado['Producto_Unificado'] = df_filtrado['Productos'].apply(extraer_primer_producto)
+    else:
+        st.error("❌ No se encontraron columnas de producto ('Producto' o 'Productos').")
+        return
+
+    # --- Verificar columnas de precio ---
     tiene_precio = 'Precio' in df_filtrado.columns
     tiene_precio_factura = 'Precio Factura' in df_filtrado.columns
 
     if not tiene_precio and not tiene_precio_factura:
-        st.error("❌ No se encontraron columnas de precio ('Precio' o 'Precio Factura').")
+        st.error("❌ No se encontraron columnas de precio.")
         return
 
-    # --- Filtrar pedidos completados (opcional, pero recomendado) ---
+    # --- Filtrar pedidos completados ---
     if {'Trabajo Terminado', 'Cobrado', 'Retirado'}.issubset(df_filtrado.columns):
         df_completados = df_filtrado[
             (df_filtrado['Trabajo Terminado'] == True) &
@@ -57,45 +90,40 @@ def show_analisis_productos_page(df_pedidos):
             (df_filtrado['Retirado'] == True)
         ].copy()
         if df_completados.empty:
-            st.warning(f"⚠️ No hay pedidos completados en {año_seleccionado}. Mostrando todos los pedidos del año.")
+            st.warning(f"⚠️ No hay pedidos completados en {año_seleccionado}. Mostrando todos.")
             df_completados = df_filtrado.copy()
     else:
-        st.info(f"ℹ️ Mostrando todos los pedidos de {año_seleccionado} (no se pueden filtrar completados).")
         df_completados = df_filtrado.copy()
 
-    # --- Asegurar que las columnas de precio sean numéricas ---
-    if tiene_precio:
-        df_completados['Precio'] = pd.to_numeric(df_completados['Precio'], errors='coerce').fillna(0)
-    else:
-        df_completados['Precio'] = 0
+    # --- Preparar precios ---
+    for col in ['Precio', 'Precio Factura']:
+        if col in df_completados.columns:
+            df_completados[col] = pd.to_numeric(df_completados[col], errors='coerce').fillna(0)
+        else:
+            df_completados[col] = 0
 
-    if tiene_precio_factura:
-        df_completados['Precio Factura'] = pd.to_numeric(df_completados['Precio Factura'], errors='coerce').fillna(0)
-    else:
-        df_completados['Precio Factura'] = 0
-
-    # --- Calcular total ---
     df_completados['Total'] = df_completados['Precio'] + df_completados['Precio Factura']
 
-    # --- Agrupar por producto ---
+    # --- Agrupar por producto unificado ---
     if df_completados.empty:
-        st.info(f"📭 No hay datos para analizar en {año_seleccionado}.")
+        st.info(f"📭 No hay datos en {año_seleccionado}.")
         return
 
-    analisis = df_completados.groupby('Producto').agg(
-        Unidades=('Producto', 'count'),
+    analisis = df_completados.groupby('Producto_Unificado').agg(
+        Unidades=('Producto_Unificado', 'count'),
         Suma_Precio=('Precio', 'sum'),
         Suma_Precio_Factura=('Precio Factura', 'sum'),
         Suma_Total=('Total', 'sum')
     ).reset_index()
 
-    if analisis.empty:
-        st.info(f"📭 No hay datos suficientes para el análisis en {año_seleccionado}.")
+    if analisis.empty or analisis['Suma_Total'].sum() == 0:
+        st.info(f"📭 No hay datos suficientes en {año_seleccionado}.")
         return
 
     analisis = analisis.sort_values('Suma_Total', ascending=False).reset_index(drop=True)
+    analisis.rename(columns={'Producto_Unificado': 'Producto'}, inplace=True)
 
-    # --- Métricas ---
+    # --- Mostrar resultados ---
     col1, col2 = st.columns(2)
     with col1:
         st.metric("👕 Productos", len(analisis))
@@ -112,14 +140,14 @@ def show_analisis_productos_page(df_pedidos):
     if not analisis.empty:
         mas_vendido = analisis.loc[analisis['Unidades'].idxmax()]
         mas_rentable = analisis.iloc[0]
-
+        
         col3, col4 = st.columns(2)
         with col3:
             st.success(f"🔝 **Más Vendido**\n\n**{mas_vendido['Producto']}**\n{int(mas_vendido['Unidades'])} unidades")
         with col4:
             st.success(f"💎 **Más Rentable**\n\n**{mas_rentable['Producto']}**\n{mas_rentable['Suma_Total']:,.2f} €")
 
-    # --- Tabla detallada ---
+    # --- Tabla ---
     st.subheader(f"📋 Desglose por Producto ({año_seleccionado})")
     cols_mostrar = ['Producto', 'Unidades']
     if tiene_precio:
