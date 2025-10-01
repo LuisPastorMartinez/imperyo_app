@@ -2,13 +2,15 @@ import streamlit as st
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime
+from datetime import datetime, date
+import numpy as np
 import logging
+from firebase_admin import firestore
 
 # Importar función compartida
 from utils.helpers import convert_to_firestore_type
 
-# Configuración de colecciones (SOLO LAS ORIGINALES)
+# Configuración de colecciones
 COLLECTION_NAMES = {
     'pedidos': 'pedidos',
     'gastos': 'gastos',
@@ -17,6 +19,7 @@ COLLECTION_NAMES = {
     'trabajos': 'trabajos'
 }
 
+# Configurar logging
 logger = logging.getLogger(__name__)
 
 def get_firestore_client():
@@ -27,12 +30,10 @@ def get_firestore_client():
                 st.error("Error: No se encontraron credenciales de Firestore en secrets.")
                 return None
 
-            # 🔥 Versión segura: asume que st.secrets["firestore"] YA ES UN DICCIONARIO
-            # (así funciona en Streamlit Cloud)
-            creds_dict = dict(st.secrets["firestore"])
+            cred_dict = dict(st.secrets["firestore"])
             
             if not firebase_admin._apps:
-                cred = credentials.Certificate(creds_dict)
+                cred = credentials.Certificate(cred_dict)
                 firebase_admin.initialize_app(cred)
             
             st.session_state.firestore_client = firestore.client()
@@ -86,7 +87,7 @@ def load_dataframes_firestore():
                                 return False
                             df[col] = df[col].apply(safe_bool).fillna(False).astype(bool)
 
-                    # Fechas
+                    # Fechas → mantener como datetime (NO convertir a string aquí)
                     for col in ['Fecha entrada', 'Fecha Salida']:
                         if col in df.columns:
                             df[col] = pd.to_datetime(df[col], errors='coerce')
@@ -108,6 +109,7 @@ def load_dataframes_firestore():
             else:
                 df = create_empty_dataframe(collection_name)
 
+            # --- ✅ CLAVE CORRECTA: con prefijo 'df_' ---
             data[f'df_{key}'] = df
 
         return data
