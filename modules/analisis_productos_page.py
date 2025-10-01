@@ -3,38 +3,70 @@ import pandas as pd
 from datetime import datetime
 import json
 
-def extraer_primer_producto(productos_json):
-    """Extrae el nombre del primer producto desde JSON o devuelve el valor original."""
-    if pd.isna(productos_json) or productos_json == "" or productos_json is None:
-        return "Sin producto"
+def explotar_productos_json(df_pedidos):
+    """
+    Convierte la columna 'Productos' (JSON) en filas individuales con Producto + Tela.
+    Retorna un DataFrame con: Producto, Tela, Cantidad, Precio_Unitario, y metadatos del pedido.
+    """
+    filas_expandidas = []
     
-    try:
-        # Si es string JSON
-        if isinstance(productos_json, str):
-            productos = json.loads(productos_json)
-        # Si ya es lista (raro, pero posible)
-        elif isinstance(productos_json, list):
-            productos = productos_json
-        else:
-            return str(productos_json)
-        
-        if isinstance(productos, list) and len(productos) > 0:
-            primer_producto = productos[0]
-            if isinstance(primer_producto, dict):
-                return primer_producto.get("Producto", "Sin producto")
+    for idx, row in df_pedidos.iterrows():
+        productos_json = row.get('Productos')
+        if pd.isna(productos_json) or productos_json == "" or productos_json is None:
+            continue
+            
+        try:
+            if isinstance(productos_json, str):
+                productos = json.loads(productos_json)
+            elif isinstance(productos_json, list):
+                productos = productos_json
             else:
-                return str(primer_producto)
-        else:
-            return "Sin producto"
-    except (json.JSONDecodeError, TypeError, KeyError, IndexError):
-        return str(productos_json) if not pd.isna(productos_json) else "Sin producto"
+                continue
+                
+            if not isinstance(productos, list):
+                continue
+                
+            for item in productos:
+                if not isinstance(item, dict):
+                    continue
+                    
+                producto = item.get('Producto', 'Sin producto')
+                tela = item.get('Tela', 'Sin tela')
+                cantidad = item.get('Cantidad', 1)
+                precio_unit = item.get('PrecioUnitario', 0.0)
+                
+                # Asegurar tipos
+                try:
+                    cantidad = int(cantidad)
+                    precio_unit = float(precio_unit)
+                except (ValueError, TypeError):
+                    continue
+                
+                filas_expandidas.append({
+                    'Producto': producto,
+                    'Tela': tela,
+                    'Cantidad': cantidad,
+                    'Precio_Unitario': precio_unit,
+                    'Subtotal': cantidad * precio_unit,
+                    'ID_Pedido': row.get('ID', idx),
+                    'Año': row.get('Año', datetime.now().year),
+                    'Precio_Factura_Pedido': row.get('Precio Factura', 0.0),
+                    'Precio_Pedido': row.get('Precio', 0.0)
+                })
+                
+        except (json.JSONDecodeError, TypeError, KeyError, ValueError):
+            continue
+    
+    if not filas_expandidas:
+        return pd.DataFrame()
+    
+    return pd.DataFrame(filas_expandidas)
 
 def show_analisis_productos_page(df_pedidos):
     """
-    Muestra análisis de productos compatible con pedidos antiguos (columna 'Producto') 
-    y nuevos (columna 'Productos' en JSON).
+    Análisis avanzado que explota el JSON de productos para mostrar combinaciones Producto + Tela.
     """
-    st.header("📊 Análisis de Productos")
+    st.header("📊 Análisis Detallado de Productos")
     st.write("---")
 
     if df_pedidos.empty:
@@ -59,127 +91,115 @@ def show_analisis_productos_page(df_pedidos):
 
     df_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy()
 
-    # --- Crear columna 'Producto_Unificado' ---
-    if 'Producto' in df_filtrado.columns and 'Productos' in df_filtrado.columns:
-        # Usar 'Producto' si está disponible, si no, extraer de 'Productos'
-        df_filtrado['Producto_Unificado'] = df_filtrado.apply(
-            lambda row: row['Producto'] if pd.notna(row['Producto']) and row['Producto'] != "" else extraer_primer_producto(row['Productos']),
-            axis=1
-        )
-    elif 'Producto' in df_filtrado.columns:
-        df_filtrado['Producto_Unificado'] = df_filtrado['Producto'].fillna("Sin producto")
-    elif 'Productos' in df_filtrado.columns:
-        df_filtrado['Producto_Unificado'] = df_filtrado['Productos'].apply(extraer_primer_producto)
-    else:
-        st.error("❌ No se encontraron columnas de producto ('Producto' o 'Productos').")
+    # --- Explotar productos ---
+    with st.spinner("🔍 Procesando productos..."):
+        df_expandido = explotar_productos_json(df_filtrado)
+
+    if df_expandido.empty:
+        st.info(f"📭 No se encontraron productos válidos en {año_seleccionado}.")
         return
 
-    # --- Verificar columnas de precio ---
-    tiene_precio = 'Precio' in df_filtrado.columns
-    tiene_precio_factura = 'Precio Factura' in df_filtrado.columns
+    # --- Crear columna combinada Producto + Tela ---
+    df_expandido['Producto_Tela'] = df_expandido['Producto'] + " + " + df_expandido['Tela']
 
-    if not tiene_precio and not tiene_precio_factura:
-        st.error("❌ No se encontraron columnas de precio.")
-        return
-
-    # --- Filtrar pedidos completados ---
-    if {'Trabajo Terminado', 'Cobrado', 'Retirado'}.issubset(df_filtrado.columns):
-        df_completados = df_filtrado[
-            (df_filtrado['Trabajo Terminado'] == True) &
-            (df_filtrado['Cobrado'] == True) &
-            (df_filtrado['Retirado'] == True)
-        ].copy()
-        if df_completados.empty:
-            st.warning(f"⚠️ No hay pedidos completados en {año_seleccionado}. Mostrando todos.")
-            df_completados = df_filtrado.copy()
-    else:
-        df_completados = df_filtrado.copy()
-
-    # --- Preparar precios ---
-    for col in ['Precio', 'Precio Factura']:
-        if col in df_completados.columns:
-            df_completados[col] = pd.to_numeric(df_completados[col], errors='coerce').fillna(0)
-        else:
-            df_completados[col] = 0
-
-    df_completados['Total'] = df_completados['Precio'] + df_completados['Precio Factura']
-
-    # --- Agrupar por producto unificado ---
-    if df_completados.empty:
-        st.info(f"📭 No hay datos en {año_seleccionado}.")
-        return
-
-    analisis = df_completados.groupby('Producto_Unificado').agg(
-        Unidades=('Producto_Unificado', 'count'),
-        Suma_Precio=('Precio', 'sum'),
-        Suma_Precio_Factura=('Precio Factura', 'sum'),
-        Suma_Total=('Total', 'sum')
+    # --- Agrupar por Producto + Tela ---
+    analisis = df_expandido.groupby('Producto_Tela').agg(
+        Unidades_Totales=('Cantidad', 'sum'),
+        Pedidos_Distintos=('ID_Pedido', 'nunique'),
+        Subtotal_Total=('Subtotal', 'sum')
     ).reset_index()
 
-    if analisis.empty or analisis['Suma_Total'].sum() == 0:
-        st.info(f"📭 No hay datos suficientes en {año_seleccionado}.")
-        return
+    # Extraer Producto y Tela separados para la tabla
+    analisis[['Producto', 'Tela']] = analisis['Producto_Tela'].str.split(' \+ ', expand=True)
 
-    analisis = analisis.sort_values('Suma_Total', ascending=False).reset_index(drop=True)
-    analisis.rename(columns={'Producto_Unificado': 'Producto'}, inplace=True)
+    # Ordenar por subtotal total
+    analisis = analisis.sort_values('Subtotal_Total', ascending=False).reset_index(drop=True)
 
-    # --- Mostrar resultados ---
-    col1, col2 = st.columns(2)
+    # --- Métricas generales ---
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("👕 Productos", len(analisis))
-        st.metric("🔢 Unidades", int(analisis['Unidades'].sum()))
+        st.metric("👕 Combinaciones", len(analisis))
     with col2:
-        if tiene_precio:
-            st.metric("💶 Precio Base", f"{analisis['Suma_Precio'].sum():,.2f} €")
-        if tiene_precio_factura:
-            st.metric("🧾 Precio Factura", f"{analisis['Suma_Precio_Factura'].sum():,.2f} €")
+        st.metric("🔢 Total Unidades", int(analisis['Unidades_Totales'].sum()))
+    with col3:
+        st.metric("💰 Ingresos por Productos", f"{analisis['Subtotal_Total'].sum():,.2f} €")
 
-    st.metric("💰 **INGRESOS TOTALES**", f"{analisis['Suma_Total'].sum():,.2f} €")
+    st.write("---")
 
-    # --- Producto más vendido y rentable ---
+    # --- Producto + Tela más vendido y rentable ---
     if not analisis.empty:
-        mas_vendido = analisis.loc[analisis['Unidades'].idxmax()]
+        mas_vendido = analisis.loc[analisis['Unidades_Totales'].idxmax()]
         mas_rentable = analisis.iloc[0]
         
-        col3, col4 = st.columns(2)
-        with col3:
-            st.success(f"🔝 **Más Vendido**\n\n**{mas_vendido['Producto']}**\n{int(mas_vendido['Unidades'])} unidades")
+        col4, col5 = st.columns(2)
         with col4:
-            st.success(f"💎 **Más Rentable**\n\n**{mas_rentable['Producto']}**\n{mas_rentable['Suma_Total']:,.2f} €")
+            st.success(f"🔝 **Más Vendido**\n\n**{mas_vendido['Producto']}**\n**Tela:** {mas_vendido['Tela']}\n{int(mas_vendido['Unidades_Totales'])} unidades")
+        with col5:
+            st.success(f"💎 **Más Rentable**\n\n**{mas_rentable['Producto']}**\n**Tela:** {mas_rentable['Tela']}\n{mas_rentable['Subtotal_Total']:,.2f} €")
 
-    # --- Tabla ---
-    st.subheader(f"📋 Desglose por Producto ({año_seleccionado})")
-    cols_mostrar = ['Producto', 'Unidades']
-    if tiene_precio:
-        cols_mostrar.append('Suma_Precio')
-    if tiene_precio_factura:
-        cols_mostrar.append('Suma_Precio_Factura')
-    cols_mostrar.append('Suma_Total')
+    st.write("---")
 
-    analisis_display = analisis[cols_mostrar].copy()
-    for col in ['Suma_Precio', 'Suma_Precio_Factura', 'Suma_Total']:
-        if col in analisis_display.columns:
-            analisis_display[col] = analisis_display[col].apply(lambda x: f"{x:,.2f} €")
-
+    # --- Tabla detallada ---
+    st.subheader(f"📋 Desglose por Producto + Tela ({año_seleccionado})")
+    analisis_display = analisis.copy()
+    analisis_display['Subtotal_Total_Formateado'] = analisis_display['Subtotal_Total'].apply(lambda x: f"{x:,.2f} €")
+    
     st.dataframe(
-        analisis_display,
+        analisis_display[['Producto', 'Tela', 'Unidades_Totales', 'Pedidos_Distintos', 'Subtotal_Total_Formateado']].rename(columns={
+            'Producto': 'Producto',
+            'Tela': 'Tela',
+            'Unidades_Totales': 'Unidades Totales',
+            'Pedidos_Distintos': 'Pedidos',
+            'Subtotal_Total_Formateado': 'Ingresos'
+        }),
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Producto": "Producto",
-            "Unidades": st.column_config.NumberColumn("👕 Unidades", format="%d"),
-            "Suma_Precio": "💶 Precio Base",
-            "Suma_Precio_Factura": "🧾 Precio Factura",
-            "Suma_Total": "💰 Total"
+            "Unidades Totales": st.column_config.NumberColumn("👕 Unidades", format="%d"),
+            "Pedidos": st.column_config.NumberColumn("📦 Pedidos", format="%d"),
+            "Ingresos": st.column_config.TextColumn("💰 Ingresos", width="medium")
         }
     )
 
+    # --- Análisis adicional: Top telas ---
+    st.write("---")
+    st.subheader("🧵 Análisis por Tela")
+    analisis_telas = df_expandido.groupby('Tela').agg(
+        Unidades=('Cantidad', 'sum'),
+        Combinaciones=('Producto_Tela', 'nunique'),
+        Ingresos=('Subtotal', 'sum')
+    ).sort_values('Ingresos', ascending=False).reset_index()
+    
+    if not analisis_telas.empty:
+        analisis_telas['Ingresos_Formateado'] = analisis_telas['Ingresos'].apply(lambda x: f"{x:,.2f} €")
+        st.dataframe(
+            analisis_telas[['Tela', 'Unidades', 'Combinaciones', 'Ingresos_Formateado']].rename(columns={
+                'Tela': 'Tela',
+                'Unidades': 'Unidades Totales',
+                'Combinaciones': 'Productos Distintos',
+                'Ingresos_Formateado': 'Ingresos Totales'
+            }),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Unidades Totales": st.column_config.NumberColumn("👕 Unidades", format="%d"),
+                "Productos Distintos": st.column_config.NumberColumn("👕 Productos", format="%d"),
+                "Ingresos Totales": st.column_config.TextColumn("💰 Ingresos", width="medium")
+            }
+        )
+
     # --- Exportar ---
     st.write("---")
-    csv = analisis.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        "📥 Descargar análisis",
-        csv,
-        f"analisis_productos_{año_seleccionado}.csv",
-        "text/csv"
-    )
+    if st.button("📥 Exportar análisis detallado", type="primary"):
+        # Preparar DataFrame para exportar
+        export_df = analisis[['Producto', 'Tela', 'Unidades_Totales', 'Pedidos_Distintos', 'Subtotal_Total']].copy()
+        export_df.columns = ['Producto', 'Tela', 'Unidades Totales', 'Pedidos Distintos', 'Ingresos Totales']
+        
+        csv = export_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "⬇️ Descargar CSV",
+            csv,
+            f"analisis_detallado_{año_seleccionado}.csv",
+            "text/csv",
+            key='download-detailed-csv'
+        )
