@@ -202,11 +202,13 @@ def show_consult(df_pedidos, df_listas):
             if col in df_display.columns:
                 df_display[col] = pd.to_datetime(df_display[col], errors='coerce').dt.strftime('%Y-%m-%d').fillna('')
 
-        # Asegurar tipos numéricos
+        # Asegurar tipos numéricos ✅ ¡AHORA INCLUYE 'Precio Factura'!
         if 'ID' in df_display.columns:
             df_display['ID'] = pd.to_numeric(df_display['ID'], errors='coerce').fillna(0).astype('int64')
         if 'Precio' in df_display.columns:
             df_display['Precio'] = pd.to_numeric(df_display['Precio'], errors='coerce').fillna(0.0)
+        if 'Precio Factura' in df_display.columns:
+            df_display['Precio Factura'] = pd.to_numeric(df_display['Precio Factura'], errors='coerce').fillna(0.0)
 
         # Asegurar booleanos
         for col in ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado']:
@@ -237,17 +239,17 @@ def show_consult(df_pedidos, df_listas):
 
         df_display['Estado'] = df_display.apply(estado_a_icono, axis=1)
 
-        # ✅ Columnas a mostrar
+        # ✅ Columnas a mostrar — ¡AHORA INCLUYE 'Precio Factura'!
         columnas_mostrar = [
             'ID', 'Productos', 'Cliente', 'Club', 'Telefono',
-            'Fecha entrada', 'Fecha Salida', 'Precio', 'Estado'
+            'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura', 'Estado'
         ]
         columnas_disponibles = [col for col in columnas_mostrar if col in df_display.columns]
 
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla con estilo
+        # ✅ Mostrar tabla con estilo — ¡AHORA CON AMBOS PRECIOS!
         st.dataframe(
             df_display[columnas_disponibles].style.apply(highlight_pedidos_rows, axis=1),
             column_config={
@@ -257,7 +259,12 @@ def show_consult(df_pedidos, df_listas):
                     width="medium"
                 ),
                 "Precio": st.column_config.NumberColumn(
-                    "💰 Precio (€)",
+                    "💰 Precio Total (€)",
+                    format="%.2f €",
+                    width="small"
+                ),
+                "Precio Factura": st.column_config.NumberColumn(
+                    "🧾 Precio Factura (€)",
                     format="%.2f €",
                     width="small"
                 ),
