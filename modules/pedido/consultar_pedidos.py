@@ -55,6 +55,7 @@ def highlight_pedidos_rows(row):
     terminado = row.get('Trabajo Terminado', False)
     retirado = row.get('Retirado', False)
     cobrado = row.get('Cobrado', False)
+    empezado = row.get('Inicio Trabajo', False)
     
     # ✅ Nueva lógica: si está Terminado + Cobrado + Retirado → verde
     if terminado and cobrado and retirado:
@@ -65,8 +66,10 @@ def highlight_pedidos_rows(row):
         styles = ['background-color: #00B050'] * len(row)  # Verde para terminados+retirados
     elif terminado:
         styles = ['background-color: #FFC000'] * len(row)  # Amarillo para solo terminados
-    elif row.get('Inicio Trabajo', False):
+    elif empezado:
         styles = ['background-color: #0070C0'] * len(row)  # Azul para empezados no pendientes
+    elif not (empezado or pendiente or terminado or cobrado or retirado):
+        styles = ['background-color: #F0F0F0'] * len(row)  # Gris claro para NUEVOS
 
     return styles
 
@@ -116,8 +119,16 @@ def show_consult(df_pedidos, df_listas):
     pendientes = len(df_pedidos_filtrado[df_pedidos_filtrado['Pendiente'] == True])
     empezados = len(df_pedidos_filtrado[df_pedidos_filtrado['Inicio Trabajo'] == True])
     terminados = len(df_pedidos_filtrado[df_pedidos_filtrado['Trabajo Terminado'] == True])
+    # ✅ Nuevos pedidos: ninguno de los estados activos
+    nuevos = len(df_pedidos_filtrado[
+        (df_pedidos_filtrado['Inicio Trabajo'] == False) &
+        (df_pedidos_filtrado['Pendiente'] == False) &
+        (df_pedidos_filtrado['Trabajo Terminado'] == False) &
+        (df_pedidos_filtrado['Cobrado'] == False) &
+        (df_pedidos_filtrado['Retirado'] == False)
+    ])
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     with col1:
         st.metric("📦 Total", total_pedidos)
     with col2:
@@ -128,6 +139,8 @@ def show_consult(df_pedidos, df_listas):
         st.metric("🔵 Empezados", empezados)
     with col5:
         st.metric("✅ Terminados", terminados)
+    with col6:
+        st.metric("🆕 Nuevos", nuevos)
 
     st.write("---")
 
@@ -144,9 +157,10 @@ def show_consult(df_pedidos, df_listas):
         with col_f3:
             filtro_telefono = st.text_input("📱 Teléfono", key="filtro_telefono_consulta")
         with col_f4:
+            # ✅ Añadida opción "Nuevos Pedidos"
             filtro_estado = st.selectbox(
                 "🏷️ Estado",
-                options=["", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado", "Completado"],
+                options=["", "Nuevos Pedidos", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado", "Completado"],
                 key="filtro_estado_consulta"
             )
 
@@ -172,7 +186,15 @@ def show_consult(df_pedidos, df_listas):
             df_filtrado = df_filtrado.drop(columns=['Telefono_limpio'])
 
     if filtro_estado:
-        if filtro_estado == "Pendiente":
+        if filtro_estado == "Nuevos Pedidos":
+            df_filtrado = df_filtrado[
+                (df_filtrado['Inicio Trabajo'] == False) &
+                (df_filtrado['Pendiente'] == False) &
+                (df_filtrado['Trabajo Terminado'] == False) &
+                (df_filtrado['Cobrado'] == False) &
+                (df_filtrado['Retirado'] == False)
+            ]
+        elif filtro_estado == "Pendiente":
             df_filtrado = df_filtrado[df_filtrado['Pendiente'] == True]
         elif filtro_estado == "Empezado":
             df_filtrado = df_filtrado[df_filtrado['Inicio Trabajo'] == True]
@@ -215,8 +237,20 @@ def show_consult(df_pedidos, df_listas):
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
 
-        # ✅ Generar columna "Estado" con iconos + "✔️ COMPLETADO"
+        # ✅ Generar columna "Estado" con iconos + "✔️ COMPLETADO" + "🆕 NUEVO"
         def estado_a_icono(row):
+            # Verificar si es nuevo
+            es_nuevo = not (
+                row.get('Inicio Trabajo', False) or
+                row.get('Pendiente', False) or
+                row.get('Trabajo Terminado', False) or
+                row.get('Cobrado', False) or
+                row.get('Retirado', False)
+            )
+            
+            if es_nuevo:
+                return "🆕 NUEVO"
+            
             iconos = []
             if row.get('Pendiente', False):
                 iconos.append("📌")
@@ -270,7 +304,7 @@ def show_consult(df_pedidos, df_listas):
                 ),
                 "Estado": st.column_config.TextColumn(
                     "🏷️ Estado",
-                    help="📌 Pendiente | 🔵 Empezado | ✅ Terminado | 📦 Retirado | 💰 Cobrado | ✔️ COMPLETADO",
+                    help="📌 Pendiente | 🔵 Empezado | ✅ Terminado | 📦 Retirado | 💰 Cobrado | ✔️ COMPLETADO | 🆕 NUEVO",
                     width="medium"
                 ),
             },
@@ -321,4 +355,3 @@ def show_consult(df_pedidos, df_listas):
             )
         except Exception as e:
             st.error(f"❌ Error al generar el archivo Excel: {e}")
-            st.code(str(e))  # Para debugging, puedes quitarlo luego
