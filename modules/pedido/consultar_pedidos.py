@@ -49,29 +49,34 @@ def formatear_primer_producto(productos_json):
 
 def highlight_pedidos_rows(row):
     """Función para resaltar filas según su estado"""
-    styles = [''] * len(row)
+    n_cols = len(row)
     
-    pendiente = row.get('Pendiente', False)
-    terminado = row.get('Trabajo Terminado', False)
-    retirado = row.get('Retirado', False)
-    cobrado = row.get('Cobrado', False)
-    empezado = row.get('Inicio Trabajo', False)
+    # Obtener valores de estado con valores por defecto seguros
+    pendiente = bool(row.get('Pendiente', False))
+    terminado = bool(row.get('Trabajo Terminado', False))
+    retirado = bool(row.get('Retirado', False))
+    cobrado = bool(row.get('Cobrado', False))
+    empezado = bool(row.get('Inicio Trabajo', False))
     
-    # ✅ Nueva lógica: si está Terminado + Cobrado + Retirado → verde
-    if terminado and cobrado and retirado:
-        styles = ['background-color: #00B050'] * len(row)  # Verde para completado
-    elif pendiente:
-        styles = ['background-color: #FF00FF'] * len(row)  # Morado para pendientes
+    # ✅ PRIORIDAD DE COLORES (de más a menos importante)
+    if pendiente:
+        # Pendiente siempre tiene prioridad (morado)
+        return ['background-color: #FF00FF'] * n_cols
+    elif terminado and cobrado and retirado:
+        # Completado (verde)
+        return ['background-color: #00B050'] * n_cols
     elif terminado and retirado:
-        styles = ['background-color: #00B050'] * len(row)  # Verde para terminados+retirados
+        return ['background-color: #00B050'] * n_cols
     elif terminado:
-        styles = ['background-color: #FFC000'] * len(row)  # Amarillo para solo terminados
+        return ['background-color: #FFC000'] * n_cols
     elif empezado:
-        styles = ['background-color: #0070C0'] * len(row)  # Azul para empezados no pendientes
+        return ['background-color: #0070C0'] * n_cols
     elif not (empezado or pendiente or terminado or cobrado or retirado):
-        styles = ['background-color: #F0F0F0'] * len(row)  # Gris claro para NUEVOS
-
-    return styles
+        # Nuevo pedido (gris claro)
+        return ['background-color: #F0F0F0'] * n_cols
+    else:
+        # Por defecto: sin estilo (fondo blanco)
+        return [''] * n_cols
 
 def show_consult(df_pedidos, df_listas):
     st.subheader("📋 Consultar y Filtrar Pedidos")
@@ -79,7 +84,7 @@ def show_consult(df_pedidos, df_listas):
 
     # ✅ Convertir columna 'Año' a entero
     if not df_pedidos.empty and 'Año' in df_pedidos.columns:
-        df_pedidos['Año'] = pd.to_numeric(df_pedidos['Año'], errors='coerce').fillna(2025).astype('int64')
+        df_pedidos['Año'] = pd.to_numeric(df_pedidos['Año'], errors='coerce').fillna(datetime.now().year).astype('int64')
 
     # ✅ Selector de año (sincronizado con sesión)
     año_actual = datetime.now().year
@@ -224,7 +229,7 @@ def show_consult(df_pedidos, df_listas):
             if col in df_display.columns:
                 df_display[col] = pd.to_datetime(df_display[col], errors='coerce').dt.strftime('%Y-%m-%d').fillna('')
 
-        # Asegurar tipos numéricos ✅ ¡AHORA INCLUYE 'Precio Factura'!
+        # Asegurar tipos numéricos
         if 'ID' in df_display.columns:
             df_display['ID'] = pd.to_numeric(df_display['ID'], errors='coerce').fillna(0).astype('int64')
         if 'Precio' in df_display.columns:
@@ -232,7 +237,7 @@ def show_consult(df_pedidos, df_listas):
         if 'Precio Factura' in df_display.columns:
             df_display['Precio Factura'] = pd.to_numeric(df_display['Precio Factura'], errors='coerce').fillna(0.0)
 
-        # Asegurar booleanos
+        # Asegurar booleanos ✅ (ES CLAVE PARA EL RESALTADO)
         for col in ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado']:
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
@@ -273,7 +278,7 @@ def show_consult(df_pedidos, df_listas):
 
         df_display['Estado'] = df_display.apply(estado_a_icono, axis=1)
 
-        # ✅ Columnas a mostrar — ¡AHORA INCLUYE 'Precio Factura'!
+        # ✅ Columnas a mostrar
         columnas_mostrar = [
             'ID', 'Productos', 'Cliente', 'Club', 'Telefono',
             'Fecha entrada', 'Fecha Salida', 'Precio', 'Precio Factura', 'Estado'
@@ -283,7 +288,7 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla con estilo — ¡AHORA CON AMBOS PRECIOS!
+        # ✅ Mostrar tabla con estilo — ¡AHORA SIN FILAS BLANCAS!
         st.dataframe(
             df_display[columnas_disponibles].style.apply(highlight_pedidos_rows, axis=1),
             column_config={
@@ -326,18 +331,6 @@ def show_consult(df_pedidos, df_listas):
         date_columns = ['Fecha entrada', 'Fecha Salida']
         for col in date_columns:
             if col in df_export.columns:
-                # Convertir a datetime primero
-                df_export[col] = pd.to_datetime(df_export[col], errors='coerce')
-                # Eliminar zona horaria si existe
-                df_export[col] = df_export[col].dt.tz_localize(None)
-                # Opcional: formatear como string si prefieres
-                # df_export[col] = df_export[col].dt.strftime('%Y-%m-%d').fillna('')
-        
-        # También limpiar otras columnas de fecha que puedan existir
-        # Buscar todas las columnas de tipo datetime
-        datetime_cols = df_export.select_dtypes(include=['datetime64[ns, UTC]', 'datetime64[ns]']).columns
-        for col in datetime_cols:
-            if col not in date_columns:  # Ya procesadas
                 df_export[col] = pd.to_datetime(df_export[col], errors='coerce')
                 df_export[col] = df_export[col].dt.tz_localize(None)
         
