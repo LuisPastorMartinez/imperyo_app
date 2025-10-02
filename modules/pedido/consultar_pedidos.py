@@ -83,6 +83,36 @@ def show_consult(df_pedidos, df_listas):
         st.info(f"📭 No hay pedidos en el año {año_seleccionado}")
         return
 
+    # --- KPIs RÁPIDOS (SIN "Total Pedidos") ---
+    completados = len(df_pedidos_filtrado[
+        (df_pedidos_filtrado['Trabajo Terminado'] == True) &
+        (df_pedidos_filtrado['Cobrado'] == True) &
+        (df_pedidos_filtrado['Retirado'] == True)
+    ])
+    pendientes = len(df_pedidos_filtrado[df_pedidos_filtrado['Pendiente'] == True])
+    empezados = len(df_pedidos_filtrado[df_pedidos_filtrado['Inicio Trabajo'] == True])
+    terminados = len(df_pedidos_filtrado[df_pedidos_filtrado['Trabajo Terminado'] == True])
+    # ✅ Nuevos pedidos: ninguno de los estados activos
+    nuevos = len(df_pedidos_filtrado[
+        (df_pedidos_filtrado['Inicio Trabajo'] == False) &
+        (df_pedidos_filtrado['Pendiente'] == False) &
+        (df_pedidos_filtrado['Trabajo Terminado'] == False) &
+        (df_pedidos_filtrado['Cobrado'] == False) &
+        (df_pedidos_filtrado['Retirado'] == False)
+    ])
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        st.metric("✔️ Completados", completados)
+    with col2:
+        st.metric("📌 Pendientes", pendientes)
+    with col3:
+        st.metric("🔵 Empezados", empezados)
+    with col4:
+        st.metric("✅ Terminados", terminados)
+    with col5:
+        st.metric("🆕 Nuevos", nuevos)
+
     st.write("---")
 
     # --- BÚSQUEDA GLOBAL ---
