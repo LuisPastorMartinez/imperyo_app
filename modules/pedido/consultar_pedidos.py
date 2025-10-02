@@ -131,10 +131,10 @@ def show_consult(df_pedidos, df_listas):
         with col_f3:
             filtro_telefono = st.text_input("📱 Teléfono", key="filtro_telefono_consulta")
         with col_f4:
-            # ✅ Añadida opción "Nuevos Pedidos"
+            # ✅ Añadida opción "Todos" al principio
             filtro_estado = st.selectbox(
                 "🏷️ Estado",
-                options=["", "Nuevos Pedidos", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado", "Completado"],
+                options=["Todos", "Nuevos Pedidos", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado", "Completado"],
                 key="filtro_estado_consulta"
             )
 
@@ -159,7 +159,8 @@ def show_consult(df_pedidos, df_listas):
             df_filtrado = df_filtrado[df_filtrado['Telefono_limpio'].str.contains(filtro_limpio, na=False)]
             df_filtrado = df_filtrado.drop(columns=['Telefono_limpio'])
 
-    if filtro_estado:
+    # ✅ Aplicar filtro de estado SOLO si no es "Todos"
+    if filtro_estado and filtro_estado != "Todos":
         if filtro_estado == "Nuevos Pedidos":
             df_filtrado = df_filtrado[
                 (df_filtrado['Inicio Trabajo'] == False) &
@@ -206,14 +207,13 @@ def show_consult(df_pedidos, df_listas):
         if 'Precio Factura' in df_display.columns:
             df_display['Precio Factura'] = pd.to_numeric(df_display['Precio Factura'], errors='coerce').fillna(0.0)
 
-        # Asegurar booleanos (solo para lógica interna, no para estilo)
+        # Asegurar booleanos (solo para lógica interna)
         for col in ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado']:
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
 
-        # ✅ Generar columna "Estado" con iconos + "✔️ COMPLETADO" + "🆕 NUEVO"
+        # ✅ Generar columna "Estado" con iconos
         def estado_a_icono(row):
-            # Verificar si es nuevo
             es_nuevo = not (
                 row.get('Inicio Trabajo', False) or
                 row.get('Pendiente', False) or
@@ -221,7 +221,6 @@ def show_consult(df_pedidos, df_listas):
                 row.get('Cobrado', False) or
                 row.get('Retirado', False)
             )
-            
             if es_nuevo:
                 return "🆕 NUEVO"
             
@@ -236,8 +235,6 @@ def show_consult(df_pedidos, df_listas):
                 iconos.append("📦")
             if row.get('Cobrado', False):
                 iconos.append("💰")
-            
-            # ✅ Si está Terminado + Cobrado + Retirado → añadir "✔️ COMPLETADO"
             if (row.get('Trabajo Terminado', False) and
                 row.get('Cobrado', False) and
                 row.get('Retirado', False)):
@@ -257,7 +254,7 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla SIN ESTILOS (usa el tema por defecto de tu app)
+        # ✅ Mostrar tabla SIN ESTILOS (usa el tema por defecto)
         st.dataframe(
             df_display[columnas_disponibles],
             column_config={
@@ -293,10 +290,7 @@ def show_consult(df_pedidos, df_listas):
         st.write("---")
         st.markdown("### 📥 Exportar Datos")
         
-        # Preparar DataFrame para exportar
         df_export = df_filtrado.copy()
-        
-        # Limpiar fechas: eliminar zonas horarias y convertir a naive
         date_columns = ['Fecha entrada', 'Fecha Salida']
         for col in date_columns:
             if col in df_export.columns:
