@@ -48,7 +48,7 @@ def formatear_primer_producto(productos_json):
         return "Error"
 
 def highlight_pedidos_rows(row):
-    """Función para resaltar filas según su estado"""
+    """Función para resaltar filas según su estado — con texto siempre negro"""
     n_cols = len(row)
     
     # Obtener valores de estado con valores por defecto seguros
@@ -58,25 +58,21 @@ def highlight_pedidos_rows(row):
     cobrado = bool(row.get('Cobrado', False))
     empezado = bool(row.get('Inicio Trabajo', False))
     
-    # ✅ PRIORIDAD DE COLORES (de más a menos importante)
+    # ✅ Definir estilo con texto NEGRO explícito
     if pendiente:
-        # Pendiente siempre tiene prioridad (morado)
-        return ['background-color: #FF00FF'] * n_cols
+        return ['background-color: #FF00FF; color: black'] * n_cols
     elif terminado and cobrado and retirado:
-        # Completado (verde)
-        return ['background-color: #00B050'] * n_cols
+        return ['background-color: #00B050; color: black'] * n_cols
     elif terminado and retirado:
-        return ['background-color: #00B050'] * n_cols
+        return ['background-color: #00B050; color: black'] * n_cols
     elif terminado:
-        return ['background-color: #FFC000'] * n_cols
+        return ['background-color: #FFC000; color: black'] * n_cols
     elif empezado:
-        return ['background-color: #0070C0'] * n_cols
+        return ['background-color: #0070C0; color: black'] * n_cols
     elif not (empezado or pendiente or terminado or cobrado or retirado):
-        # Nuevo pedido (gris claro)
-        return ['background-color: #F0F0F0'] * n_cols
+        return ['background-color: #F0F0F0; color: black'] * n_cols
     else:
-        # Por defecto: sin estilo (fondo blanco)
-        return [''] * n_cols
+        return ['color: black'] * n_cols  # fondo blanco por defecto, texto negro
 
 def show_consult(df_pedidos, df_listas):
     st.subheader("📋 Consultar y Filtrar Pedidos")
@@ -288,7 +284,7 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla con estilo — ¡AHORA SIN FILAS BLANCAS!
+        # ✅ Mostrar tabla con estilo — ¡AHORA CON TEXTO NEGRO Y COLORES CORRECTOS!
         st.dataframe(
             df_display[columnas_disponibles].style.apply(highlight_pedidos_rows, axis=1),
             column_config={
