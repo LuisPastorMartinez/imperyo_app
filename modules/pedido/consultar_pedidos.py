@@ -47,33 +47,6 @@ def formatear_primer_producto(productos_json):
     except Exception:
         return "Error"
 
-def highlight_pedidos_rows(row):
-    """Función para resaltar filas según su estado — con texto siempre negro"""
-    n_cols = len(row)
-    
-    # Obtener valores de estado con valores por defecto seguros
-    pendiente = bool(row.get('Pendiente', False))
-    terminado = bool(row.get('Trabajo Terminado', False))
-    retirado = bool(row.get('Retirado', False))
-    cobrado = bool(row.get('Cobrado', False))
-    empezado = bool(row.get('Inicio Trabajo', False))
-    
-    # ✅ Definir estilo con texto NEGRO explícito
-    if pendiente:
-        return ['background-color: #FF00FF; color: black'] * n_cols
-    elif terminado and cobrado and retirado:
-        return ['background-color: #00B050; color: black'] * n_cols
-    elif terminado and retirado:
-        return ['background-color: #00B050; color: black'] * n_cols
-    elif terminado:
-        return ['background-color: #FFC000; color: black'] * n_cols
-    elif empezado:
-        return ['background-color: #0070C0; color: black'] * n_cols
-    elif not (empezado or pendiente or terminado or cobrado or retirado):
-        return ['background-color: #F0F0F0; color: black'] * n_cols
-    else:
-        return ['color: black'] * n_cols  # fondo blanco por defecto, texto negro
-
 def show_consult(df_pedidos, df_listas):
     st.subheader("📋 Consultar y Filtrar Pedidos")
     st.write("---")
@@ -233,7 +206,7 @@ def show_consult(df_pedidos, df_listas):
         if 'Precio Factura' in df_display.columns:
             df_display['Precio Factura'] = pd.to_numeric(df_display['Precio Factura'], errors='coerce').fillna(0.0)
 
-        # Asegurar booleanos ✅ (ES CLAVE PARA EL RESALTADO)
+        # Asegurar booleanos (solo para lógica interna, no para estilo)
         for col in ['Pendiente', 'Inicio Trabajo', 'Trabajo Terminado', 'Retirado', 'Cobrado']:
             if col in df_display.columns:
                 df_display[col] = df_display[col].fillna(False).astype(bool)
@@ -284,9 +257,9 @@ def show_consult(df_pedidos, df_listas):
         # Ordenar por ID descendente
         df_display = df_display.sort_values('ID', ascending=False)
 
-        # ✅ Mostrar tabla con estilo — ¡AHORA CON TEXTO NEGRO Y COLORES CORRECTOS!
+        # ✅ Mostrar tabla SIN ESTILOS (usa el tema por defecto de tu app)
         st.dataframe(
-            df_display[columnas_disponibles].style.apply(highlight_pedidos_rows, axis=1),
+            df_display[columnas_disponibles],
             column_config={
                 "Productos": st.column_config.TextColumn(
                     "🧵 Productos",
