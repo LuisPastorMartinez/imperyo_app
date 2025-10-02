@@ -121,17 +121,29 @@ def show_consult(df_pedidos, df_listas):
     # --- BÚSQUEDA GLOBAL ---
     search_term = st.text_input("🔍 Búsqueda global (Cliente, Producto, Teléfono, ID...)", placeholder="Escribe para filtrar todos los campos...")
     
-    # --- FILTROS AVANZADOS ---
+    # --- FILTROS AVANZADOS CON AUTORRELLENADO ---
     with st.expander("⚙️ Filtros Avanzados", expanded=True):
         col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+        
+        # ✅ Cliente: selectbox con valores únicos
         with col_f1:
-            filtro_cliente = st.text_input("👤 Cliente", key="filtro_cliente_consulta")
+            clientes_unicos = [""] + sorted(df_pedidos_filtrado['Cliente'].dropna().unique().astype(str).tolist())
+            filtro_cliente = st.selectbox("👤 Cliente", options=clientes_unicos, key="filtro_cliente_consulta")
+        
+        # ✅ Club: selectbox con valores únicos
         with col_f2:
-            filtro_club = st.text_input("⚽ Club", key="filtro_club_consulta")
+            clubes_unicos = [""] + sorted(df_pedidos_filtrado['Club'].dropna().unique().astype(str).tolist())
+            filtro_club = st.selectbox("⚽ Club", options=clubes_unicos, key="filtro_club_consulta")
+        
+        # ✅ Teléfono: selectbox con valores únicos (solo dígitos)
         with col_f3:
-            filtro_telefono = st.text_input("📱 Teléfono", key="filtro_telefono_consulta")
+            telefonos_unicos = df_pedidos_filtrado['Telefono'].dropna().astype(str).str.replace(r'\D', '', regex=True)
+            telefonos_unicos = telefonos_unicos[telefonos_unicos.str.len() == 9]  # Solo teléfonos válidos
+            telefonos_lista = [""] + sorted(telefonos_unicos.unique().tolist())
+            filtro_telefono = st.selectbox("📱 Teléfono", options=telefonos_lista, key="filtro_telefono_consulta")
+        
+        # ✅ Estado: con opción "Todos"
         with col_f4:
-            # ✅ Añadida opción "Todos" al principio
             filtro_estado = st.selectbox(
                 "🏷️ Estado",
                 options=["Todos", "Nuevos Pedidos", "Pendiente", "Empezado", "Terminado", "Retirado", "Cobrado", "Completado"],
@@ -147,17 +159,15 @@ def show_consult(df_pedidos, df_listas):
 
     # --- APLICAR FILTROS ESPECÍFICOS ---
     if filtro_cliente:
-        df_filtrado = df_filtrado[df_filtrado['Cliente'].str.contains(filtro_cliente, case=False, na=False)]
+        df_filtrado = df_filtrado[df_filtrado['Cliente'].astype(str) == filtro_cliente]
 
     if filtro_club:
-        df_filtrado = df_filtrado[df_filtrado['Club'].str.contains(filtro_club, case=False, na=False)]
+        df_filtrado = df_filtrado[df_filtrado['Club'].astype(str) == filtro_club]
 
     if filtro_telefono:
-        filtro_limpio = ''.join(filter(str.isdigit, filtro_telefono))
-        if filtro_limpio:
-            df_filtrado['Telefono_limpio'] = df_filtrado['Telefono'].astype(str).str.replace(r'\D', '', regex=True)
-            df_filtrado = df_filtrado[df_filtrado['Telefono_limpio'].str.contains(filtro_limpio, na=False)]
-            df_filtrado = df_filtrado.drop(columns=['Telefono_limpio'])
+        df_filtrado['Telefono_limpio'] = df_filtrado['Telefono'].astype(str).str.replace(r'\D', '', regex=True)
+        df_filtrado = df_filtrado[df_filtrado['Telefono_limpio'] == filtro_telefono]
+        df_filtrado = df_filtrado.drop(columns=['Telefono_limpio'])
 
     # ✅ Aplicar filtro de estado SOLO si no es "Todos"
     if filtro_estado and filtro_estado != "Todos":
