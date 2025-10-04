@@ -79,18 +79,18 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
         df_pedidos_filtrado['Estado'] = df_pedidos_filtrado.apply(calcular_estado, axis=1)
 
     # --- MOSTRAR RESUMEN RÁPIDO ---
-    st.markdown(f"### 📋 Pedidos del año {año_seleccionado}")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("📦 Total Pedidos", len(df_pedidos_filtrado))
-    with col2:
-        terminados = len(df_pedidos_filtrado[df_pedidos_filtrado['Estado'] == 'Terminado'])
-        st.metric("✅ Terminados", terminados)
-    with col3:
-        pendientes = len(df_pedidos_filtrado[df_pedidos_filtrado['Estado'] == 'Pendiente'])
-        st.metric("⏳ Pendientes", pendientes)
+    #st.markdown(f"### 📋 Pedidos del año {año_seleccionado}")
+    #col1, col2, col3 = st.columns(3)
+    #with col1:
+        #st.metric("📦 Total Pedidos", len(df_pedidos_filtrado))
+    #with col2:
+        #terminados = len(df_pedidos_filtrado[df_pedidos_filtrado['Estado'] == 'Terminado'])
+        #st.metric("✅ Terminados", terminados)
+    #with col3:
+        #pendientes = len(df_pedidos_filtrado[df_pedidos_filtrado['Estado'] == 'Pendiente'])
+        #st.metric("⏳ Pendientes", pendientes)
 
-    st.write("---")
+    #st.write("---")
 
     # --- PESTAÑAS CON ICONOS ---
     tab1, tab2, tab3, tab4 = st.tabs([
