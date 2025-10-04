@@ -140,11 +140,19 @@ def show_create(df_pedidos, df_listas):
                 help="Empieza a escribir para buscar"
             )
             
-            telefono = st.text_input(
-                "Teléfono* (9 dígitos)", 
-                max_chars=9, 
+            # ✅ TELEFONO: selectbox con autorrellenado + validación
+            telefonos_existentes = []
+            if 'Telefono' in df_pedidos.columns:
+                # Limpiar y filtrar teléfonos válidos (9 dígitos)
+                telefonos_limpios = df_pedidos['Telefono'].dropna().astype(str).apply(limpiar_telefono)
+                telefonos_validos = telefonos_limpios[telefonos_limpios.str.len() == 9]
+                telefonos_existentes = sorted(telefonos_validos.unique().tolist())
+            
+            telefono = st.selectbox(
+                "Teléfono* (9 dígitos)",
+                options=[""] + telefonos_existentes,
                 key=f"telefono_{suffix}",
-                placeholder="Ej: 612345678"
+                help="Selecciona un teléfono existente o escribe uno nuevo"
             )
             
             clubes_existentes = df_pedidos['Club'].dropna().unique().tolist() if 'Club' in df_pedidos.columns else []
