@@ -34,6 +34,8 @@ def show_delete(df_pedidos, df_listas):
     # ✅ Filtrar pedidos por año
     df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy() if df_pedidos is not None else None
 
+    # --- OPCIÓN 1: ELIMINAR UN SOLO PEDIDO ---
+    st.markdown("### 🗑️ Eliminar un pedido individual")
     del_id = st.number_input("ID del pedido a eliminar:", min_value=1, value=1, key="delete_id_input")
     if st.button("Cargar Pedido", key="load_pedido_delete_button"):
         if df_pedidos_filtrado is not None:
@@ -135,7 +137,7 @@ def show_delete(df_pedidos, df_listas):
                         del st.session_state['pedido_a_eliminar']
                     st.rerun()
 
-        # ✅ PROCESAR ELIMINACIÓN
+        # ✅ PROCESAR ELIMINACIÓN INDIVIDUAL
         if eliminar:
             if not st.session_state.get('confirm_delete_step', False):
                 st.session_state.confirm_delete_step = True
@@ -180,3 +182,91 @@ def show_delete(df_pedidos, df_listas):
 
                 except Exception as e:
                     st.error(f"Error al eliminar el pedido: {str(e)}")
+
+    # --- OPCIÓN 2: ELIMINAR RANGO DE PEDIDOS ---
+    st.markdown("---")
+    st.markdown("### 🗑️ Eliminar rango de pedidos (por ID)")
+    col_r1, col_r2 = st.columns(2)
+    with col_r1:
+        id_inicial = st.number_input("ID inicial:", min_value=1, value=1, key="rango_id_inicial")
+    with col_r2:
+        id_final = st.number_input("ID final:", min_value=1, value=10, key="rango_id_final")
+
+    if id_inicial > id_final:
+        st.error("❌ El ID inicial debe ser menor o igual al ID final.")
+    else:
+        # Mostrar resumen del rango
+        if df_pedidos_filtrado is not None:
+            pedidos_en_rango = df_pedidos_filtrado[
+                (df_pedidos_filtrado['ID'] >= id_inicial) & 
+                (df_pedidos_filtrado['ID'] <= id_final)
+            ]
+            if not pedidos_en_rango.empty:
+                st.info(f"ℹ️ Se eliminarán **{len(pedidos_en_rango)} pedidos** (IDs del {id_inicial} al {id_final}) del año {año_seleccionado}.")
+            else:
+                st.warning(f"⚠️ No hay pedidos en el rango {id_inicial}-{id_final} para el año {año_seleccionado}.")
+
+        if st.button("🗑️ Eliminar rango de pedidos", type="secondary", key="eliminar_rango_button"):
+            if not st.session_state.get('confirm_rango_delete', False):
+                st.session_state.confirm_rango_delete = True
+                st.warning("⚠️ ¿Estás seguro? Pulsa de nuevo el botón para confirmar la eliminación del rango.")
+            else:
+                try:
+                    if df_pedidos_filtrado is None or df_pedidos_filtrado.empty:
+                        st.error("❌ No hay pedidos en este año.")
+                        return
+
+                    # Filtrar pedidos en el rango
+                    pedidos_a_eliminar = df_pedidos_filtrado[
+                        (df_pedidos_filtrado['ID'] >= id_inicial) & 
+                        (df_pedidos_filtrado['ID'] <= id_final)
+                    ]
+
+                    if pedidos_a_eliminar.empty:
+                        st.warning("⚠️ No hay pedidos en el rango especificado.")
+                        return
+
+                    # Eliminar documentos en Firestore
+                    docs_eliminados = 0
+                    for _, row in pedidos_a_eliminar.iterrows():
+                        doc_id = row.get('id_documento_firestore')
+                        if doc_id:
+                            if delete_document_firestore('pedidos', doc_id):
+                                docs_eliminados += 1
+                            else:
+                                st.warning(f"⚠️ No se pudo eliminar el documento ID {doc_id}")
+
+                    # Eliminar del DataFrame
+                    df_pedidos = df_pedidos[
+                        ~(
+                            (df_pedidos['Año'] == año_seleccionado) &
+                            (df_pedidos['ID'] >= id_inicial) &
+                            (df_pedidos['ID'] <= id_final)
+                        )
+                    ].reset_index(drop=True)
+
+                    # Reindexar IDs dentro del año
+                    df_pedidos_filtrado = df_pedidos[df_pedidos['Año'] == año_seleccionado].copy()
+                    df_pedidos_filtrado = reindexar_ids_visibles(df_pedidos_filtrado)
+                    df_pedidos.update(df_pedidos_filtrado)
+
+                    # Guardar cambios
+                    if not save_dataframe_firestore(df_pedidos, 'pedidos'):
+                        st.error("❌ Error al guardar los cambios en Firestore.")
+                        return
+
+                    st.success(f"✅ ¡Eliminados {docs_eliminados} pedidos del rango {id_inicial}-{id_final}! IDs reindexados.")
+                    st.balloons()
+                    time.sleep(2)
+
+                    # Limpiar estado
+                    if 'confirm_rango_delete' in st.session_state:
+                        del st.session_state['confirm_rango_delete']
+
+                    st.session_state.data['df_pedidos'] = df_pedidos
+                    st.rerun()
+
+                except Exception as e:
+                    st.error(f"❌ Error al eliminar el rango: {str(e)}")
+                    if 'confirm_rango_delete' in st.session_state:
+                        del st.session_state['confirm_rango_delete']
