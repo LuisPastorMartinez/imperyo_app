@@ -19,7 +19,10 @@ def show_create(df_pedidos, df_listas):
                 "cliente_", "telefono_", "club_", "descripcion_",
                 "fecha_entrada_", "fecha_salida_", "precio_total_",
                 "precio_factura_", "tipo_pago_", "adelanto_", "observaciones_",
-                "pendiente_", "empezado_", "cobrado_"
+                "pendiente_", "empezado_", "cobrado_",
+                # Nuevas claves para nuevos valores
+                "cliente_nuevo_valor", "telefono_nuevo_valor", "club_nuevo_valor",
+                "cliente_usa_nuevo", "telefono_usa_nuevo", "club_usa_nuevo"
             ]
             for key in list(st.session_state.keys()):
                 if key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_") or key.startswith("cantidad_") or key in keys_to_delete:
@@ -131,38 +134,70 @@ def show_create(df_pedidos, df_listas):
         col1, col2 = st.columns(2)
         
         with col1:
+            # ===== CLIENTE CON SOPORTE PARA NUEVOS VALORES =====
             clientes_existentes = df_pedidos['Cliente'].dropna().unique().tolist() if 'Cliente' in df_pedidos.columns else []
-            cliente = st.selectbox(
+            opciones_cliente = [""] + sorted(clientes_existentes) + ["➕ Escribir nuevo..."]
+            cliente_seleccion = st.selectbox(
                 "Cliente*",
-                [""] + clientes_existentes,
+                opciones_cliente,
                 index=0,
-                key=f"cliente_{suffix}",
-                help="Empieza a escribir para buscar"
+                key=f"cliente_seleccion_{suffix}",
+                help="Selecciona un cliente existente o elige 'Escribir nuevo...'"
             )
             
-            # ✅ TELEFONO: selectbox con autorrellenado + validación
+            if cliente_seleccion == "➕ Escribir nuevo...":
+                cliente = st.text_input(
+                    "Nuevo nombre de cliente*",
+                    key=f"cliente_nuevo_valor_{suffix}",
+                    placeholder="Escribe el nombre del nuevo cliente"
+                )
+            else:
+                cliente = cliente_seleccion
+
+            # ===== TELÉFONO CON SOPORTE PARA NUEVOS VALORES =====
             telefonos_existentes = []
             if 'Telefono' in df_pedidos.columns:
-                # Limpiar y filtrar teléfonos válidos (9 dígitos)
                 telefonos_limpios = df_pedidos['Telefono'].dropna().astype(str).apply(limpiar_telefono)
                 telefonos_validos = telefonos_limpios[telefonos_limpios.str.len() == 9]
                 telefonos_existentes = sorted(telefonos_validos.unique().tolist())
             
-            telefono = st.selectbox(
+            opciones_telefono = [""] + telefonos_existentes + ["➕ Escribir nuevo..."]
+            telefono_seleccion = st.selectbox(
                 "Teléfono* (9 dígitos)",
-                options=[""] + telefonos_existentes,
-                key=f"telefono_{suffix}",
-                help="Selecciona un teléfono existente o escribe uno nuevo"
+                opciones_telefono,
+                key=f"telefono_seleccion_{suffix}",
+                help="Selecciona un teléfono existente o elige 'Escribir nuevo...'"
             )
             
+            if telefono_seleccion == "➕ Escribir nuevo...":
+                telefono_input = st.text_input(
+                    "Nuevo teléfono*",
+                    key=f"telefono_nuevo_valor_{suffix}",
+                    placeholder="Ej: 612345678"
+                )
+                telefono = telefono_input
+            else:
+                telefono = telefono_seleccion
+
+            # ===== CLUB CON SOPORTE PARA NUEVOS VALORES =====
             clubes_existentes = df_pedidos['Club'].dropna().unique().tolist() if 'Club' in df_pedidos.columns else []
-            club = st.selectbox(
+            opciones_club = [""] + sorted(clubes_existentes) + ["➕ Escribir nuevo..."]
+            club_seleccion = st.selectbox(
                 "Club*",
-                [""] + clubes_existentes,
+                opciones_club,
                 index=0,
-                key=f"club_{suffix}",
-                help="Selecciona o escribe el club"
+                key=f"club_seleccion_{suffix}",
+                help="Selecciona un club existente o elige 'Escribir nuevo...'"
             )
+            
+            if club_seleccion == "➕ Escribir nuevo...":
+                club = st.text_input(
+                    "Nuevo nombre de club*",
+                    key=f"club_nuevo_valor_{suffix}",
+                    placeholder="Escribe el nombre del nuevo club"
+                )
+            else:
+                club = club_seleccion
             
             descripcion = st.text_area(
                 "Descripción",
@@ -241,6 +276,7 @@ def show_create(df_pedidos, df_listas):
         submitted = st.form_submit_button("✅ Guardar Nuevo Pedido", type="primary", use_container_width=True)
 
         if submitted:
+            # === VALIDACIÓN DE CAMPOS OBLIGATORIOS ===
             if not cliente or not telefono or not club:
                 st.error("❌ Por favor complete los campos obligatorios (*)")
                 return
