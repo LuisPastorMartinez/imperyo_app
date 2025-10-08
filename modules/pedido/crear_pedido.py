@@ -9,28 +9,8 @@ from .helpers import convert_to_firestore_type, safe_select_index
 import time
 
 def show_create(df_pedidos, df_listas):
-    # ✅ LIMPIAR ESTADO SI VIENE DE OTRA PÁGINA
-    if 'ultima_pagina' not in st.session_state:
-        st.session_state.ultima_pagina = "Crear"
-    else:
-        if st.session_state.ultima_pagina != "Crear":
-            keys_to_delete = [
-                "num_productos", "force_refresh", "reset_form",
-                "cliente_", "telefono_", "club_", "descripcion_",
-                "fecha_entrada_", "fecha_salida_", "precio_total_",
-                "precio_factura_", "tipo_pago_", "adelanto_", "observaciones_",
-                "pendiente_", "empezado_", "cobrado_",
-                # Nuevas claves para nuevos valores
-                "cliente_nuevo_valor", "telefono_nuevo_valor", "club_nuevo_valor",
-                "cliente_usa_nuevo", "telefono_usa_nuevo", "club_usa_nuevo"
-            ]
-            for key in list(st.session_state.keys()):
-                if key.startswith("producto_") or key.startswith("tela_") or key.startswith("precio_unit_") or key.startswith("cantidad_") or key in keys_to_delete:
-                    del st.session_state[key]
-            st.session_state.num_productos = 1
-            st.session_state.force_refresh = str(datetime.now().timestamp())
-            st.session_state.reset_form = False
-        st.session_state.ultima_pagina = "Crear"
+    # Mostrar un indicador visual de que esta es la versión actualizada (puedes eliminarlo luego)
+    # st.toast("✅ Versión actualizada: ahora puedes escribir nuevos clientes, teléfonos o clubes.", icon="📝")
 
     st.markdown("## 🆕 Crear Nuevo Pedido")
     st.write("---")
@@ -38,20 +18,20 @@ def show_create(df_pedidos, df_listas):
     año_actual = datetime.now().year
     st.info(f"📅 **Año del pedido:** {año_actual}")
 
-    # === FORMULARIO PARA PEDIDO FORMAL ===
+    # Inicializar número de productos si no existe
     if "num_productos" not in st.session_state:
         st.session_state.num_productos = 1
-    if "force_refresh" not in st.session_state:
-        st.session_state.force_refresh = ""
 
     st.markdown("### 🧵 Productos del pedido")
     
+    # Lista de productos
     productos_lista = [""]
     if 'Producto' in df_listas.columns:
         unique_products = df_listas['Producto'].dropna().unique()
         if len(unique_products) > 0:
             productos_lista.extend(unique_products.tolist())
 
+    # Lista de telas
     telas_lista = [""]
     if 'Tela' in df_listas.columns:
         unique_telas = df_listas['Tela'].dropna().unique()
@@ -61,15 +41,15 @@ def show_create(df_pedidos, df_listas):
     total_productos = 0.0
     productos_temp = []
 
+    # Renderizar cada producto
     for i in range(st.session_state.num_productos):
-        suffix = st.session_state.force_refresh
         cols = st.columns([3, 3, 2, 2])
         with cols[0]:
             producto = st.selectbox(
                 f"Producto {i+1}",
                 productos_lista,
                 index=safe_select_index(productos_lista, ""),
-                key=f"producto_{i}_{suffix}",
+                key=f"producto_{i}",
                 help="Selecciona un producto de la lista"
             )
         with cols[1]:
@@ -77,7 +57,7 @@ def show_create(df_pedidos, df_listas):
                 f"Tela {i+1}",
                 telas_lista,
                 index=safe_select_index(telas_lista, ""),
-                key=f"tela_{i}_{suffix}",
+                key=f"tela_{i}",
                 help="Selecciona el tipo de tela"
             )
         with cols[2]:
@@ -87,7 +67,7 @@ def show_create(df_pedidos, df_listas):
                 value=0.0, 
                 step=0.5,
                 format="%.2f",
-                key=f"precio_unit_{i}_{suffix}",
+                key=f"precio_unit_{i}",
                 help="Precio unitario del producto"
             )
         with cols[3]:
@@ -96,7 +76,7 @@ def show_create(df_pedidos, df_listas):
                 min_value=1, 
                 value=1, 
                 step=1,
-                key=f"cantidad_{i}_{suffix}",
+                key=f"cantidad_{i}",
                 help="Cantidad de unidades"
             )
 
@@ -112,22 +92,23 @@ def show_create(df_pedidos, df_listas):
 
     st.write("")
 
+    # Botones para añadir/quitar productos
     add_col, remove_col = st.columns([1, 1])
     with add_col:
-        if st.button("➕ Añadir otro producto", type="secondary", use_container_width=True, key=f"crear_add_producto_{st.session_state.force_refresh}"):
+        if st.button("➕ Añadir otro producto", type="secondary", use_container_width=True):
             st.session_state.num_productos += 1
             st.rerun()
 
     with remove_col:
         if st.session_state.num_productos > 1:
-            if st.button("➖ Quitar último producto", type="secondary", use_container_width=True, key=f"crear_remove_producto_{st.session_state.force_refresh}"):
+            if st.button("➖ Quitar último producto", type="secondary", use_container_width=True):
                 st.session_state.num_productos -= 1
                 st.rerun()
 
     st.write("---")
 
-    with st.form("nuevo_pedido_form", clear_on_submit=False):
-        suffix = st.session_state.force_refresh
+    # Formulario principal del pedido
+    with st.form("nuevo_pedido_form"):
         next_id = get_next_id(df_pedidos, 'ID')
         st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
@@ -140,15 +121,14 @@ def show_create(df_pedidos, df_listas):
             cliente_seleccion = st.selectbox(
                 "Cliente*",
                 opciones_cliente,
-                index=0,
-                key=f"cliente_seleccion_{suffix}",
+                key="cliente_seleccion",
                 help="Selecciona un cliente existente o elige 'Escribir nuevo...'"
             )
             
             if cliente_seleccion == "➕ Escribir nuevo...":
                 cliente = st.text_input(
                     "Nuevo nombre de cliente*",
-                    key=f"cliente_nuevo_valor_{suffix}",
+                    key="cliente_nuevo_valor",
                     placeholder="Escribe el nombre del nuevo cliente"
                 )
             else:
@@ -165,14 +145,14 @@ def show_create(df_pedidos, df_listas):
             telefono_seleccion = st.selectbox(
                 "Teléfono* (9 dígitos)",
                 opciones_telefono,
-                key=f"telefono_seleccion_{suffix}",
+                key="telefono_seleccion",
                 help="Selecciona un teléfono existente o elige 'Escribir nuevo...'"
             )
             
             if telefono_seleccion == "➕ Escribir nuevo...":
                 telefono_input = st.text_input(
                     "Nuevo teléfono*",
-                    key=f"telefono_nuevo_valor_{suffix}",
+                    key="telefono_nuevo_valor",
                     placeholder="Ej: 612345678"
                 )
                 telefono = telefono_input
@@ -185,15 +165,14 @@ def show_create(df_pedidos, df_listas):
             club_seleccion = st.selectbox(
                 "Club*",
                 opciones_club,
-                index=0,
-                key=f"club_seleccion_{suffix}",
+                key="club_seleccion",
                 help="Selecciona un club existente o elige 'Escribir nuevo...'"
             )
             
             if club_seleccion == "➕ Escribir nuevo...":
                 club = st.text_input(
                     "Nuevo nombre de club*",
-                    key=f"club_nuevo_valor_{suffix}",
+                    key="club_nuevo_valor",
                     placeholder="Escribe el nombre del nuevo club"
                 )
             else:
@@ -201,20 +180,19 @@ def show_create(df_pedidos, df_listas):
             
             descripcion = st.text_area(
                 "Descripción",
-                key=f"descripcion_{suffix}",
+                key="descripcion",
                 placeholder="Detalles del pedido, observaciones, etc."
             )
 
         with col2:
             fecha_entrada = st.date_input(
                 "📅 Fecha de entrada", 
-                value=datetime.now().date(), 
-                key=f"fecha_entrada_{suffix}"
+                value=datetime.now().date()
             )
             
-            tiene_fecha_salida = st.checkbox("📆 Establecer fecha de salida", key=f"tiene_fecha_salida_{suffix}")
+            tiene_fecha_salida = st.checkbox("📆 Establecer fecha de salida")
             if tiene_fecha_salida:
-                fecha_salida = st.date_input("Fecha de salida", value=datetime.now().date(), key=f"fecha_salida_{suffix}")
+                fecha_salida = st.date_input("Fecha de salida", value=datetime.now().date())
             else:
                 fecha_salida = None
             
@@ -223,8 +201,7 @@ def show_create(df_pedidos, df_listas):
                 min_value=0.0, 
                 value=0.0, 
                 step=1.0,
-                format="%.2f",
-                key=f"precio_total_{suffix}"
+                format="%.2f"
             )
             
             precio_factura = st.number_input(
@@ -232,8 +209,7 @@ def show_create(df_pedidos, df_listas):
                 min_value=0.0, 
                 value=0.0, 
                 step=1.0,
-                format="%.2f",
-                key=f"precio_factura_{suffix}"
+                format="%.2f"
             )
             
             tipos_pago = [""]
@@ -243,9 +219,8 @@ def show_create(df_pedidos, df_listas):
                     tipos_pago.extend(unique_tipos.tolist())
             tipo_pago = st.selectbox(
                 "💳 Tipo de pago", 
-                tipos_pago, 
-                index=safe_select_index(tipos_pago, ""), 
-                key=f"tipo_pago_{suffix}"
+                tipos_pago,
+                key="tipo_pago"
             )
             
             adelanto = st.number_input(
@@ -253,30 +228,29 @@ def show_create(df_pedidos, df_listas):
                 min_value=0.0, 
                 value=0.0, 
                 step=1.0,
-                format="%.2f",
-                key=f"adelanto_{suffix}"
+                format="%.2f"
             )
             
             observaciones = st.text_area(
                 "📝 Observaciones adicionales",
-                key=f"observaciones_{suffix}",
+                key="observaciones",
                 placeholder="Notas internas, acuerdos, etc."
             )
 
-        # ✅ ESTADOS INDEPENDIENTES (checkboxes)
+        # Estados del pedido
         st.write("### 🏷️ Estado del pedido")
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            empezado = st.checkbox("Empezado", value=False, key=f"empezado_{suffix}")
+            empezado = st.checkbox("Empezado", value=False)
         with col_b:
-            cobrado = st.checkbox("Cobrado", value=False, key=f"cobrado_{suffix}")
+            cobrado = st.checkbox("Cobrado", value=False)
         with col_c:
-            pendiente = st.checkbox("Pendiente", value=False, key=f"pendiente_{suffix}")
+            pendiente = st.checkbox("Pendiente", value=False)
 
         submitted = st.form_submit_button("✅ Guardar Nuevo Pedido", type="primary", use_container_width=True)
 
         if submitted:
-            # === VALIDACIÓN DE CAMPOS OBLIGATORIOS ===
+            # Validación de campos obligatorios
             if not cliente or not telefono or not club:
                 st.error("❌ Por favor complete los campos obligatorios (*)")
                 return
@@ -288,7 +262,6 @@ def show_create(df_pedidos, df_listas):
 
             productos_json = json.dumps(productos_temp)
 
-            # ✅ Los valores de los checkboxes se usan directamente
             new_pedido = {
                 'ID': next_id,
                 'Productos': productos_json,
@@ -324,6 +297,7 @@ def show_create(df_pedidos, df_listas):
                     st.success(f"🎉 ¡Pedido **{next_id}** del año **{año_actual}** creado correctamente!")
                     st.balloons()
                     
+                    # Opcional: notificación por Telegram
                     try:
                         from utils.notifications import enviar_telegram
                         precio_mostrar = precio if precio > 0 else precio_factura if precio_factura > 0 else 0.0
@@ -336,10 +310,9 @@ def show_create(df_pedidos, df_listas):
                     except Exception as e:
                         st.warning(f"⚠️ No se pudo enviar notificación: {e}")
 
+                    # Actualizar sesión y recargar
                     st.session_state.data['df_pedidos'] = df_pedidos
                     st.session_state.data_loaded = False
-                    st.session_state.reset_form = True
-                    st.session_state.force_refresh = str(datetime.now().timestamp())
                     time.sleep(1)
                     st.rerun()
                 else:
