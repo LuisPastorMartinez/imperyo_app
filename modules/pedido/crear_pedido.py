@@ -7,7 +7,8 @@ from utils.firestore_utils import get_next_id, save_dataframe_firestore
 from utils.data_utils import limpiar_telefono
 from .helpers import convert_to_firestore_type, safe_select_index
 import time
-
+st.error("🚨 ¡ESTE ES EL ARCHIVO crear_pedido.py QUE SE ESTÁ EJECUTANDO AHORA!")
+st.stop()
 def show_create(df_pedidos, df_listas):
     # Mostrar un indicador visual de que esta es la versión actualizada (puedes eliminarlo luego)
     # st.toast("✅ Versión actualizada: ahora puedes escribir nuevos clientes, teléfonos o clubes.", icon="📝")
