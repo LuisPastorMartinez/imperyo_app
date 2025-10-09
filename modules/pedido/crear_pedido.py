@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 from utils.firestore_utils import get_next_id, save_dataframe_firestore
 from utils.data_utils import limpiar_telefono
-from .helpers import convert_to_firestore_type
+from .helpers import convert_to_firestore_type, safe_select_index
 import time
 
 def show_create(df_pedidos, df_listas):
@@ -42,14 +42,14 @@ def show_create(df_pedidos, df_listas):
             producto = st.selectbox(
                 f"Producto {i+1}",
                 productos_lista,
-                index=0,
+                index=safe_select_index(productos_lista, ""),
                 key=f"producto_{i}"
             )
         with cols[1]:
             tela = st.selectbox(
                 f"Tela {i+1}",
                 telas_lista,
-                index=0,
+                index=safe_select_index(telas_lista, ""),
                 key=f"tela_{i}"
             )
         with cols[2]:
@@ -94,37 +94,43 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    # === Datos del cliente: entrada 100% libre y directa ===
+    # === Datos del cliente: con "➕ Escribir nuevo..." al principio ===
     next_id = get_next_id(df_pedidos, 'ID')
     st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
     col1, col2 = st.columns(2)
     
     with col1:
-        # Cliente: escribe lo que quieras
-        cliente = st.text_input(
-            "Cliente*",
-            value="",
-            placeholder="Ej: Juan Pérez (escribe libremente)",
-            key="cliente_simple"
-        )
+        # Cliente
+        clientes_existentes = df_pedidos['Cliente'].dropna().unique().tolist() if 'Cliente' in df_pedidos.columns else []
+        opciones_cliente = ["", "➕ Escribir nuevo..."] + sorted(clientes_existentes)
+        cliente_seleccion = st.selectbox("Cliente*", opciones_cliente, key="cliente_seleccion")
+        if cliente_seleccion == "➕ Escribir nuevo...":
+            cliente = st.text_input("Nuevo cliente*", key="cliente_nuevo", placeholder="Ej: Juan Pérez")
+        else:
+            cliente = cliente_seleccion
 
-        # Teléfono: escribe y se limpia automáticamente
-        telefono_raw = st.text_input(
-            "Teléfono* (9 dígitos)",
-            value="",
-            placeholder="Ej: 612345678",
-            key="telefono_simple"
-        )
-        telefono = limpiar_telefono(telefono_raw)
+        # Teléfono
+        telefonos_existentes = []
+        if 'Telefono' in df_pedidos.columns:
+            telefonos_limpios = df_pedidos['Telefono'].dropna().astype(str).apply(limpiar_telefono)
+            telefonos_validos = telefonos_limpios[telefonos_limpios.str.len() == 9]
+            telefonos_existentes = sorted(telefonos_validos.unique().tolist())
+        opciones_telefono = ["", "➕ Escribir nuevo..."] + telefonos_existentes
+        telefono_seleccion = st.selectbox("Teléfono* (9 dígitos)", opciones_telefono, key="telefono_seleccion")
+        if telefono_seleccion == "➕ Escribir nuevo...":
+            telefono = st.text_input("Nuevo teléfono*", key="telefono_nuevo", placeholder="Ej: 612345678")
+        else:
+            telefono = telefono_seleccion
 
-        # Club: escribe lo que quieras
-        club = st.text_input(
-            "Club*",
-            value="",
-            placeholder="Ej: Imperyo FC (escribe libremente)",
-            key="club_simple"
-        )
+        # Club
+        clubes_existentes = df_pedidos['Club'].dropna().unique().tolist() if 'Club' in df_pedidos.columns else []
+        opciones_club = ["", "➕ Escribir nuevo..."] + sorted(clubes_existentes)
+        club_seleccion = st.selectbox("Club*", opciones_club, key="club_seleccion")
+        if club_seleccion == "➕ Escribir nuevo...":
+            club = st.text_input("Nuevo club*", key="club_nuevo", placeholder="Ej: Imperyo FC")
+        else:
+            club = club_seleccion
 
         descripcion = st.text_area("Descripción", key="descripcion")
 
@@ -155,65 +161,68 @@ def show_create(df_pedidos, df_listas):
 
     # Botón de guardar
     if st.button("✅ Guardar Nuevo Pedido", type="primary", use_container_width=True):
-        # Validación
-        if not cliente.strip():
-            st.error("❌ El campo 'Cliente' es obligatorio.")
-        elif not telefono:
-            st.error("❌ El campo 'Teléfono' es obligatorio.")
-        elif len(telefono) != 9:
-            st.error("❌ El teléfono debe tener exactamente 9 dígitos.")
-        elif not club.strip():
-            st.error("❌ El campo 'Club' es obligatorio.")
+        # Validación de campos obligatorios
+        if not cliente or not telefono or not club:
+            st.error("❌ Por favor complete los campos obligatorios (*)")
         else:
-            # Guardar
-            productos_json = json.dumps(productos_temp)
-            new_pedido = {
-                'ID': next_id,
-                'Productos': productos_json,
-                'Cliente': convert_to_firestore_type(cliente.strip()),
-                'Telefono': convert_to_firestore_type(telefono),
-                'Club': convert_to_firestore_type(club.strip()),
-                'Breve Descripción': convert_to_firestore_type(descripcion),
-                'Fecha entrada': convert_to_firestore_type(fecha_entrada),
-                'Fecha Salida': convert_to_firestore_type(fecha_salida),
-                'Precio': convert_to_firestore_type(precio),
-                'Precio Factura': convert_to_firestore_type(precio_factura),
-                'Tipo de pago': convert_to_firestore_type(tipo_pago),
-                'Adelanto': convert_to_firestore_type(adelanto),
-                'Observaciones': convert_to_firestore_type(observaciones),
-                'Inicio Trabajo': convert_to_firestore_type(empezado),
-                'Trabajo Terminado': False,
-                'Cobrado': convert_to_firestore_type(cobrado),
-                'Retirado': False,
-                'Pendiente': convert_to_firestore_type(pendiente),
-                'Año': año_actual,
-                'id_documento_firestore': None
-            }
+            telefono_limpio = limpiar_telefono(telefono)
+            if not telefono_limpio or len(telefono_limpio) != 9:
+                st.error("❌ El teléfono debe contener exactamente 9 dígitos numéricos")
+            else:
+                productos_json = json.dumps(productos_temp)
 
-            with st.spinner("💾 Guardando pedido..."):
-                new_pedido_df = pd.DataFrame([new_pedido])
-                df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
-                df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
-                for c in df_pedidos.columns:
-                    df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
+                new_pedido = {
+                    'ID': next_id,
+                    'Productos': productos_json,
+                    'Cliente': convert_to_firestore_type(cliente),
+                    'Telefono': convert_to_firestore_type(telefono_limpio),
+                    'Club': convert_to_firestore_type(club),
+                    'Breve Descripción': convert_to_firestore_type(descripcion),
+                    'Fecha entrada': convert_to_firestore_type(fecha_entrada),
+                    'Fecha Salida': convert_to_firestore_type(fecha_salida),
+                    'Precio': convert_to_firestore_type(precio),
+                    'Precio Factura': convert_to_firestore_type(precio_factura),
+                    'Tipo de pago': convert_to_firestore_type(tipo_pago),
+                    'Adelanto': convert_to_firestore_type(adelanto),
+                    'Observaciones': convert_to_firestore_type(observaciones),
+                    'Inicio Trabajo': convert_to_firestore_type(empezado),
+                    'Trabajo Terminado': False,
+                    'Cobrado': convert_to_firestore_type(cobrado),
+                    'Retirado': False,
+                    'Pendiente': convert_to_firestore_type(pendiente),
+                    'Año': año_actual,
+                    'id_documento_firestore': None
+                }
 
-                if save_dataframe_firestore(df_pedidos, 'pedidos'):
-                    st.success(f"🎉 ¡Pedido **{next_id}** creado correctamente!")
-                    st.balloons()
-                    try:
-                        from utils.notifications import enviar_telegram
-                        precio_mostrar = precio if precio > 0 else precio_factura if precio_factura > 0 else 0.0
-                        mensaje = f"🆕 <b>Nuevo pedido</b>\nID: {next_id}\nCliente: {cliente}\nEquipo: {club}\nPrecio: {precio_mostrar:.2f} €"
-                        enviar_telegram(
-                            mensaje=mensaje,
-                            bot_token=st.secrets["telegram"]["bot_token"],
-                            chat_id=st.secrets["telegram"]["chat_id"]
-                        )
-                    except:
-                        pass
-                    st.session_state.data['df_pedidos'] = df_pedidos
-                    st.session_state.data_loaded = False
-                    time.sleep(1.5)
-                    st.rerun()
-                else:
-                    st.error("❌ Error al guardar el pedido.")
+                with st.spinner("💾 Guardando pedido..."):
+                    new_pedido_df = pd.DataFrame([new_pedido])
+                    df_pedidos = pd.concat([df_pedidos, new_pedido_df], ignore_index=True)
+                    df_pedidos = df_pedidos.where(pd.notna(df_pedidos), None)
+
+                    for c in df_pedidos.columns:
+                        df_pedidos[c] = df_pedidos[c].apply(lambda x: None if x is pd.NaT else x)
+
+                    if save_dataframe_firestore(df_pedidos, 'pedidos'):
+                        st.success(f"🎉 ¡Pedido **{next_id}** del año **{año_actual}** creado correctamente!")
+                        st.balloons()
+                        
+                        # Opcional: notificación por Telegram
+                        try:
+                            from utils.notifications import enviar_telegram
+                            precio_mostrar = precio if precio > 0 else precio_factura if precio_factura > 0 else 0.0
+                            mensaje = f"🆕 <b>Nuevo pedido</b>\nID: {next_id}\nCliente: {cliente}\nEquipo: {club}\nPrecio: {precio_mostrar:.2f} €"
+                            enviar_telegram(
+                                mensaje=mensaje,
+                                bot_token=st.secrets["telegram"]["bot_token"],
+                                chat_id=st.secrets["telegram"]["chat_id"]
+                            )
+                        except Exception as e:
+                            st.warning(f"⚠️ No se pudo enviar notificación: {e}")
+
+                        # Actualizar datos en sesión
+                        st.session_state.data['df_pedidos'] = df_pedidos
+                        st.session_state.data_loaded = False
+                        time.sleep(1.5)
+                        st.rerun()
+                    else:
+                        st.error("❌ Error al crear el pedido. Por favor, inténtelo de nuevo.")
