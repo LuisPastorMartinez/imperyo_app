@@ -94,7 +94,7 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    # === Datos del cliente (sin st.form para permitir campos dinámicos) ===
+    # === Datos del cliente (con persistencia en session_state) ===
     next_id = get_next_id(df_pedidos, 'ID')
     st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
@@ -106,9 +106,17 @@ def show_create(df_pedidos, df_listas):
         opciones_cliente = [""] + sorted(clientes_existentes) + ["➕ Escribir nuevo..."]
         cliente_seleccion = st.selectbox("Cliente*", opciones_cliente, key="cliente_seleccion")
         if cliente_seleccion == "➕ Escribir nuevo...":
-            cliente = st.text_input("Nuevo cliente*", key="cliente_nuevo")
+            cliente = st.text_input(
+                "Nuevo cliente*",
+                key="cliente_nuevo_input",
+                value=st.session_state.get("cliente_nuevo", ""),
+                placeholder="Ej: Juan Pérez"
+            )
+            st.session_state["cliente_nuevo"] = cliente
         else:
             cliente = cliente_seleccion
+            if "cliente_nuevo" in st.session_state:
+                del st.session_state["cliente_nuevo"]
 
         # Teléfono
         telefonos_existentes = []
@@ -119,18 +127,34 @@ def show_create(df_pedidos, df_listas):
         opciones_telefono = [""] + telefonos_existentes + ["➕ Escribir nuevo..."]
         telefono_seleccion = st.selectbox("Teléfono* (9 dígitos)", opciones_telefono, key="telefono_seleccion")
         if telefono_seleccion == "➕ Escribir nuevo...":
-            telefono = st.text_input("Nuevo teléfono*", key="telefono_nuevo", placeholder="Ej: 612345678")
+            telefono = st.text_input(
+                "Nuevo teléfono*",
+                key="telefono_nuevo_input",
+                placeholder="Ej: 612345678",
+                value=st.session_state.get("telefono_nuevo", "")
+            )
+            st.session_state["telefono_nuevo"] = telefono
         else:
             telefono = telefono_seleccion
+            if "telefono_nuevo" in st.session_state:
+                del st.session_state["telefono_nuevo"]
 
         # Club
         clubes_existentes = df_pedidos['Club'].dropna().unique().tolist() if 'Club' in df_pedidos.columns else []
         opciones_club = [""] + sorted(clubes_existentes) + ["➕ Escribir nuevo..."]
         club_seleccion = st.selectbox("Club*", opciones_club, key="club_seleccion")
         if club_seleccion == "➕ Escribir nuevo...":
-            club = st.text_input("Nuevo club*", key="club_nuevo")
+            club = st.text_input(
+                "Nuevo club*",
+                key="club_nuevo_input",
+                value=st.session_state.get("club_nuevo", ""),
+                placeholder="Ej: Imperyo FC"
+            )
+            st.session_state["club_nuevo"] = club
         else:
             club = club_seleccion
+            if "club_nuevo" in st.session_state:
+                del st.session_state["club_nuevo"]
 
         descripcion = st.text_area("Descripción", key="descripcion")
 
@@ -159,7 +183,7 @@ def show_create(df_pedidos, df_listas):
     with col_c:
         pendiente = st.checkbox("Pendiente", key="pendiente")
 
-    # Botón de guardar (fuera de form para permitir campos dinámicos)
+    # Botón de guardar
     if st.button("✅ Guardar Nuevo Pedido", type="primary", use_container_width=True):
         # Validación de campos obligatorios
         if not cliente or not telefono or not club:
@@ -219,7 +243,12 @@ def show_create(df_pedidos, df_listas):
                         except Exception as e:
                             st.warning(f"⚠️ No se pudo enviar notificación: {e}")
 
-                        # Actualizar datos en sesión
+                        # Limpiar campos de nuevo cliente/equipo/telefono del estado
+                        for key in ["cliente_nuevo", "telefono_nuevo", "club_nuevo"]:
+                            if key in st.session_state:
+                                del st.session_state[key]
+
+                        # Actualizar datos en sesión y recargar
                         st.session_state.data['df_pedidos'] = df_pedidos
                         st.session_state.data_loaded = False
                         time.sleep(1.5)
