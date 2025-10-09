@@ -94,61 +94,53 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    # === Datos del cliente: autocompletado inteligente ===
+    # === Datos del cliente: sugerencias solo tras escribir ===
     next_id = get_next_id(df_pedidos, 'ID')
     st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
     col1, col2 = st.columns(2)
     
     with col1:
-        # === CLIENTE ===
-        clientes_existentes = sorted(df_pedidos['Cliente'].dropna().unique().tolist()) if 'Cliente' in df_pedidos.columns else []
-        cliente_input = st.text_input("Cliente*", value="", key="cliente_autocomplete", placeholder="Empieza a escribir...")
-        if cliente_input:
-            sugerencias = [c for c in clientes_existentes if cliente_input.lower() in c.lower()]
-        else:
-            sugerencias = clientes_existentes[:10]
-        if sugerencias:
-            st.caption("🔍 ¿Quieres usar uno de estos?")
-            for sug in sugerencias[:5]:
-                if st.button(f"→ {sug}", key=f"sug_cliente_{hash(sug)}"):
-                    st.session_state["cliente_autocomplete"] = sug
-                    st.rerun()
-        cliente = cliente_input
+        # Cliente
+        cliente = st.text_input("Cliente*", key="cliente_input", placeholder="Ej: Juan Pérez")
+        if cliente:
+            clientes_existentes = sorted(df_pedidos['Cliente'].dropna().unique().tolist()) if 'Cliente' in df_pedidos.columns else []
+            sugerencias = [c for c in clientes_existentes if cliente.lower() in c.lower() and c != cliente]
+            if sugerencias:
+                st.caption("🔍 ¿Quizás querías alguno de estos?")
+                for sug in sugerencias[:4]:
+                    if st.button(f"→ {sug}", key=f"sug_cliente_{hash(sug)}"):
+                        st.session_state["cliente_input"] = sug
+                        st.rerun()
 
-        # === TELÉFONO ===
-        telefonos_existentes = []
-        if 'Telefono' in df_pedidos.columns:
-            telefonos_limpios = df_pedidos['Telefono'].dropna().astype(str).apply(limpiar_telefono)
-            telefonos_validos = telefonos_limpios[telefonos_limpios.str.len() == 9]
-            telefonos_existentes = sorted(telefonos_validos.unique().tolist())
-        telefono_raw = st.text_input("Teléfono* (9 dígitos)", value="", key="telefono_autocomplete", placeholder="Ej: 612345678")
+        # Teléfono
+        telefono_raw = st.text_input("Teléfono* (9 dígitos)", key="telefono_input", placeholder="Ej: 612345678")
         telefono = limpiar_telefono(telefono_raw)
         if telefono:
-            sugerencias_tel = [t for t in telefonos_existentes if telefono in t]
-        else:
-            sugerencias_tel = telefonos_existentes[:10]
-        if sugerencias_tel:
-            st.caption("📞 ¿Uno de estos números?")
-            for sug in sugerencias_tel[:5]:
-                if st.button(f"→ {sug}", key=f"sug_tel_{hash(sug)}"):
-                    st.session_state["telefono_autocomplete"] = sug
-                    st.rerun()
+            telefonos_existentes = []
+            if 'Telefono' in df_pedidos.columns:
+                telefonos_limpios = df_pedidos['Telefono'].dropna().astype(str).apply(limpiar_telefono)
+                telefonos_validos = telefonos_limpios[telefonos_limpios.str.len() == 9]
+                telefonos_existentes = sorted(telefonos_validos.unique().tolist())
+            sugerencias_tel = [t for t in telefonos_existentes if telefono in t and t != telefono]
+            if sugerencias_tel:
+                st.caption("📞 ¿Este número ya existe?")
+                for sug in sugerencias_tel[:4]:
+                    if st.button(f"→ {sug}", key=f"sug_tel_{hash(sug)}"):
+                        st.session_state["telefono_input"] = sug
+                        st.rerun()
 
-        # === CLUB ===
-        clubes_existentes = sorted(df_pedidos['Club'].dropna().unique().tolist()) if 'Club' in df_pedidos.columns else []
-        club_input = st.text_input("Club*", value="", key="club_autocomplete", placeholder="Ej: Imperyo FC")
-        if club_input:
-            sugerencias_club = [c for c in clubes_existentes if club_input.lower() in c.lower()]
-        else:
-            sugerencias_club = clubes_existentes[:10]
-        if sugerencias_club:
-            st.caption("🏟️ ¿Este club?")
-            for sug in sugerencias_club[:5]:
-                if st.button(f"→ {sug}", key=f"sug_club_{hash(sug)}"):
-                    st.session_state["club_autocomplete"] = sug
-                    st.rerun()
-        club = club_input
+        # Club
+        club = st.text_input("Club*", key="club_input", placeholder="Ej: Imperyo FC")
+        if club:
+            clubes_existentes = sorted(df_pedidos['Club'].dropna().unique().tolist()) if 'Club' in df_pedidos.columns else []
+            sugerencias_club = [c for c in clubes_existentes if club.lower() in c.lower() and c != club]
+            if sugerencias_club:
+                st.caption("🏟️ ¿Te refieres a alguno de estos?")
+                for sug in sugerencias_club[:4]:
+                    if st.button(f"→ {sug}", key=f"sug_club_{hash(sug)}"):
+                        st.session_state["club_input"] = sug
+                        st.rerun()
 
         descripcion = st.text_area("Descripción", key="descripcion")
 
