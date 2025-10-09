@@ -94,23 +94,24 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    # === Datos del cliente: con "➕ Escribir nuevo..." al principio ===
+    # === Datos del cliente: con +crear al principio y campo inmediato ===
     next_id = get_next_id(df_pedidos, 'ID')
     st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
     col1, col2 = st.columns(2)
     
     with col1:
-        # Cliente
+        # === CLIENTE ===
         clientes_existentes = df_pedidos['Cliente'].dropna().unique().tolist() if 'Cliente' in df_pedidos.columns else []
         opciones_cliente = ["", "➕ Escribir nuevo..."] + sorted(clientes_existentes)
         cliente_seleccion = st.selectbox("Cliente*", opciones_cliente, key="cliente_seleccion")
         if cliente_seleccion == "➕ Escribir nuevo...":
-            cliente = st.text_input("Nuevo cliente*", key="cliente_nuevo", placeholder="Ej: Juan Pérez")
+            st.caption("✏️ Escribe el nombre del nuevo cliente:")
+            cliente = st.text_input("Nuevo cliente*", key="cliente_nuevo", placeholder="Ej: Juan Pérez", label_visibility="collapsed")
         else:
             cliente = cliente_seleccion
 
-        # Teléfono
+        # === TELÉFONO ===
         telefonos_existentes = []
         if 'Telefono' in df_pedidos.columns:
             telefonos_limpios = df_pedidos['Telefono'].dropna().astype(str).apply(limpiar_telefono)
@@ -119,16 +120,18 @@ def show_create(df_pedidos, df_listas):
         opciones_telefono = ["", "➕ Escribir nuevo..."] + telefonos_existentes
         telefono_seleccion = st.selectbox("Teléfono* (9 dígitos)", opciones_telefono, key="telefono_seleccion")
         if telefono_seleccion == "➕ Escribir nuevo...":
-            telefono = st.text_input("Nuevo teléfono*", key="telefono_nuevo", placeholder="Ej: 612345678")
+            st.caption("✏️ Escribe el nuevo número (9 dígitos):")
+            telefono = st.text_input("Nuevo teléfono*", key="telefono_nuevo", placeholder="Ej: 612345678", label_visibility="collapsed")
         else:
             telefono = telefono_seleccion
 
-        # Club
+        # === CLUB ===
         clubes_existentes = df_pedidos['Club'].dropna().unique().tolist() if 'Club' in df_pedidos.columns else []
         opciones_club = ["", "➕ Escribir nuevo..."] + sorted(clubes_existentes)
         club_seleccion = st.selectbox("Club*", opciones_club, key="club_seleccion")
         if club_seleccion == "➕ Escribir nuevo...":
-            club = st.text_input("Nuevo club*", key="club_nuevo", placeholder="Ej: Imperyo FC")
+            st.caption("✏️ Escribe el nombre del nuevo club:")
+            club = st.text_input("Nuevo club*", key="club_nuevo", placeholder="Ej: Imperyo FC", label_visibility="collapsed")
         else:
             club = club_seleccion
 
