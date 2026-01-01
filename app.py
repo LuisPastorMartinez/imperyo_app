@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import os
 import hashlib
-import re
 from pathlib import Path
 from datetime import datetime
 import logging
@@ -11,68 +10,32 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- PATHS ---
+# --- PATH ---
 sys_path = str(Path(__file__).parent)
 if sys_path not in os.sys.path:
     os.sys.path.append(sys_path)
 
-# --- IMPORTS REALES ---
-from utils.firestore_utils import (
-    load_dataframes_firestore,
-    save_dataframe_firestore,
-    delete_document_firestore,
-    get_next_id
-)
-from utils.data_utils import limpiar_telefono, limpiar_fecha
-
-# Intentar importar backup_to_dropbox (si falla, desactivar backup)
-try:
-    from utils.excel_utils import backup_to_dropbox
-    DROPBOX_AVAILABLE = True
-except ImportError:
-    st.warning("⚠️ Módulo de backup no disponible.")
-    DROPBOX_AVAILABLE = False
-
-# Módulos de páginas
+# --- IMPORTS ---
+from utils.firestore_utils import load_dataframes_firestore
 from modules.pedidos_page import show_pedidos_page
 from modules.gastos_page import show_gastos_page
 from modules.resumen_page import show_resumen_page
 from modules.config_page import show_config_page
-from modules.analisis_productos_page import show_analisis_productos_page 
-
-# --- CONSTANTES ---
-LOGO_URL = "https://www.dropbox.com/scl/fi/opp61pwyq2lxleaj3hxs3/Logo-Movil-e-instagran.png?rlkey=4cruzlufwlz9vfr2myezjkz1d&dl=1"
+from modules.analisis_productos_page import show_analisis_productos_page
 
 # --- CONFIG PÁGINA ---
-st.set_page_config(page_title="ImperYo", page_icon=LOGO_URL, layout="wide")
-
-# --- CSS ---
-st.markdown("""<style>
-.stImage > img { max-width: 100px; height: auto; }
-h1 { font-size: 3em; }
-@media (max-width: 768px) {
-    h1 { font-size: 2em; }
-    h2 { font-size: 1.5em; }
-}
-.stButton>button {
-    background-color: #2c3e50; color: white; border-radius: 8px; font-weight: bold;
-}
-.stButton>button:hover {
-    background-color: #1a252f; color: #e0e0e0;
-}
-</style>""", unsafe_allow_html=True)
+st.set_page_config(
+    page_title="Imperyo Sport",
+    page_icon="🧵",
+    layout="wide"
+)
 
 # --- HEADER ---
 def render_header():
-    st.markdown(f"""
-    <div style="display: flex; align-items: center; padding: 15px; border-radius: 12px; 
-                background: linear-gradient(to right, #f8f9fa, #e9ecef); 
-                box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px;">
-        <img src="{LOGO_URL}" width="80" style="margin-right: 25px; border-radius: 8px;">
-        <div>
-            <h1 style="margin: 0; color: #2c3e50; font-weight: 700;">Imperyo Sport</h1>
-            <p style="margin: 0; color: #6c757d; font-size: 1.2em;">Gestión de Pedidos y Gastos</p>
-        </div>
+    st.markdown("""
+    <div style="padding:15px;border-radius:10px;background:#f4f6f8;margin-bottom:20px">
+        <h1 style="margin:0">Imperyo Sport</h1>
+        <p style="margin:0;color:#666">Gestión de pedidos y gastos</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -84,171 +47,164 @@ def check_password():
         correct_username = st.secrets["auth"]["username"]
         correct_password_hash = st.secrets["auth"]["password_hash"]
     except KeyError:
-        st.error("❌ Error: credenciales no configuradas en secrets.")
+        st.error("Credenciales no configuradas.")
         st.stop()
 
     if "authenticated" not in st.session_state:
-        st.session_state["authenticated"] = False
+        st.session_state.authenticated = False
 
-    if not st.session_state["authenticated"]:
-        st.markdown(f"""
-        <div style="text-align: center; padding: 30px; border-radius: 15px; 
-                    background: #f8f9fa; box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
-                    margin: 20px auto; max-width: 400px;">
-            <img src="{LOGO_URL}" width="100" style="margin-bottom: 20px; border-radius: 50%;">
-            <h3>🔐 Iniciar Sesión</h3>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.text_input("👤 Usuario", key="username_input")
-        st.text_input("🔒 Contraseña", type="password", key="password_input")
-        
-        def authenticate():
-            hashed = hashlib.sha256(st.session_state["password_input"].encode()).hexdigest()
-            if (st.session_state["username_input"] == correct_username and 
-                hashed == correct_password_hash):
-                st.session_state["authenticated"] = True
+    if not st.session_state.authenticated:
+        st.text_input("Usuario", key="username_input")
+        st.text_input("Contraseña", type="password", key="password_input")
+
+        if st.button("Iniciar sesión", type="primary"):
+            hashed = hashlib.sha256(
+                st.session_state.password_input.encode()
+            ).hexdigest()
+
+            if (
+                st.session_state.username_input == correct_username
+                and hashed == correct_password_hash
+            ):
+                st.session_state.authenticated = True
+                st.rerun()
             else:
-                st.session_state["login_failed"] = True
-
-        st.button("🚀 Iniciar Sesión", on_click=authenticate, use_container_width=True)
-
-        if st.session_state.get("login_failed", False):
-            st.error("❌ Usuario o contraseña incorrectos.")
+                st.error("Usuario o contraseña incorrectos")
         return False
+
     return True
 
-# --- INICIALIZAR SESIÓN ---
+# --- INIT SESSION ---
 def init_session_state():
     defaults = {
-        "authenticated": False,
         "data_loaded": False,
-        "selected_year": datetime.now().year,
-        "last_backup": None,
+        "selected_year": None,
         "current_summary_view": "Todos los Pedidos"
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
-# --- CALCULAR ESTADO ---
+# --- ESTADO PEDIDO ---
 def calcular_estado(row):
-    if row.get('Pendiente', False):
+    if row.get('Pendiente'):
         return 'Pendiente'
-    if (row.get('Trabajo Terminado', False) and 
-        row.get('Cobrado', False) and 
-        row.get('Retirado', False)):
+    if row.get('Trabajo Terminado') and row.get('Cobrado') and row.get('Retirado'):
         return 'Completado'
-    if row.get('Trabajo Terminado', False):
+    if row.get('Trabajo Terminado'):
         return 'Terminado'
-    if row.get('Inicio Trabajo', False):
+    if row.get('Inicio Trabajo'):
         return 'Empezado'
     return 'Nuevo'
 
-# --- LÓGICA PRINCIPAL ---
+# --- MAIN ---
 if check_password():
     init_session_state()
-    
+
     if not st.session_state.data_loaded:
-        with st.spinner("Cargando datos desde Firestore..."):
+        with st.spinner("Cargando datos..."):
             data = load_dataframes_firestore()
-            if data is None:
-                st.error("❌ No se pudieron cargar los datos.")
+            if not data or 'df_pedidos' not in data:
+                st.error("No se pudieron cargar los datos.")
                 st.stop()
 
-            # ✅ CORRECCIÓN: Inferir 'Año' desde 'Fecha entrada'
-            if 'df_pedidos' in data:
-                df = data['df_pedidos']
-                if 'Año' not in df.columns:
-                    logger.info("Añadiendo columna 'Año' a pedidos...")
-                    if 'Fecha entrada' in df.columns:
-                        df['Año'] = pd.to_datetime(df['Fecha entrada'], errors='coerce').dt.year
-                    else:
-                        df['Año'] = datetime.now().year
-                    df['Año'] = df['Año'].fillna(datetime.now().year).astype('int64')
-                    if save_dataframe_firestore(df, 'pedidos'):
-                        logger.info("✅ Campo 'Año' guardado en Firestore.")
-                        st.success("✅ Campo 'Año' añadido a los pedidos.")
-                    else:
-                        st.warning("⚠️ No se pudo guardar el campo 'Año'.")
-                data['df_pedidos'] = df
+            df_pedidos = data['df_pedidos']
 
+            # 🔑 AÑOS DISPONIBLES (MAYOR → MENOR)
+            if not df_pedidos.empty and 'Año' in df_pedidos.columns:
+                años = sorted(
+                    df_pedidos['Año'].dropna().unique(),
+                    reverse=True
+                )
+            else:
+                años = [datetime.now().year]
+
+            st.session_state.selected_year = años[0]
             st.session_state.data = data
             st.session_state.data_loaded = True
 
-    # Validar DataFrames
-    required_dfs = ['df_pedidos', 'df_gastos', 'df_totales', 'df_listas', 'df_trabajos']
-    for df_name in required_dfs:
-        if df_name not in st.session_state.data:
-            st.error(f"❌ Falta '{df_name}' en los datos.")
-            st.stop()
-
-    df_pedidos = st.session_state.data['df_pedidos']
-    df_gastos = st.session_state.data['df_gastos']
-    df_totales = st.session_state.data['df_totales']
-    df_listas = st.session_state.data['df_listas']
-    df_trabajos = st.session_state.data['df_trabajos']
-
-    # Cerrar sesión
-    st.sidebar.markdown("---")
-    if st.sidebar.button("🚪 Cerrar Sesión", type="primary", use_container_width=True):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.rerun()
-
-    # Navegación
-    st.sidebar.title("🧭 Navegación Principal")
+    # --- SIDEBAR ---
+    st.sidebar.title("🧭 Navegación")
     page = st.sidebar.radio(
-        "Selecciona una sección:",
-        ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"],
-        index=0
+        "Secciones",
+        ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"]
     )
 
     if page == "Resumen":
-        with st.sidebar.expander("📊 Filtrar Resumen", expanded=True):
-            selected_summary_view_in_expander = st.radio(
-                "Ver por estado:",
-                ["Todos los Pedidos", "Trabajos Empezados", "Trabajos Terminados", "Trabajos Completados", "Pedidos Pendientes", "Nuevos Pedidos"],
-                key="summary_view_radio"
-            )
-            st.session_state.current_summary_view = selected_summary_view_in_expander
+        st.sidebar.markdown("---")
+        st.sidebar.radio(
+            "Vista resumen",
+            [
+                "Todos los Pedidos",
+                "Trabajos Empezados",
+                "Trabajos Terminados",
+                "Trabajos Completados",
+                "Pedidos Pendientes",
+                "Nuevos Pedidos"
+            ],
+            key="summary_view_radio"
+        )
+        st.session_state.current_summary_view = st.session_state.summary_view_radio
 
-    # Páginas
+    # --- DATA ---
+    df_pedidos = st.session_state.data['df_pedidos']
+    df_gastos = st.session_state.data.get('df_gastos')
+
+    # --- PÁGINAS ---
     if page == "Inicio":
-        st.header("📊 Bienvenido a Imperyo Sport")
+        st.header("📊 Resumen General")
         st.write("---")
 
-        años = sorted(df_pedidos['Año'].dropna().unique(), reverse=True) if 'Año' in df_pedidos.columns else [datetime.now().year]
-        selected_year = st.selectbox("📅 Selecciona el año:", años)
-        st.session_state.selected_year = selected_year
+        años = sorted(
+            df_pedidos['Año'].dropna().unique(),
+            reverse=True
+        ) if not df_pedidos.empty else [datetime.now().year]
 
-        df_filtrado = df_pedidos[df_pedidos['Año'] == selected_year].copy()
-        df_filtrado['Estado'] = df_filtrado.apply(calcular_estado, axis=1)
+        año = st.selectbox(
+            "📅 Año",
+            años,
+            index=años.index(st.session_state.selected_year)
+            if st.session_state.selected_year in años else 0
+        )
 
-        col1, col2, col3, col4, col5 = st.columns(5)
-        total = len(df_filtrado)
-        with col1: st.metric(f"📆 {selected_year} Total", total)
-        with col2: st.metric("🆕 Nuevos", len(df_filtrado[df_filtrado['Estado'] == 'Nuevo']))
-        with col3: st.metric("🔄 Empezados", len(df_filtrado[df_filtrado['Estado'] == 'Empezado']))
-        with col4: st.metric("⏳ Pendientes", len(df_filtrado[df_filtrado['Estado'] == 'Pendiente']))
-        with col5: st.metric("✅ Terminados", len(df_filtrado[df_filtrado['Estado'] == 'Terminado']))
+        st.session_state.selected_year = año
+
+        df = df_pedidos[df_pedidos['Año'] == año].copy()
+        df['Estado'] = df.apply(calcular_estado, axis=1)
+
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            st.metric("📦 Total", len(df))
+        with c2:
+            st.metric("🆕 Nuevos", len(df[df['Estado'] == 'Nuevo']))
+        with c3:
+            st.metric("🔵 Empezados", len(df[df['Estado'] == 'Empezado']))
+        with c4:
+            st.metric("📌 Pendientes", len(df[df['Estado'] == 'Pendiente']))
+        with c5:
+            st.metric("✅ Terminados", len(df[df['Estado'] == 'Terminado']))
 
         st.write("---")
-        st.subheader(f"📅 Últimos 5 Pedidos ({selected_year})")
-        if not df_filtrado.empty:
-            for _, r in df_filtrado.sort_values('ID', ascending=False).head(5).iterrows():
-                st.markdown(f"**ID {r['ID']}** — {r.get('Cliente','N/A')} — {r.get('Producto','N/A')} — 📅 {r.get('Fecha entrada','N/A')} — 🏷️ *{r['Estado']}*")
-        else:
-            st.info(f"No hay pedidos en {selected_year}.")
+        st.subheader(f"Últimos pedidos {año}")
+
+        for _, r in df.sort_values('ID', ascending=False).head(5).iterrows():
+            st.markdown(
+                f"**Pedido {int(r['ID'])} / {int(r['Año'])}** — "
+                f"{r.get('Cliente','')} — "
+                f"{r.get('Precio',0):.2f} €"
+            )
+
+    elif page == "Pedidos":
+        show_pedidos_page(df_pedidos, st.session_state.data.get('df_listas'))
+
+    elif page == "Gastos":
+        show_gastos_page(df_gastos)
+
+    elif page == "Resumen":
+        show_resumen_page(df_pedidos, st.session_state.current_summary_view)
 
     elif page == "Ver Datos":
         show_analisis_productos_page(df_pedidos)
 
-    elif page == "Pedidos":
-        show_pedidos_page(df_pedidos, df_listas)
-    elif page == "Gastos":
-        show_gastos_page(df_gastos)
-    elif page == "Resumen":
-        show_resumen_page(df_pedidos, st.session_state.current_summary_view)
     elif page == "Configuración":
         show_config_page()
