@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import time
 from datetime import datetime, date
+
 from utils.firestore_utils import save_dataframe_firestore
 from utils.data_utils import limpiar_telefono
 from .helpers import convert_to_firestore_type, safe_select_index
@@ -12,13 +13,13 @@ def safe_to_date(value):
     """Convierte un valor a date de forma segura."""
     if isinstance(value, date):
         return value
+    if isinstance(value, datetime):
+        return value.date()
     if isinstance(value, str) and value.strip():
         try:
             return datetime.strptime(value[:10], "%Y-%m-%d").date()
         except Exception:
             return datetime.now().date()
-    if isinstance(value, datetime):
-        return value.date()
     return datetime.now().date()
 
 
@@ -33,37 +34,33 @@ def show_modify(df_pedidos, df_listas):
     if "Año" not in df_pedidos.columns:
         df_pedidos["Año"] = datetime.now().year
 
-    df_pedidos["Año"] = pd.to_numeric(
-        df_pedidos["Año"], errors="coerce"
-    ).fillna(datetime.now().year).astype("int64")
+    df_pedidos["Año"] = (
+        pd.to_numeric(df_pedidos["Año"], errors="coerce")
+        .fillna(datetime.now().year)
+        .astype("int64")
+    )
 
     # ---------- SELECTOR DE AÑO ----------
-    año_actual = datetime.now().year
-
     años_disponibles = sorted(
         df_pedidos["Año"].dropna().unique(),
         reverse=True
     )
 
-    if año_actual not in años_disponibles:
-        años_disponibles.insert(0, año_actual)
-
     año_seleccionado = st.selectbox(
         "📅 Año del pedido",
         años_disponibles,
-        key="modify_año_selector"
+        key="modify_year_selector"
     )
 
-    # ---------- FILTRAR POR AÑO ----------
     df_year = df_pedidos[df_pedidos["Año"] == año_seleccionado].copy()
 
     if df_year.empty:
         st.info(f"📭 No hay pedidos en {año_seleccionado}")
         return
 
-    # ---------- SELECCIÓN DE ID ----------
+    # ---------- SELECTOR DE ID ----------
     mod_id = st.number_input(
-        "ID del pedido",
+        "🆔 ID del pedido",
         min_value=1,
         step=1,
         key="modify_id_input"
@@ -94,17 +91,18 @@ def show_modify(df_pedidos, df_listas):
 
     productos_lista = [""] + (
         df_listas["Producto"].dropna().unique().tolist()
-        if "Producto" in df_listas.columns else []
+        if df_listas is not None and "Producto" in df_listas.columns else []
     )
     telas_lista = [""] + (
         df_listas["Tela"].dropna().unique().tolist()
-        if "Tela" in df_listas.columns else []
+        if df_listas is not None and "Tela" in df_listas.columns else []
     )
 
     total_productos = 0.0
 
     for i, p in enumerate(productos):
         cols = st.columns([3, 3, 2, 2])
+
         with cols[0]:
             p["Producto"] = st.selectbox(
                 f"Producto {i+1}",
@@ -112,6 +110,7 @@ def show_modify(df_pedidos, df_listas):
                 index=safe_select_index(productos_lista, p.get("Producto", "")),
                 key=f"mod_producto_{i}"
             )
+
         with cols[1]:
             p["Tela"] = st.selectbox(
                 f"Tela {i+1}",
@@ -119,6 +118,7 @@ def show_modify(df_pedidos, df_listas):
                 index=safe_select_index(telas_lista, p.get("Tela", "")),
                 key=f"mod_tela_{i}"
             )
+
         with cols[2]:
             p["PrecioUnitario"] = st.number_input(
                 "Precio €",
@@ -126,6 +126,7 @@ def show_modify(df_pedidos, df_listas):
                 value=float(p.get("PrecioUnitario", 0.0)),
                 key=f"mod_precio_{i}"
             )
+
         with cols[3]:
             p["Cantidad"] = st.number_input(
                 "Cantidad",
@@ -147,7 +148,10 @@ def show_modify(df_pedidos, df_listas):
             cliente = st.text_input("Cliente*", value=pedido.get("Cliente", ""))
             telefono = st.text_input("Teléfono*", value=pedido.get("Telefono", ""))
             club = st.text_input("Club*", value=pedido.get("Club", ""))
-            descripcion = st.text_area("Descripción", value=pedido.get("Breve Descripción", ""))
+            descripcion = st.text_area(
+                "Descripción",
+                value=pedido.get("Breve Descripción", "")
+            )
 
         with col2:
             fecha_entrada = st.date_input(
@@ -157,7 +161,6 @@ def show_modify(df_pedidos, df_listas):
             fecha_salida = st.date_input(
                 "Fecha salida",
                 value=safe_to_date(pedido.get("Fecha Salida"))
-                if pedido.get("Fecha Salida") else datetime.now().date()
             )
             precio = st.number_input(
                 "Precio total (€)",
@@ -171,22 +174,37 @@ def show_modify(df_pedidos, df_listas):
             )
 
         st.write("**Estado del pedido**")
-        col_a, col_b, col_c, col_d, col_e = st.columns(5)
+        c1, c2, c3, c4, c5 = st.columns(5)
 
-        with col_a:
-            empezado = st.checkbox("Empezado", value=bool(pedido.get("Inicio Trabajo", False)))
-        with col_b:
-            terminado = st.checkbox("Terminado", value=bool(pedido.get("Trabajo Terminado", False)))
-        with col_c:
-            cobrado = st.checkbox("Cobrado", value=bool(pedido.get("Cobrado", False)))
-        with col_d:
-            retirado = st.checkbox("Retirado", value=bool(pedido.get("Retirado", False)))
-        with col_e:
-            pendiente = st.checkbox("Pendiente", value=bool(pedido.get("Pendiente", False)))
+        with c1:
+            empezado = st.checkbox(
+                "Empezado",
+                value=bool(pedido.get("Inicio Trabajo", False))
+            )
+        with c2:
+            terminado = st.checkbox(
+                "Terminado",
+                value=bool(pedido.get("Trabajo Terminado", False))
+            )
+        with c3:
+            cobrado = st.checkbox(
+                "Cobrado",
+                value=bool(pedido.get("Cobrado", False))
+            )
+        with c4:
+            retirado = st.checkbox(
+                "Retirado",
+                value=bool(pedido.get("Retirado", False))
+            )
+        with c5:
+            pendiente = st.checkbox(
+                "Pendiente",
+                value=bool(pedido.get("Pendiente", False))
+            )
 
         guardar = st.form_submit_button("💾 Guardar cambios", type="primary")
 
-    # ---------- GUARDAR CAMBIOS ----------
+    # ---------- GUARDAR ----------
     if guardar:
         if not cliente or not telefono or not club:
             st.error("❌ Cliente, Teléfono y Club son obligatorios.")
@@ -232,7 +250,9 @@ def show_modify(df_pedidos, df_listas):
             st.error("❌ Error al guardar cambios.")
             return
 
-        st.success(f"✅ Pedido {mod_id} del año {año_seleccionado} actualizado correctamente")
+        st.success(
+            f"✅ Pedido {mod_id} / {año_seleccionado} actualizado correctamente"
+        )
         st.balloons()
         time.sleep(1)
 
