@@ -1,6 +1,6 @@
 @echo off
 cls
-cd /d "F:\ImperYo Sport Casa\ImperYo 1\Programa de gestion Imperyo sport\Imperyo_app_9-7 - 2"
+cd /d "F:\ImperYo Sport Casa\ImperYo 1\Programa de gestion Imperyo sport\Imperyo_app_9-7 2"
 
 echo 🛡️ VERIFICANDO ENTORNO...
 git rev-parse --git-dir >nul 2>&1

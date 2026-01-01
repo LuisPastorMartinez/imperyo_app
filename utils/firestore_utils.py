@@ -1,108 +1,142 @@
-import streamlit as st
 import pandas as pd
-import firebase_admin
-from firebase_admin import credentials, firestore
-from datetime import datetime
 import logging
+from google.cloud import firestore
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAMES = {
-    'pedidos': 'pedidos',
-    'gastos': 'gastos',
-    'totales': 'totales',
-    'listas': 'listas',
-    'trabajos': 'trabajos',
-    'posibles_clientes': 'posibles_clientes'
-}
-
+# ---------------- FIRESTORE CLIENT ----------------
 def get_firestore_client():
-    if 'firestore_client' not in st.session_state:
-        try:
-            cred_dict = dict(st.secrets["firestore"])
-            if not firebase_admin._apps:
-                cred = credentials.Certificate(cred_dict)
-                firebase_admin.initialize_app(cred)
-            st.session_state.firestore_client = firestore.client()
-        except Exception as e:
-            st.error(f"Error inicializando Firestore: {e}")
-            return None
-    return st.session_state.firestore_client
+    try:
+        return firestore.Client()
+    except Exception as e:
+        logger.error(f"Error creando cliente Firestore: {e}")
+        return None
 
-db = get_firestore_client()
 
+# ---------------- LOAD DATA ----------------
 def load_dataframes_firestore():
-    if db is None:
+    """
+    Carga todas las colecciones necesarias de Firestore
+    y las devuelve como DataFrames.
+    """
+    client = get_firestore_client()
+    if not client:
         return None
 
     data = {}
-    for key, collection_name in COLLECTION_NAMES.items():
-        docs = db.collection(collection_name).stream()
-        records = []
-        for doc in docs:
-            r = doc.to_dict()
-            r['id_documento_firestore'] = doc.id
-            records.append(r)
 
-        df = pd.DataFrame(records) if records else pd.DataFrame()
-        data[f'df_{key}'] = df
+    colecciones = {
+        "df_pedidos": "pedidos",
+        "df_gastos": "gastos",
+        "df_totales": "totales",
+        "df_listas": "listas",
+        "df_trabajos": "trabajos",
+    }
 
-    return data
+    try:
+        for df_name, collection_name in colecciones.items():
+            docs = client.collection(collection_name).stream()
+            rows = []
+            for doc in docs:
+                d = doc.to_dict()
+                d["id_documento_firestore"] = doc.id
+                rows.append(d)
 
-def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
-    if db is None:
-        return False
+            data[df_name] = pd.DataFrame(rows)
 
-    collection_name = COLLECTION_NAMES.get(collection_key)
-    if not collection_name:
+        return data
+
+    except Exception as e:
+        logger.error(f"Error cargando datos desde Firestore: {e}")
+        return None
+
+
+# ---------------- SAVE DATA ----------------
+def save_dataframe_firestore(df, collection_name):
+    """
+    Guarda un DataFrame completo en Firestore.
+    Usa id_documento_firestore si existe.
+    """
+    client = get_firestore_client()
+    if not client:
         return False
 
     try:
-        batch = db.batch()
-        collection_ref = db.collection(collection_name)
-
-        if collection_key != 'pedidos':
-            for doc in collection_ref.stream():
-                batch.delete(doc.reference)
+        collection_ref = client.collection(collection_name)
 
         for _, row in df.iterrows():
-            record = row.drop('id_documento_firestore', errors='ignore').to_dict()
-            doc_id = row.get('id_documento_firestore')
-            doc_ref = collection_ref.document(doc_id) if doc_id else collection_ref.document()
-            batch.set(doc_ref, record)
+            data = row.to_dict()
+            doc_id = data.pop("id_documento_firestore", None)
 
-        batch.commit()
+            # Limpiar NaN
+            for k, v in data.items():
+                if pd.isna(v):
+                    data[k] = None
+
+            if doc_id:
+                collection_ref.document(doc_id).set(data)
+            else:
+                doc_ref = collection_ref.document()
+                doc_ref.set(data)
+                df.loc[row.name, "id_documento_firestore"] = doc_ref.id
+
         return True
+
     except Exception as e:
-        st.error(f"Error guardando en Firestore: {e}")
+        logger.error(f"Error guardando DataFrame en Firestore ({collection_name}): {e}")
         return False
 
-def delete_document_firestore(collection_key, doc_id):
-    if db is None:
+
+# ---------------- DELETE DOCUMENT ----------------
+def delete_document_firestore(collection_name, doc_id):
+    """
+    Elimina un documento concreto por ID técnico de Firestore.
+    """
+    client = get_firestore_client()
+    if not client:
         return False
-    collection_name = COLLECTION_NAMES.get(collection_key)
+
     try:
-        db.collection(collection_name).document(doc_id).delete()
+        client.collection(collection_name).document(doc_id).delete()
         return True
     except Exception as e:
-        st.error(f"Error eliminando documento: {e}")
+        logger.error(f"Error eliminando documento {doc_id}: {e}")
         return False
 
-def get_next_id(df, id_column):
-    if df.empty or id_column not in df.columns:
-        return 1
-    return int(pd.to_numeric(df[id_column], errors='coerce').max()) + 1
 
-# ✅ NUEVA FUNCIÓN — ID REINICIADO POR AÑO
-def get_next_id_por_año(df, año, id_column='ID', year_column='Año'):
-    if df.empty:
-        return 1
-
-    df_año = df[df[year_column] == año]
-    if df_año.empty:
+# ---------------- ID HELPERS ----------------
+def get_next_id_por_año(df, año, id_col="ID", año_col="Año"):
+    """
+    Devuelve el siguiente ID disponible SOLO para el año indicado.
+    """
+    if df is None or df.empty:
         return 1
 
-    df_año[id_column] = pd.to_numeric(df_año[id_column], errors='coerce')
-    df_año = df_año.dropna(subset=[id_column])
+    if año_col not in df.columns or id_col not in df.columns:
+        return 1
 
-    return 1 if df_año.empty else int(df_año[id_column].max()) + 1
+    df_year = df[df[año_col] == año]
+
+    if df_year.empty:
+        return 1
+
+    ids = pd.to_numeric(df_year[id_col], errors="coerce").dropna()
+
+    if ids.empty:
+        return 1
+
+    return int(ids.max()) + 1
+
+
+# ⚠️ LEGACY (NO USAR PARA PEDIDOS)
+def get_next_id(df, id_col="ID"):
+    """
+    ❌ LEGACY: ID global.
+    Se mantiene solo por compatibilidad con otros módulos.
+    NO usar para pedidos.
+    """
+    if df is None or df.empty or id_col not in df.columns:
+        return 1
+
+    ids = pd.to_numeric(df[id_col], errors="coerce").dropna()
+    return int(ids.max()) + 1 if not ids.empty else 1

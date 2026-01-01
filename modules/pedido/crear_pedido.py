@@ -1,121 +1,161 @@
 import streamlit as st
 import pandas as pd
 import json
+import time
 from datetime import datetime
+
 from utils.firestore_utils import save_dataframe_firestore, get_next_id_por_año
 from utils.data_utils import limpiar_telefono
-from .helpers import convert_to_firestore_type, safe_select_index
-import time
+from .helpers import convert_to_firestore_type
+
 
 def show_create(df_pedidos, df_listas):
-    st.markdown("## 🆕 Crear Nuevo Pedido")
+    st.subheader("➕ Crear Pedido")
     st.write("---")
 
+    if df_pedidos is None:
+        st.error("No hay datos de pedidos.")
+        return
+
+    # -------- AÑO --------
     año_actual = datetime.now().year
     st.info(f"📅 Año del pedido: {año_actual}")
 
-    if "num_productos" not in st.session_state:
-        st.session_state.num_productos = 1
+    # -------- PRODUCTOS --------
+    if "productos_crear" not in st.session_state:
+        st.session_state.productos_crear = [
+            {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
+        ]
 
-    productos_lista = [""] + df_listas.get('Producto', pd.Series()).dropna().unique().tolist()
-    telas_lista = [""] + df_listas.get('Tela', pd.Series()).dropna().unique().tolist()
+    productos_lista = [""] + (
+        df_listas["Producto"].dropna().unique().tolist()
+        if "Producto" in df_listas.columns else []
+    )
+    telas_lista = [""] + (
+        df_listas["Tela"].dropna().unique().tolist()
+        if "Tela" in df_listas.columns else []
+    )
 
     total_productos = 0.0
-    productos_temp = []
 
-    for i in range(st.session_state.num_productos):
-        c1, c2, c3, c4 = st.columns([3,3,2,2])
-        with c1:
-            producto = st.selectbox(f"Producto {i+1}", productos_lista, key=f"producto_{i}")
-        with c2:
-            tela = st.selectbox(f"Tela {i+1}", telas_lista, key=f"tela_{i}")
-        with c3:
-            precio_unit = st.number_input("Precio €", min_value=0.0, step=0.5, key=f"precio_{i}")
-        with c4:
-            cantidad = st.number_input("Cantidad", min_value=1, step=1, key=f"cantidad_{i}")
+    for i, p in enumerate(st.session_state.productos_crear):
+        cols = st.columns([3, 3, 2, 2])
 
-        total_productos += precio_unit * cantidad
-        productos_temp.append({
-            "Producto": producto,
-            "Tela": tela,
-            "PrecioUnitario": precio_unit,
-            "Cantidad": cantidad
-        })
+        with cols[0]:
+            p["Producto"] = st.selectbox(
+                f"Producto {i+1}",
+                productos_lista,
+                index=productos_lista.index(p["Producto"]) if p["Producto"] in productos_lista else 0,
+                key=f"create_producto_{i}"
+            )
 
-    st.markdown(f"**Subtotal productos:** {total_productos:.2f} €")
+        with cols[1]:
+            p["Tela"] = st.selectbox(
+                f"Tela {i+1}",
+                telas_lista,
+                index=telas_lista.index(p["Tela"]) if p["Tela"] in telas_lista else 0,
+                key=f"create_tela_{i}"
+            )
+
+        with cols[2]:
+            p["PrecioUnitario"] = st.number_input(
+                "Precio €",
+                min_value=0.0,
+                value=float(p["PrecioUnitario"]),
+                key=f"create_precio_{i}"
+            )
+
+        with cols[3]:
+            p["Cantidad"] = st.number_input(
+                "Cantidad",
+                min_value=1,
+                value=int(p["Cantidad"]),
+                key=f"create_cantidad_{i}"
+            )
+
+        total_productos += p["PrecioUnitario"] * p["Cantidad"]
+
+    st.markdown(f"**💰 Subtotal productos:** {total_productos:.2f} €")
 
     col_add, col_remove = st.columns(2)
     with col_add:
         if st.button("➕ Añadir producto"):
-            st.session_state.num_productos += 1
-            st.rerun()
-    with col_remove:
-        if st.session_state.num_productos > 1 and st.button("➖ Quitar producto"):
-            st.session_state.num_productos -= 1
+            st.session_state.productos_crear.append(
+                {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
+            )
             st.rerun()
 
-    # ✅ ID REINICIADO POR AÑO
+    with col_remove:
+        if len(st.session_state.productos_crear) > 1:
+            if st.button("➖ Quitar último producto"):
+                st.session_state.productos_crear.pop()
+                st.rerun()
+
+    st.write("---")
+
+    # -------- ID --------
     next_id = get_next_id_por_año(df_pedidos, año_actual)
     st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        cliente = st.text_input("Cliente*")
-        telefono = st.text_input("Teléfono*")
-        club = st.text_input("Club*")
-        descripcion = st.text_area("Descripción")
+    # -------- FORMULARIO --------
+    with st.form("crear_pedido_form"):
+        col1, col2 = st.columns(2)
 
-    with col2:
-        fecha_entrada = st.date_input("Fecha entrada", value=datetime.now().date())
-        precio = st.number_input("Precio total (€)", min_value=0.0)
-        precio_factura = st.number_input("Precio factura (€)", min_value=0.0)
-        tipo_pago = st.selectbox("Tipo de pago", [""] + df_listas.get('Tipo de pago', pd.Series()).dropna().tolist())
-        adelanto = st.number_input("Adelanto (€)", min_value=0.0)
-        observaciones = st.text_area("Observaciones")
+        with col1:
+            cliente = st.text_input("Cliente*")
+            telefono = st.text_input("Teléfono*")
+            club = st.text_input("Club*")
+            descripcion = st.text_area("Descripción")
 
-    col_e1, col_e2, col_e3 = st.columns(3)
-    with col_e1:
-        empezado = st.checkbox("Empezado")
-    with col_e2:
-        cobrado = st.checkbox("Cobrado")
-    with col_e3:
-        pendiente = st.checkbox("Pendiente")
+        with col2:
+            fecha_entrada = st.date_input("Fecha entrada", datetime.now().date())
+            precio = st.number_input("Precio total (€)", min_value=0.0)
+            precio_factura = st.number_input("Precio factura (€)", min_value=0.0)
 
-    if st.button("✅ Guardar Pedido", type="primary", use_container_width=True):
-        telefono_limpio = limpiar_telefono(telefono)
-        if not cliente or not telefono_limpio or not club:
-            st.error("Campos obligatorios incorrectos")
+        crear = st.form_submit_button("✅ Crear Pedido", type="primary")
+
+    if crear:
+        if not cliente or not telefono or not club:
+            st.error("Cliente, Teléfono y Club son obligatorios.")
             return
 
-        pedido = {
-            'ID': next_id,
-            'Año': año_actual,
-            'Productos': json.dumps(productos_temp),
-            'Cliente': cliente,
-            'Telefono': telefono_limpio,
-            'Club': club,
-            'Breve Descripción': descripcion,
-            'Fecha entrada': fecha_entrada,
-            'Precio': precio,
-            'Precio Factura': precio_factura,
-            'Tipo de pago': tipo_pago,
-            'Adelanto': adelanto,
-            'Observaciones': observaciones,
-            'Inicio Trabajo': empezado,
-            'Trabajo Terminado': False,
-            'Cobrado': cobrado,
-            'Retirado': False,
-            'Pendiente': pendiente,
-            'id_documento_firestore': None
+        telefono_limpio = limpiar_telefono(telefono)
+        if not telefono_limpio:
+            st.error("Teléfono inválido.")
+            return
+
+        nuevo_pedido = {
+            "ID": next_id,
+            "Año": año_actual,
+            "Productos": json.dumps(st.session_state.productos_crear),
+            "Cliente": convert_to_firestore_type(cliente),
+            "Telefono": convert_to_firestore_type(telefono_limpio),
+            "Club": convert_to_firestore_type(club),
+            "Breve Descripción": convert_to_firestore_type(descripcion),
+            "Fecha entrada": convert_to_firestore_type(fecha_entrada),
+            "Fecha Salida": None,
+            "Precio": convert_to_firestore_type(precio),
+            "Precio Factura": convert_to_firestore_type(precio_factura),
+            "Inicio Trabajo": False,
+            "Trabajo Terminado": False,
+            "Cobrado": False,
+            "Retirado": False,
+            "Pendiente": False,
+            "id_documento_firestore": None
         }
 
-        df_pedidos = pd.concat([df_pedidos, pd.DataFrame([pedido])], ignore_index=True)
+        df_pedidos = pd.concat(
+            [df_pedidos, pd.DataFrame([nuevo_pedido])],
+            ignore_index=True
+        )
 
-        if save_dataframe_firestore(df_pedidos, 'pedidos'):
-            st.success(f"Pedido {next_id} ({año_actual}) creado correctamente")
+        if save_dataframe_firestore(df_pedidos, "pedidos"):
+            st.success(f"Pedido {next_id} / {año_actual} creado correctamente")
             st.balloons()
-            time.sleep(1.5)
-            st.session_state.data['df_pedidos'] = df_pedidos
+            time.sleep(1)
+
+            del st.session_state.productos_crear
+            st.session_state.data["df_pedidos"] = df_pedidos
             st.rerun()
         else:
             st.error("Error al guardar el pedido")
