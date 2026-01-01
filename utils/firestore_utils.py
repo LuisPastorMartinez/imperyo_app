@@ -16,6 +16,7 @@ COLLECTION_NAMES = {
     'posibles_clientes': 'posibles_clientes'
 }
 
+
 def get_firestore_client():
     if 'firestore_client' not in st.session_state:
         try:
@@ -29,7 +30,9 @@ def get_firestore_client():
             return None
     return st.session_state.firestore_client
 
+
 db = get_firestore_client()
+
 
 def load_dataframes_firestore():
     if db is None:
@@ -49,6 +52,37 @@ def load_dataframes_firestore():
 
     return data
 
+
+def _sanitize_value_for_firestore(value):
+    """
+    Convierte cualquier valor de pandas/python a algo
+    100% compatible con Firestore.
+    """
+    # NaT / NaN / None
+    try:
+        if value is None or pd.isna(value):
+            return None
+    except Exception:
+        pass
+
+    # pandas Timestamp
+    if isinstance(value, pd.Timestamp):
+        try:
+            if value.tzinfo is not None:
+                return value.tz_convert(None).to_pydatetime()
+            return value.to_pydatetime()
+        except Exception:
+            return None
+
+    # datetime con timezone
+    if isinstance(value, datetime):
+        if value.tzinfo is not None:
+            return value.replace(tzinfo=None)
+        return value
+
+    return value
+
+
 def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
     if db is None:
         return False
@@ -61,25 +95,39 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
         batch = db.batch()
         collection_ref = db.collection(collection_name)
 
+        # Limpiar colección completa salvo pedidos
         if collection_key != 'pedidos':
             for doc in collection_ref.stream():
                 batch.delete(doc.reference)
 
         for _, row in df.iterrows():
-            record = row.drop('id_documento_firestore', errors='ignore').to_dict()
+            record = {}
+            for k, v in row.items():
+                if k == 'id_documento_firestore':
+                    continue
+                record[k] = _sanitize_value_for_firestore(v)
+
             doc_id = row.get('id_documento_firestore')
-            doc_ref = collection_ref.document(doc_id) if doc_id else collection_ref.document()
+            doc_ref = (
+                collection_ref.document(doc_id)
+                if doc_id else
+                collection_ref.document()
+            )
+
             batch.set(doc_ref, record)
 
         batch.commit()
         return True
+
     except Exception as e:
         st.error(f"Error guardando en Firestore: {e}")
         return False
 
+
 def delete_document_firestore(collection_key, doc_id):
     if db is None:
         return False
+
     collection_name = COLLECTION_NAMES.get(collection_key)
     try:
         db.collection(collection_name).document(doc_id).delete()
@@ -88,13 +136,15 @@ def delete_document_firestore(collection_key, doc_id):
         st.error(f"Error eliminando documento: {e}")
         return False
 
+
 # ❌ LEGACY (no usar para pedidos)
 def get_next_id(df, id_column):
     if df.empty or id_column not in df.columns:
         return 1
     return int(pd.to_numeric(df[id_column], errors='coerce').max()) + 1
 
-# ✅ ID POR AÑO (la mejora que SÍ queremos)
+
+# ✅ ID POR AÑO
 def get_next_id_por_año(df, año, id_column='ID', year_column='Año'):
     if df.empty:
         return 1
