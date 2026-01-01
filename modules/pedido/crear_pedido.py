@@ -17,7 +17,17 @@ def show_create(df_pedidos, df_listas):
         st.error("No hay datos de pedidos.")
         return
 
-    # -------- AÑO --------
+    # -------- ASEGURAR COLUMNA AÑO --------
+    if "Año" not in df_pedidos.columns:
+        df_pedidos["Año"] = datetime.now().year
+
+    df_pedidos["Año"] = (
+        pd.to_numeric(df_pedidos["Año"], errors="coerce")
+        .fillna(datetime.now().year)
+        .astype("int64")
+    )
+
+    # -------- AÑO ACTUAL --------
     año_actual = datetime.now().year
     st.info(f"📅 Año del pedido: {año_actual}")
 
@@ -29,11 +39,11 @@ def show_create(df_pedidos, df_listas):
 
     productos_lista = [""] + (
         df_listas["Producto"].dropna().unique().tolist()
-        if "Producto" in df_listas.columns else []
+        if df_listas is not None and "Producto" in df_listas.columns else []
     )
     telas_lista = [""] + (
         df_listas["Tela"].dropna().unique().tolist()
-        if "Tela" in df_listas.columns else []
+        if df_listas is not None and "Tela" in df_listas.columns else []
     )
 
     total_productos = 0.0
@@ -45,7 +55,8 @@ def show_create(df_pedidos, df_listas):
             p["Producto"] = st.selectbox(
                 f"Producto {i+1}",
                 productos_lista,
-                index=productos_lista.index(p["Producto"]) if p["Producto"] in productos_lista else 0,
+                index=productos_lista.index(p["Producto"])
+                if p["Producto"] in productos_lista else 0,
                 key=f"create_producto_{i}"
             )
 
@@ -53,7 +64,8 @@ def show_create(df_pedidos, df_listas):
             p["Tela"] = st.selectbox(
                 f"Tela {i+1}",
                 telas_lista,
-                index=telas_lista.index(p["Tela"]) if p["Tela"] in telas_lista else 0,
+                index=telas_lista.index(p["Tela"])
+                if p["Tela"] in telas_lista else 0,
                 key=f"create_tela_{i}"
             )
 
@@ -93,8 +105,10 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    # -------- ID --------
-    next_id = get_next_id_por_año(df_pedidos, año_actual)
+    # -------- ID (CORRECTO: SOLO DEL AÑO ACTUAL) --------
+    df_año = df_pedidos[df_pedidos["Año"] == año_actual].copy()
+    next_id = get_next_id_por_año(df_año, año_actual)
+
     st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
     # -------- FORMULARIO --------
@@ -114,6 +128,7 @@ def show_create(df_pedidos, df_listas):
 
         crear = st.form_submit_button("✅ Crear Pedido", type="primary")
 
+    # -------- CREAR PEDIDO --------
     if crear:
         if not cliente or not telefono or not club:
             st.error("Cliente, Teléfono y Club son obligatorios.")
@@ -150,7 +165,7 @@ def show_create(df_pedidos, df_listas):
         )
 
         if save_dataframe_firestore(df_pedidos, "pedidos"):
-            st.success(f"Pedido {next_id} / {año_actual} creado correctamente")
+            st.success(f"✅ Pedido {next_id} / {año_actual} creado correctamente")
             st.balloons()
             time.sleep(1)
 
@@ -158,4 +173,4 @@ def show_create(df_pedidos, df_listas):
             st.session_state.data["df_pedidos"] = df_pedidos
             st.rerun()
         else:
-            st.error("Error al guardar el pedido")
+            st.error("❌ Error al guardar el pedido")
