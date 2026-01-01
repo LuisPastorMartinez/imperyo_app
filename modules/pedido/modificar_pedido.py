@@ -10,21 +10,35 @@ from .helpers import convert_to_firestore_type, safe_select_index
 
 
 def safe_to_date(value):
-    """Convierte un valor a date de forma segura."""
+    """Convierte un valor a date de forma segura (incluye NaT)."""
+    if value is None:
+        return datetime.now().date()
+
+    # Manejar NaT de pandas
+    try:
+        if pd.isna(value):
+            return datetime.now().date()
+    except Exception:
+        pass
+
     if isinstance(value, date):
         return value
+
     if isinstance(value, datetime):
         return value.date()
+
     if isinstance(value, str) and value.strip():
         try:
             return datetime.strptime(value[:10], "%Y-%m-%d").date()
         except Exception:
             return datetime.now().date()
+
     return datetime.now().date()
 
 
 def show_modify(df_pedidos, df_listas):
     st.subheader("✏️ Modificar Pedido")
+    st.write("---")
 
     if df_pedidos is None or df_pedidos.empty:
         st.info("📭 No hay pedidos registrados.")
@@ -37,6 +51,12 @@ def show_modify(df_pedidos, df_listas):
     df_pedidos["Año"] = (
         pd.to_numeric(df_pedidos["Año"], errors="coerce")
         .fillna(datetime.now().year)
+        .astype("int64")
+    )
+
+    df_pedidos["ID"] = (
+        pd.to_numeric(df_pedidos["ID"], errors="coerce")
+        .fillna(0)
         .astype("int64")
     )
 
@@ -250,9 +270,7 @@ def show_modify(df_pedidos, df_listas):
             st.error("❌ Error al guardar cambios.")
             return
 
-        st.success(
-            f"✅ Pedido {mod_id} / {año_seleccionado} actualizado correctamente"
-        )
+        st.success(f"✅ Pedido {mod_id} / {año_seleccionado} actualizado correctamente")
         st.balloons()
         time.sleep(1)
 
