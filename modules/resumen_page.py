@@ -1,8 +1,45 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import json
 import io
+
+
+def preparar_df_para_excel(df: pd.DataFrame) -> pd.DataFrame:
+    df_export = df.copy()
+
+    # Columnas datetime con timezone
+    for col in df_export.columns:
+        if pd.api.types.is_datetime64tz_dtype(df_export[col]):
+            df_export[col] = df_export[col].dt.tz_convert(None)
+
+    # Limpiar valores
+    for col in df_export.columns:
+        def clean_value(v):
+            try:
+                if pd.isna(v):
+                    return None
+            except Exception:
+                pass
+
+            if isinstance(v, pd.Timestamp):
+                if v.tzinfo is not None:
+                    return v.tz_convert(None)
+                return v
+
+            if isinstance(v, datetime):
+                if v.tzinfo is not None:
+                    return v.replace(tzinfo=None)
+                return v
+
+            if isinstance(v, (list, dict)):
+                return str(v)
+
+            return v
+
+        df_export[col] = df_export[col].apply(clean_value)
+
+    return df_export
+
 
 def show_resumen_page(df_pedidos, current_view):
     st.header("📊 Resumen de Pedidos")
@@ -59,26 +96,36 @@ def show_resumen_page(df_pedidos, current_view):
     with c1:
         st.metric("📦 Total", len(filtered))
     with c2:
-        st.metric("✔️ Completados", len(filtered[(filtered['Trabajo Terminado']) & (filtered['Cobrado']) & (filtered['Retirado'])]))
+        st.metric(
+            "✔️ Completados",
+            len(filtered[(filtered['Trabajo Terminado']) & (filtered['Cobrado']) & (filtered['Retirado'])])
+        )
     with c3:
         st.metric("📌 Pendientes", len(filtered[filtered['Pendiente']]))
     with c4:
         st.metric("🔵 Empezados", len(filtered[filtered['Inicio Trabajo']]))
     with c5:
-        st.metric("🆕 Nuevos", len(filtered[
-            (~filtered['Inicio Trabajo']) &
-            (~filtered['Pendiente']) &
-            (~filtered['Trabajo Terminado']) &
-            (~filtered['Cobrado']) &
-            (~filtered['Retirado'])
-        ]))
+        st.metric(
+            "🆕 Nuevos",
+            len(filtered[
+                (~filtered['Inicio Trabajo']) &
+                (~filtered['Pendiente']) &
+                (~filtered['Trabajo Terminado']) &
+                (~filtered['Cobrado']) &
+                (~filtered['Retirado'])
+            ])
+        )
 
     st.write("---")
+
+    # --- CASO VACÍO (CLAVE) ---
+    if filtered.empty:
+        st.info("📭 No hay pedidos en esta vista.")
+        return
 
     # --- FORMATEO ---
     df_show = filtered.copy()
 
-    # ✅ Pedido visible = ID / Año
     df_show['Pedido'] = df_show.apply(
         lambda r: f"{int(r['ID'])} / {int(r['Año'])}",
         axis=1
@@ -86,7 +133,11 @@ def show_resumen_page(df_pedidos, current_view):
 
     for col in ['Fecha entrada', 'Fecha Salida']:
         if col in df_show.columns:
-            df_show[col] = pd.to_datetime(df_show[col], errors='coerce').dt.strftime('%Y-%m-%d').fillna('')
+            df_show[col] = (
+                pd.to_datetime(df_show[col], errors='coerce')
+                .dt.strftime('%Y-%m-%d')
+                .fillna('')
+            )
 
     columnas = [
         'Pedido', 'Cliente', 'Club', 'Telefono',
@@ -106,8 +157,10 @@ def show_resumen_page(df_pedidos, current_view):
 
     # --- EXPORTAR ---
     buffer = io.BytesIO()
+    df_export = preparar_df_para_excel(filtered)
+
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        filtered.to_excel(writer, index=False, sheet_name="Resumen")
+        df_export.to_excel(writer, index=False, sheet_name="Resumen")
 
     st.download_button(
         "📥 Descargar Excel",
