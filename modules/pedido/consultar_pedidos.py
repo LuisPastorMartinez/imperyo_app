@@ -6,18 +6,47 @@ from datetime import datetime
 
 def preparar_df_para_excel(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Convierte todas las columnas a tipos seguros para Excel.
+    Prepara un DataFrame para exportar a Excel:
+    - Elimina NaT / NaN
+    - Convierte datetimes con timezone a naive
+    - Convierte listas y dicts a string
     """
     df_export = df.copy()
 
+    # 1️⃣ Columnas datetime con timezone
     for col in df_export.columns:
-        # Convertir listas / dicts / JSON a string
-        df_export[col] = df_export[col].apply(
-            lambda x: str(x) if isinstance(x, (list, dict)) else x
-        )
+        if pd.api.types.is_datetime64tz_dtype(df_export[col]):
+            df_export[col] = df_export[col].dt.tz_convert(None)
 
-    # Convertir NaT / NaN a None
-    df_export = df_export.where(pd.notna(df_export), None)
+    # 2️⃣ Limpiar valores individuales
+    for col in df_export.columns:
+        def clean_value(v):
+            # NaT / NaN
+            try:
+                if pd.isna(v):
+                    return None
+            except Exception:
+                pass
+
+            # pandas Timestamp
+            if isinstance(v, pd.Timestamp):
+                if v.tzinfo is not None:
+                    return v.tz_convert(None)
+                return v
+
+            # datetime con timezone
+            if isinstance(v, datetime):
+                if v.tzinfo is not None:
+                    return v.replace(tzinfo=None)
+                return v
+
+            # listas / dicts
+            if isinstance(v, (list, dict)):
+                return str(v)
+
+            return v
+
+        df_export[col] = df_export[col].apply(clean_value)
 
     return df_export
 
@@ -78,18 +107,14 @@ def show_consult(df_pedidos, df_listas=None):
     columnas_visibles = [c for c in columnas_visibles if c in df.columns]
 
     st.dataframe(
-        df[columnas_visibles]
-        .sort_values("ID", ascending=False),
+        df[columnas_visibles].sort_values("ID", ascending=False),
         use_container_width=True
     )
 
     st.write("---")
-
-    # ---------- EXPORTAR A EXCEL ----------
     st.markdown("### 📥 Exportar pedidos")
 
     buffer = io.BytesIO()
-
     df_export = preparar_df_para_excel(df)
 
     try:
