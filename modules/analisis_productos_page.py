@@ -79,4 +79,3 @@ def show_analisis_productos_page(df_pedidos):
 
     st.subheader("Detalle por pedido")
     st.dataframe(df_prod, use_container_width=True, hide_index=True)
-
