@@ -21,26 +21,22 @@ def preparar_df_para_excel(df: pd.DataFrame) -> pd.DataFrame:
     # 2️⃣ Limpiar valores individuales
     for col in df_export.columns:
         def clean_value(v):
-            # NaT / NaN
             try:
                 if pd.isna(v):
                     return None
             except Exception:
                 pass
 
-            # pandas Timestamp
             if isinstance(v, pd.Timestamp):
                 if v.tzinfo is not None:
                     return v.tz_convert(None)
                 return v
 
-            # datetime con timezone
             if isinstance(v, datetime):
                 if v.tzinfo is not None:
                     return v.replace(tzinfo=None)
                 return v
 
-            # listas / dicts
             if isinstance(v, (list, dict)):
                 return str(v)
 
@@ -71,10 +67,18 @@ def show_consult(df_pedidos, df_listas=None):
         ).fillna(0).astype("int64")
 
     # ---------- FILTRO POR AÑO ----------
-    años = sorted(
-        df_pedidos["Año"].dropna().unique(),
-        reverse=True
+    año_actual = datetime.now().year
+
+    años_datos = set(
+        pd.to_numeric(df_pedidos["Año"], errors="coerce")
+        .dropna()
+        .astype(int)
+        .tolist()
     )
+    años_datos.add(año_actual)
+    años_datos.add(año_actual - 1)
+
+    años = sorted(años_datos, reverse=True)
 
     año = st.selectbox(
         "📅 Año",
@@ -91,9 +95,11 @@ def show_consult(df_pedidos, df_listas=None):
 
     st.markdown(f"### 📦 Pedidos del año {año}")
 
+    # ---------- COLUMNAS VISIBLES ----------
     columnas_visibles = [
         "ID",
         "Cliente",
+        "Telefono",   # 👈 AÑADIDO AQUÍ
         "Club",
         "Precio",
         "Precio Factura",
