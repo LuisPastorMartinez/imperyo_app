@@ -97,6 +97,19 @@ def calcular_estado(row):
         return 'Empezado'
     return 'Nuevo'
 
+# --- DATAFRAME VACÍO SEGURO ---
+def empty_pedidos_df():
+    return pd.DataFrame(columns=[
+        "ID",
+        "Año",
+        "Cliente",
+        "Telefono",
+        "Club",
+        "Precio",
+        "Productos",
+        "id_documento_firestore"
+    ])
+
 # --- MAIN ---
 if check_password():
     init_session_state()
@@ -108,19 +121,22 @@ if check_password():
                 st.error("No se pudieron cargar los datos.")
                 st.stop()
 
-            df_pedidos = data['df_pedidos']
+            df_pedidos = data.get('df_pedidos')
 
-            # 🔑 AÑOS DISPONIBLES (MAYOR → MENOR)
-            if not df_pedidos.empty and 'Año' in df_pedidos.columns:
-                años = sorted(
-                    df_pedidos['Año'].dropna().unique(),
-                    reverse=True
-                )
-            else:
+            if df_pedidos is None or df_pedidos.empty or "Año" not in df_pedidos.columns:
+                df_pedidos = empty_pedidos_df()
                 años = [datetime.now().year]
+            else:
+                df_pedidos["Año"] = (
+                    pd.to_numeric(df_pedidos["Año"], errors="coerce")
+                    .fillna(datetime.now().year)
+                    .astype("int64")
+                )
+                años = sorted(df_pedidos["Año"].unique(), reverse=True)
 
             st.session_state.selected_year = años[0]
             st.session_state.data = data
+            st.session_state.data["df_pedidos"] = df_pedidos
             st.session_state.data_loaded = True
 
     # --- SIDEBAR ---
@@ -147,7 +163,7 @@ if check_password():
         st.session_state.current_summary_view = st.session_state.summary_view_radio
 
     # --- DATA ---
-    df_pedidos = st.session_state.data['df_pedidos']
+    df_pedidos = st.session_state.data.get('df_pedidos', empty_pedidos_df())
     df_gastos = st.session_state.data.get('df_gastos')
 
     # --- PÁGINAS ---
@@ -155,44 +171,49 @@ if check_password():
         st.header("📊 Resumen General")
         st.write("---")
 
-        años = sorted(
-            df_pedidos['Año'].dropna().unique(),
-            reverse=True
-        ) if not df_pedidos.empty else [datetime.now().year]
+        años = (
+            sorted(df_pedidos["Año"].unique(), reverse=True)
+            if not df_pedidos.empty and "Año" in df_pedidos.columns
+            else [datetime.now().year]
+        )
 
         año = st.selectbox(
             "📅 Año",
             años,
-            index=años.index(st.session_state.selected_year)
-            if st.session_state.selected_year in años else 0
+            index=0
         )
 
         st.session_state.selected_year = año
 
-        df = df_pedidos[df_pedidos['Año'] == año].copy()
-        df['Estado'] = df.apply(calcular_estado, axis=1)
+        if df_pedidos.empty or "Año" not in df_pedidos.columns:
+            st.info("📭 Todavía no hay pedidos.")
+            df = pd.DataFrame()
+        else:
+            df = df_pedidos[df_pedidos["Año"] == año].copy()
+            df["Estado"] = df.apply(calcular_estado, axis=1)
 
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
             st.metric("📦 Total", len(df))
         with c2:
-            st.metric("🆕 Nuevos", len(df[df['Estado'] == 'Nuevo']))
+            st.metric("🆕 Nuevos", len(df[df.get("Estado") == "Nuevo"]))
         with c3:
-            st.metric("🔵 Empezados", len(df[df['Estado'] == 'Empezado']))
+            st.metric("🔵 Empezados", len(df[df.get("Estado") == "Empezado"]))
         with c4:
-            st.metric("📌 Pendientes", len(df[df['Estado'] == 'Pendiente']))
+            st.metric("📌 Pendientes", len(df[df.get("Estado") == "Pendiente"]))
         with c5:
-            st.metric("✅ Terminados", len(df[df['Estado'] == 'Terminado']))
+            st.metric("✅ Terminados", len(df[df.get("Estado") == "Terminado"]))
 
         st.write("---")
         st.subheader(f"Últimos pedidos {año}")
 
-        for _, r in df.sort_values('ID', ascending=False).head(5).iterrows():
-            st.markdown(
-                f"**Pedido {int(r['ID'])} / {int(r['Año'])}** — "
-                f"{r.get('Cliente','')} — "
-                f"{r.get('Precio',0):.2f} €"
-            )
+        if not df.empty:
+            for _, r in df.sort_values("ID", ascending=False).head(5).iterrows():
+                st.markdown(
+                    f"**Pedido {int(r['ID'])} / {int(r['Año'])}** — "
+                    f"{r.get('Cliente','')} — "
+                    f"{r.get('Precio',0):.2f} €"
+                )
 
     elif page == "Pedidos":
         show_pedidos_page(df_pedidos, st.session_state.data.get('df_listas'))
