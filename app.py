@@ -87,15 +87,15 @@ def init_session_state():
 
 # --- ESTADO PEDIDO ---
 def calcular_estado(row):
-    if row.get('Pendiente'):
-        return 'Pendiente'
-    if row.get('Trabajo Terminado') and row.get('Cobrado') and row.get('Retirado'):
-        return 'Completado'
-    if row.get('Trabajo Terminado'):
-        return 'Terminado'
-    if row.get('Inicio Trabajo'):
-        return 'Empezado'
-    return 'Nuevo'
+    if row.get("Pendiente"):
+        return "Pendiente"
+    if row.get("Trabajo Terminado") and row.get("Cobrado") and row.get("Retirado"):
+        return "Completado"
+    if row.get("Trabajo Terminado"):
+        return "Terminado"
+    if row.get("Inicio Trabajo"):
+        return "Empezado"
+    return "Nuevo"
 
 # --- DATAFRAME VACÍO SEGURO ---
 def empty_pedidos_df():
@@ -110,6 +110,12 @@ def empty_pedidos_df():
         "id_documento_firestore"
     ])
 
+# --- CONTADOR SEGURO DE ESTADOS ---
+def count_estado(df, estado):
+    if df is None or df.empty or "Estado" not in df.columns:
+        return 0
+    return len(df[df["Estado"] == estado])
+
 # --- MAIN ---
 if check_password():
     init_session_state()
@@ -117,11 +123,12 @@ if check_password():
     if not st.session_state.data_loaded:
         with st.spinner("Cargando datos..."):
             data = load_dataframes_firestore()
-            if not data or 'df_pedidos' not in data:
+
+            if not data:
                 st.error("No se pudieron cargar los datos.")
                 st.stop()
 
-            df_pedidos = data.get('df_pedidos')
+            df_pedidos = data.get("df_pedidos")
 
             if df_pedidos is None or df_pedidos.empty or "Año" not in df_pedidos.columns:
                 df_pedidos = empty_pedidos_df()
@@ -163,8 +170,8 @@ if check_password():
         st.session_state.current_summary_view = st.session_state.summary_view_radio
 
     # --- DATA ---
-    df_pedidos = st.session_state.data.get('df_pedidos', empty_pedidos_df())
-    df_gastos = st.session_state.data.get('df_gastos')
+    df_pedidos = st.session_state.data.get("df_pedidos", empty_pedidos_df())
+    df_gastos = st.session_state.data.get("df_gastos")
 
     # --- PÁGINAS ---
     if page == "Inicio":
@@ -177,12 +184,7 @@ if check_password():
             else [datetime.now().year]
         )
 
-        año = st.selectbox(
-            "📅 Año",
-            años,
-            index=0
-        )
-
+        año = st.selectbox("📅 Año", años, index=0)
         st.session_state.selected_year = año
 
         if df_pedidos.empty or "Año" not in df_pedidos.columns:
@@ -196,13 +198,13 @@ if check_password():
         with c1:
             st.metric("📦 Total", len(df))
         with c2:
-            st.metric("🆕 Nuevos", len(df[df.get("Estado") == "Nuevo"]))
+            st.metric("🆕 Nuevos", count_estado(df, "Nuevo"))
         with c3:
-            st.metric("🔵 Empezados", len(df[df.get("Estado") == "Empezado"]))
+            st.metric("🔵 Empezados", count_estado(df, "Empezado"))
         with c4:
-            st.metric("📌 Pendientes", len(df[df.get("Estado") == "Pendiente"]))
+            st.metric("📌 Pendientes", count_estado(df, "Pendiente"))
         with c5:
-            st.metric("✅ Terminados", len(df[df.get("Estado") == "Terminado"]))
+            st.metric("✅ Terminados", count_estado(df, "Terminado"))
 
         st.write("---")
         st.subheader(f"Últimos pedidos {año}")
@@ -216,7 +218,7 @@ if check_password():
                 )
 
     elif page == "Pedidos":
-        show_pedidos_page(df_pedidos, st.session_state.data.get('df_listas'))
+        show_pedidos_page(df_pedidos, st.session_state.data.get("df_listas"))
 
     elif page == "Gastos":
         show_gastos_page(df_gastos)
