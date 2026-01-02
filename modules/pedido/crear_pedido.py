@@ -148,7 +148,7 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    # -------- ID (SOLO DEL AÑO ACTUAL) --------
+    # -------- ID (INICIAL) --------
     df_año = df_pedidos[df_pedidos["Año"] == año_actual].copy()
     next_id = get_next_id_por_año(df_año, año_actual)
 
@@ -193,6 +193,20 @@ def show_create(df_pedidos, df_listas):
         if not telefono_limpio:
             st.error("Teléfono inválido.")
             return
+
+        # 🔒 PARCHE DEFINITIVO CONTRA IDs DUPLICADOS
+        df_actual = st.session_state.data.get("df_pedidos", df_pedidos)
+        df_actual_año = df_actual[df_actual["Año"] == año_actual]
+
+        ids_existentes = (
+            pd.to_numeric(df_actual_año["ID"], errors="coerce")
+            .dropna()
+            .astype(int)
+            .tolist()
+        )
+
+        while next_id in ids_existentes:
+            next_id += 1
 
         nuevo_pedido = {
             "ID": next_id,
