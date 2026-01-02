@@ -31,6 +31,49 @@ def show_create(df_pedidos, df_listas):
     año_actual = datetime.now().year
     st.info(f"📅 Año del pedido: {año_actual}")
 
+    # ==========================================================
+    # 📋 COPIAR DATOS DE OTRO PEDIDO
+    # ==========================================================
+    with st.expander("📋 Copiar datos de un pedido anterior (opcional)"):
+        col_c1, col_c2 = st.columns(2)
+
+        with col_c1:
+            copiar_año = st.number_input(
+                "Año del pedido",
+                min_value=2000,
+                value=año_actual,
+                step=1,
+                key="copiar_año"
+            )
+
+        with col_c2:
+            copiar_id = st.number_input(
+                "ID del pedido",
+                min_value=1,
+                step=1,
+                key="copiar_id"
+            )
+
+        if st.button("📥 Copiar datos", use_container_width=True):
+            pedido_origen = df_pedidos[
+                (df_pedidos["Año"] == copiar_año) &
+                (df_pedidos["ID"] == copiar_id)
+            ]
+
+            if pedido_origen.empty:
+                st.error("❌ No se encontró ese pedido.")
+            else:
+                pedido_origen = pedido_origen.iloc[0]
+
+                st.session_state["crear_cliente"] = pedido_origen.get("Cliente", "")
+                st.session_state["crear_telefono"] = pedido_origen.get("Telefono", "")
+                st.session_state["crear_club"] = pedido_origen.get("Club", "")
+                st.session_state["crear_descripcion"] = pedido_origen.get(
+                    "Breve Descripción", ""
+                )
+
+                st.success("✅ Datos copiados. Revisa y crea el pedido.")
+
     # -------- PRODUCTOS --------
     if "productos_crear" not in st.session_state:
         st.session_state.productos_crear = [
@@ -105,7 +148,7 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    # -------- ID (CORRECTO: SOLO DEL AÑO ACTUAL) --------
+    # -------- ID (SOLO DEL AÑO ACTUAL) --------
     df_año = df_pedidos[df_pedidos["Año"] == año_actual].copy()
     next_id = get_next_id_por_año(df_año, año_actual)
 
@@ -116,10 +159,22 @@ def show_create(df_pedidos, df_listas):
         col1, col2 = st.columns(2)
 
         with col1:
-            cliente = st.text_input("Cliente*")
-            telefono = st.text_input("Teléfono*")
-            club = st.text_input("Club*")
-            descripcion = st.text_area("Descripción")
+            cliente = st.text_input(
+                "Cliente*",
+                value=st.session_state.get("crear_cliente", "")
+            )
+            telefono = st.text_input(
+                "Teléfono*",
+                value=st.session_state.get("crear_telefono", "")
+            )
+            club = st.text_input(
+                "Club*",
+                value=st.session_state.get("crear_club", "")
+            )
+            descripcion = st.text_area(
+                "Descripción",
+                value=st.session_state.get("crear_descripcion", "")
+            )
 
         with col2:
             fecha_entrada = st.date_input("Fecha entrada", datetime.now().date())
@@ -169,7 +224,16 @@ def show_create(df_pedidos, df_listas):
             st.balloons()
             time.sleep(1)
 
-            del st.session_state.productos_crear
+            # Limpiar estados temporales
+            for k in [
+                "productos_crear",
+                "crear_cliente",
+                "crear_telefono",
+                "crear_club",
+                "crear_descripcion"
+            ]:
+                st.session_state.pop(k, None)
+
             st.session_state.data["df_pedidos"] = df_pedidos
             st.rerun()
         else:
