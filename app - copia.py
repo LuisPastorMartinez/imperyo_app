@@ -16,7 +16,7 @@ if sys_path not in os.sys.path:
     os.sys.path.append(sys_path)
 
 # --- IMPORTS ---
-from utils.firestore_utils import load_dataframes_firestore, save_dataframe_firestore
+from utils.firestore_utils import load_dataframes_firestore
 from modules.pedidos_page import show_pedidos_page
 from modules.gastos_page import show_gastos_page
 from modules.resumen_page import show_resumen_page
@@ -110,8 +110,12 @@ if check_password():
 
             df_pedidos = data['df_pedidos']
 
+            # 🔑 AÑOS DISPONIBLES (MAYOR → MENOR)
             if not df_pedidos.empty and 'Año' in df_pedidos.columns:
-                años = sorted(df_pedidos['Año'].dropna().unique(), reverse=True)
+                años = sorted(
+                    df_pedidos['Año'].dropna().unique(),
+                    reverse=True
+                )
             else:
                 años = [datetime.now().year]
 
@@ -125,28 +129,6 @@ if check_password():
         "Secciones",
         ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"]
     )
-
-    # ===============================
-    # 🔧 MODO MANTENIMIENTO (ADMIN)
-    # ===============================
-    st.sidebar.markdown("---")
-    if st.sidebar.checkbox("🔧 Modo mantenimiento"):
-        st.sidebar.warning("⚠️ Funciones avanzadas. Usar con cuidado.")
-
-        if st.sidebar.button("♻️ Resincronizar pedidos con Firestore"):
-            df_pedidos = st.session_state.data.get("df_pedidos")
-
-            if df_pedidos is None or df_pedidos.empty:
-                st.error("❌ No hay pedidos en memoria.")
-            else:
-                with st.spinner("Resincronizando Firestore..."):
-                    ok = save_dataframe_firestore(df_pedidos, "pedidos")
-
-                if ok:
-                    st.success("✅ Firestore resincronizado correctamente.")
-                    st.info("Ahora todos los pedidos tienen ID de Firestore.")
-                else:
-                    st.error("❌ Error al resincronizar Firestore.")
 
     if page == "Resumen":
         st.sidebar.markdown("---")
