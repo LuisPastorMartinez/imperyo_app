@@ -2,195 +2,197 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import io
-from utils.firestore_utils import get_next_id, save_dataframe_firestore, delete_document_firestore
 
+from utils.firestore_utils import save_dataframe_firestore, delete_document_firestore
+
+
+# ---------- HELPERS ----------
+
+def get_next_gasto_id_por_año(df, año):
+    if df is None or df.empty:
+        return 1
+
+    if "Año" not in df.columns or "ID" not in df.columns:
+        return 1
+
+    df_año = df[df["Año"] == año]
+    if df_año.empty:
+        return 1
+
+    ids = pd.to_numeric(df_año["ID"], errors="coerce").dropna()
+    return int(ids.max()) + 1 if not ids.empty else 1
+
+
+def reindexar_gastos_por_año(df, año):
+    df_otros = df[df["Año"] != año]
+    df_año = df[df["Año"] == año].sort_values("ID").reset_index(drop=True)
+    df_año["ID"] = range(1, len(df_año) + 1)
+    return pd.concat([df_año, df_otros], ignore_index=True)
+
+
+# ---------- MAIN ----------
 
 def show_gastos_page(df_gastos):
     st.header("💰 Gestión de Gastos")
     st.write("---")
 
-    # --- RESUMEN RÁPIDO ---
-    if df_gastos is not None and not df_gastos.empty:
-        total_gastos = df_gastos['Importe'].sum()
-        gastos_fijos = df_gastos[df_gastos['Tipo'] == 'Fijo']['Importe'].sum()
-        gastos_variables = df_gastos[df_gastos['Tipo'] == 'Variable']['Importe'].sum()
+    # ---------- ASEGURAR DATAFRAME ----------
+    if df_gastos is None:
+        df_gastos = pd.DataFrame()
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("📊 Total Gastos", f"{total_gastos:,.2f} €")
-        with col2:
-            st.metric("📌 Gastos Fijos", f"{gastos_fijos:,.2f} €")
-        with col3:
-            st.metric("📈 Gastos Variables", f"{gastos_variables:,.2f} €")
+    if "Año" not in df_gastos.columns:
+        df_gastos["Año"] = datetime.now().year
 
-        st.bar_chart(df_gastos.groupby('Tipo')['Importe'].sum())
+    df_gastos["Año"] = pd.to_numeric(
+        df_gastos["Año"], errors="coerce"
+    ).fillna(datetime.now().year).astype("int64")
+
+    # ---------- SELECTOR DE AÑO ----------
+    años_disponibles = (
+        sorted(df_gastos["Año"].unique(), reverse=True)
+        if not df_gastos.empty
+        else [datetime.now().year]
+    )
+
+    año_seleccionado = st.selectbox(
+        "📅 Año",
+        años_disponibles,
+        index=0
+    )
+
+    df_año = df_gastos[df_gastos["Año"] == año_seleccionado].copy()
+
+    # ---------- RESUMEN ----------
+    if not df_año.empty:
+        total = df_año["Importe"].sum()
+        fijos = df_año[df_año["Tipo"] == "Fijo"]["Importe"].sum()
+        variables = df_año[df_año["Tipo"] == "Variable"]["Importe"].sum()
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("📊 Total", f"{total:.2f} €")
+        with c2:
+            st.metric("📌 Fijos", f"{fijos:.2f} €")
+        with c3:
+            st.metric("📈 Variables", f"{variables:.2f} €")
     else:
-        st.info("📭 No hay gastos registrados aún.")
-        st.write("---")
+        st.info(f"📭 No hay gastos en {año_seleccionado}")
 
-    # --- FILTROS ---
-    st.subheader("🔍 Filtrar y Buscar Gastos")
+    st.write("---")
 
-    col_f1, col_f2, col_f3 = st.columns(3)
+    # ---------- MOSTRAR GASTOS ----------
+    st.subheader(f"📋 Gastos registrados ({len(df_año)})")
 
-    with col_f1:
-        tipo_filtro = st.multiselect(
-            "Tipo de Gasto",
-            options=["Fijo", "Variable"],
-            default=["Fijo", "Variable"]
-        )
+    if not df_año.empty:
+        df_show = df_año.copy()
 
-    with col_f2:
-        fecha_inicio = st.date_input("Fecha Inicio", value=None)
-        fecha_fin = st.date_input("Fecha Fin", value=None)
+        if "Fecha" in df_show.columns:
+            df_show["Fecha"] = pd.to_datetime(
+                df_show["Fecha"], errors="coerce"
+            ).dt.strftime("%Y-%m-%d")
 
-    with col_f3:
-        search_term = st.text_input(
-            "Buscar por Concepto o ID",
-            placeholder="Escribe para filtrar..."
-        )
-
-    df_filtrado = df_gastos.copy() if df_gastos is not None else pd.DataFrame()
-
-    if not df_filtrado.empty:
-        if tipo_filtro:
-            df_filtrado = df_filtrado[df_filtrado['Tipo'].isin(tipo_filtro)]
-
-        if fecha_inicio:
-            df_filtrado = df_filtrado[pd.to_datetime(df_filtrado['Fecha']) >= pd.Timestamp(fecha_inicio)]
-
-        if fecha_fin:
-            df_filtrado = df_filtrado[pd.to_datetime(df_filtrado['Fecha']) <= pd.Timestamp(fecha_fin)]
-
-        if search_term:
-            mask = df_filtrado.apply(
-                lambda row: search_term.lower() in str(row).lower(),
-                axis=1
-            )
-            df_filtrado = df_filtrado[mask]
-
-    # --- MOSTRAR GASTOS ---
-    st.subheader(f"📋 Gastos Registrados ({len(df_filtrado)} de {len(df_gastos) if df_gastos is not None else 0})")
-
-    if not df_filtrado.empty:
-        df_display = df_filtrado.copy()
-
-        if 'Fecha' in df_display.columns:
-            df_display['Fecha'] = pd.to_datetime(
-                df_display['Fecha'], errors='coerce'
-            ).dt.strftime('%Y-%m-%d')
-
-        df_display = df_display.sort_values('ID', ascending=False)
+        df_show = df_show.sort_values("ID", ascending=False)
 
         st.dataframe(
-            df_display,
-            column_config={
-                "ID": st.column_config.NumberColumn("🆔 ID", format="%d"),
-                "Fecha": st.column_config.TextColumn("📅 Fecha"),
-                "Concepto": st.column_config.TextColumn("📝 Concepto", width="medium"),
-                "Importe": st.column_config.NumberColumn("💰 Importe (€)", format="%.2f €"),
-                "Tipo": st.column_config.TextColumn("🏷️ Tipo", width="small"),
-            },
+            df_show,
             use_container_width=True,
             hide_index=True
         )
+    else:
+        st.info("No hay gastos para mostrar.")
 
-        # --- EXPORTAR ---
-        st.write("---")
-        st.markdown("### 📥 Exportar Datos")
-
-        df_export = df_filtrado.copy()
-        if 'Fecha' in df_export.columns:
-            df_export['Fecha'] = pd.to_datetime(df_export['Fecha'], errors='coerce')
-
+    # ---------- EXPORTAR ----------
+    if not df_año.empty:
         buffer = io.BytesIO()
         try:
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df_export.to_excel(writer, index=False, sheet_name='Gastos')
+            df_export = df_año.copy()
+            if "Fecha" in df_export.columns:
+                df_export["Fecha"] = pd.to_datetime(
+                    df_export["Fecha"], errors="coerce"
+                )
+
+            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                df_export.to_excel(writer, index=False, sheet_name="Gastos")
 
             st.download_button(
-                label="📥 Descargar como Excel",
-                data=buffer.getvalue(),
-                file_name=f"gastos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                "📥 Descargar Excel",
+                buffer.getvalue(),
+                file_name=f"gastos_{año_seleccionado}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 type="primary"
             )
         except Exception as e:
-            st.error(f"❌ Error al generar el archivo Excel: {e}")
-    else:
-        st.info("📭 No se encontraron gastos con los filtros aplicados.")
+            st.error(f"❌ Error al generar el Excel: {e}")
 
     st.write("---")
 
-    # --- AÑADIR GASTO ---
-    st.subheader("➕ Añadir Nuevo Gasto")
+    # ---------- CREAR GASTO ----------
+    st.subheader("➕ Añadir Gasto")
 
-    with st.form("form_nuevo_gasto", clear_on_submit=True):
-        col_g1, col_g2 = st.columns(2)
+    with st.form("crear_gasto_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
 
-        with col_g1:
-            gasto_fecha = st.date_input("📅 Fecha del Gasto", value=datetime.now().date())
-            gasto_concepto = st.text_input("📝 Concepto*")
+        with col1:
+            fecha = st.date_input("📅 Fecha", datetime.now().date())
+            concepto = st.text_input("📝 Concepto*")
 
-        with col_g2:
-            gasto_importe = st.number_input(
+        with col2:
+            importe = st.number_input(
                 "💰 Importe (€)*",
                 min_value=0.0,
                 step=0.01,
                 format="%.2f"
             )
-            gasto_tipo = st.selectbox("🏷️ Tipo de Gasto*", ["Fijo", "Variable"])
+            tipo = st.selectbox("🏷️ Tipo", ["Fijo", "Variable"])
 
-        submitted_gasto = st.form_submit_button("✅ Guardar Gasto", type="primary")
+        guardar = st.form_submit_button("✅ Guardar Gasto", type="primary")
 
-        if submitted_gasto:
-            if not gasto_concepto.strip() or gasto_importe <= 0:
-                st.error("❌ Concepto e Importe son obligatorios.")
-                return
+    if guardar:
+        if not concepto.strip() or importe <= 0:
+            st.error("❌ Concepto e importe son obligatorios.")
+            return
 
-            next_gasto_id = get_next_id(df_gastos, 'ID')
-            new_gasto = {
-                "ID": next_gasto_id,
-                "Fecha": gasto_fecha,
-                "Concepto": gasto_concepto.strip(),
-                "Importe": gasto_importe,
-                "Tipo": gasto_tipo
-            }
+        next_id = get_next_gasto_id_por_año(df_gastos, año_seleccionado)
 
-            df_gastos_actualizado = pd.concat(
-                [df_gastos, pd.DataFrame([new_gasto])],
-                ignore_index=True
-            )
+        new_gasto = {
+            "ID": next_id,
+            "Año": año_seleccionado,
+            "Fecha": fecha,
+            "Concepto": concepto.strip(),
+            "Importe": importe,
+            "Tipo": tipo,
+            "id_documento_firestore": None
+        }
 
-            st.session_state.data["df_gastos"] = df_gastos_actualizado
+        df_gastos = pd.concat(
+            [df_gastos, pd.DataFrame([new_gasto])],
+            ignore_index=True
+        )
 
-            if save_dataframe_firestore(df_gastos_actualizado, "gastos"):
-                st.success(f"✅ Gasto {next_gasto_id} guardado correctamente")
-                st.balloons()
-                st.rerun()
-            else:
-                st.error("❌ Error al guardar el gasto")
+        if save_dataframe_firestore(df_gastos, "gastos"):
+            st.session_state.data["df_gastos"] = df_gastos
+            st.success(f"✅ Gasto {next_id} / {año_seleccionado} creado")
+            st.balloons()
+            st.rerun()
+        else:
+            st.error("❌ Error al guardar el gasto")
 
     st.write("---")
 
-    # --- ELIMINAR GASTO ---
+    # ---------- ELIMINAR GASTO ----------
     st.subheader("🗑️ Eliminar Gasto")
 
-    delete_gasto_id = st.number_input(
-        "🆔 ID del Gasto a Eliminar",
+    delete_id = st.number_input(
+        "🆔 ID del gasto (del año seleccionado)",
         min_value=1,
         step=1
     )
 
-    if delete_gasto_id:
-        gasto = df_gastos[df_gastos["ID"] == delete_gasto_id]
+    gasto = df_año[df_año["ID"] == delete_id]
 
-        if gasto.empty:
-            st.error(f"❌ No existe el gasto {delete_gasto_id}")
-            return
-
+    if not gasto.empty:
         gasto = gasto.iloc[0]
-        st.warning(f"⚠️ Vas a eliminar el gasto {delete_gasto_id}")
+        st.warning(f"⚠️ Vas a eliminar el gasto {delete_id} / {año_seleccionado}")
 
         if st.button("🗑️ ELIMINAR DEFINITIVAMENTE", type="primary"):
             doc_id = gasto.get("id_documento_firestore")
@@ -200,9 +202,18 @@ def show_gastos_page(df_gastos):
                 return
 
             if delete_document_firestore("gastos", doc_id):
-                df_gastos = df_gastos[df_gastos["ID"] != delete_gasto_id]
-                st.session_state.data["df_gastos"] = df_gastos
-                st.success("✅ Gasto eliminado")
-                st.rerun()
-            else:
-                st.error("❌ Error al eliminar el gasto")
+                df_gastos = df_gastos[
+                    ~((df_gastos["ID"] == delete_id) & (df_gastos["Año"] == año_seleccionado))
+                ]
+
+                df_gastos = reindexar_gastos_por_año(df_gastos, año_seleccionado)
+
+                if save_dataframe_firestore(df_gastos, "gastos"):
+                    st.session_state.data["df_gastos"] = df_gastos
+                    st.success("✅ Gasto eliminado y IDs reorganizados")
+                    st.balloons()
+                    st.rerun()
+                else:
+                    st.error("❌ Error al guardar cambios")
+    elif delete_id:
+        st.error("❌ No existe ese gasto en el año seleccionado.")
