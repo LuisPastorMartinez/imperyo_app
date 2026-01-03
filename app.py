@@ -15,6 +15,25 @@ sys_path = str(Path(__file__).parent)
 if sys_path not in os.sys.path:
     os.sys.path.append(sys_path)
 
+# --- CONFIG PÁGINA ---
+st.set_page_config(
+    page_title="Imperyo Sport",
+    page_icon="🧵",
+    layout="wide"
+)
+
+# --- HEADER STREAMLIT (NEGRO) ---
+st.markdown(
+    """
+    <style>
+        header[data-testid="stHeader"] {
+            background: #0e1117;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 # --- IMPORTS ---
 from utils.firestore_utils import load_dataframes_firestore
 from modules.pedidos_page import show_pedidos_page
@@ -23,14 +42,7 @@ from modules.resumen_page import show_resumen_page
 from modules.config_page import show_config_page
 from modules.analisis_productos_page import show_analisis_productos_page
 
-# --- CONFIG PÁGINA ---
-st.set_page_config(
-    page_title="Imperyo Sport",
-    page_icon="🧵",
-    layout="wide"
-)
-
-# --- HEADER ---
+# --- HEADER APP ---
 def render_header():
     st.markdown("""
     <div style="padding:15px;border-radius:10px;background:#f4f6f8;margin-bottom:20px">
