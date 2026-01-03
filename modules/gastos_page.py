@@ -192,12 +192,13 @@ def _form_crear_gasto(df_gastos, año_seleccionado):
 
         next_id = get_next_gasto_id_por_año(df_gastos, año_seleccionado)
 
+        # 🔥 AQUÍ ESTÁ LA CORRECCIÓN IMPORTANTE 🔥
         new_gasto = {
             "ID": next_id,
             "Año": año_seleccionado,
-            "Fecha": fecha,
+            "Fecha": datetime.combine(fecha, datetime.min.time()),
             "Concepto": concepto.strip(),
-            "Importe": importe,
+            "Importe": float(importe),
             "Tipo": tipo,
             "id_documento_firestore": None
         }
