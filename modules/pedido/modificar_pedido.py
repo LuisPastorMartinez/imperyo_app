@@ -9,7 +9,9 @@ from utils.data_utils import limpiar_telefono
 from .helpers import convert_to_firestore_type, safe_select_index
 
 
-# ---------- FECHA SEGURA ----------
+# =====================================================
+# FECHAS SEGURAS
+# =====================================================
 def safe_to_date(value):
     if value is None:
         return datetime.now().date()
@@ -30,30 +32,36 @@ def safe_to_date(value):
     return datetime.now().date()
 
 
-# ---------- NORMALIZAR PRODUCTOS ----------
-def normalize_productos(raw):
+# =====================================================
+# PARSE ROBUSTO DE PRODUCTOS (CLAVE DEL PROBLEMA)
+# =====================================================
+def parse_productos(value):
     """
-    Garantiza una lista de productos válida siempre.
+    Convierte el campo Productos a una lista REAL de productos,
+    aunque venga como JSON anidado, string, etc.
     """
-    if raw is None:
+    if not value:
         return []
 
-    # Si ya es lista
-    if isinstance(raw, list):
-        return raw
+    current = value
 
-    # Si es string JSON
-    if isinstance(raw, str) and raw.strip():
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, list):
-                return parsed
-        except Exception:
-            return []
+    for _ in range(3):  # máximo 3 niveles
+        if isinstance(current, list):
+            return current
+        if isinstance(current, str):
+            try:
+                current = json.loads(current)
+                continue
+            except Exception:
+                break
+        break
 
     return []
 
 
+# =====================================================
+# PÁGINA MODIFICAR PEDIDO
+# =====================================================
 def show_modify(df_pedidos, df_listas):
     st.subheader("✏️ Modificar Pedido")
     st.write("---")
@@ -93,18 +101,18 @@ def show_modify(df_pedidos, df_listas):
     pedido = pedido_df.iloc[0]
 
     # =====================================================
-    # 🧵 PRODUCTOS — CARGA CORRECTA (CLAVE)
+    # PRODUCTOS — CARGA CORRECTA
     # =====================================================
-    pedido_key = (año, pedido_id)
+    pedido_key = f"{año}_{pedido_id}"
 
     if (
         "productos_modificar" not in st.session_state
-        or st.session_state.get("pedido_actual") != pedido_key
+        or st.session_state.get("pedido_key") != pedido_key
     ):
-        st.session_state.productos_modificar = normalize_productos(
+        st.session_state.productos_modificar = parse_productos(
             pedido.get("Productos")
         )
-        st.session_state.pedido_actual = pedido_key
+        st.session_state.pedido_key = pedido_key
 
     if not st.session_state.productos_modificar:
         st.session_state.productos_modificar = [
@@ -132,7 +140,7 @@ def show_modify(df_pedidos, df_listas):
                 f"Producto {i+1}",
                 productos_lista,
                 index=safe_select_index(productos_lista, p.get("Producto", "")),
-                key=f"mod_prod_{i}"
+                key=f"mod_prod_{pedido_key}_{i}"
             )
 
         with cols[1]:
@@ -140,7 +148,7 @@ def show_modify(df_pedidos, df_listas):
                 f"Tela {i+1}",
                 telas_lista,
                 index=safe_select_index(telas_lista, p.get("Tela", "")),
-                key=f"mod_tela_{i}"
+                key=f"mod_tela_{pedido_key}_{i}"
             )
 
         with cols[2]:
@@ -148,7 +156,8 @@ def show_modify(df_pedidos, df_listas):
                 "Precio €",
                 min_value=0.0,
                 value=float(p.get("PrecioUnitario", 0.0)),
-                key=f"mod_precio_{i}"
+                step=0.5,
+                key=f"mod_precio_{pedido_key}_{i}"
             )
 
         with cols[3]:
@@ -156,7 +165,8 @@ def show_modify(df_pedidos, df_listas):
                 "Cantidad",
                 min_value=1,
                 value=int(p.get("Cantidad", 1)),
-                key=f"mod_cant_{i}"
+                step=1,
+                key=f"mod_cantidad_{pedido_key}_{i}"
             )
 
         total += p["PrecioUnitario"] * p["Cantidad"]
@@ -165,7 +175,7 @@ def show_modify(df_pedidos, df_listas):
 
     col_a, col_b = st.columns(2)
     with col_a:
-        if st.button("➕ Añadir producto", key="btn_add_producto"):
+        if st.button("➕ Añadir producto", key=f"add_prod_{pedido_key}"):
             st.session_state.productos_modificar.append(
                 {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
             )
@@ -174,7 +184,7 @@ def show_modify(df_pedidos, df_listas):
     with col_b:
         if (
             len(st.session_state.productos_modificar) > 1
-            and st.button("➖ Quitar último producto", key="btn_remove_producto")
+            and st.button("➖ Quitar último producto", key=f"del_prod_{pedido_key}")
         ):
             st.session_state.productos_modificar.pop()
             st.rerun()
@@ -182,9 +192,9 @@ def show_modify(df_pedidos, df_listas):
     st.write("---")
 
     # =====================================================
-    # 📋 DATOS GENERALES
+    # FORMULARIO DATOS GENERALES
     # =====================================================
-    with st.form("form_modificar"):
+    with st.form("form_modificar_pedido"):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -211,7 +221,7 @@ def show_modify(df_pedidos, df_listas):
                 value=float(pedido.get("Precio Factura", 0.0)),
             )
 
-        st.write("Estado")
+        st.write("Estado del pedido")
         c1, c2, c3, c4, c5 = st.columns(5)
         empezado = c1.checkbox("Empezado", bool(pedido.get("Inicio Trabajo", False)))
         terminado = c2.checkbox("Terminado", bool(pedido.get("Trabajo Terminado", False)))
@@ -222,7 +232,7 @@ def show_modify(df_pedidos, df_listas):
         guardar = st.form_submit_button("💾 Guardar cambios", type="primary")
 
     # =====================================================
-    # 💾 GUARDAR
+    # GUARDAR EN FIRESTORE
     # =====================================================
     if guardar:
         telefono_limpio = limpiar_telefono(telefono)
@@ -235,10 +245,21 @@ def show_modify(df_pedidos, df_listas):
             st.error("Pedido sin ID de Firestore.")
             return
 
+        productos_limpios = [
+            {
+                "Producto": p.get("Producto", ""),
+                "Tela": p.get("Tela", ""),
+                "PrecioUnitario": float(p.get("PrecioUnitario", 0.0)),
+                "Cantidad": int(p.get("Cantidad", 1)),
+            }
+            for p in st.session_state.productos_modificar
+            if p.get("Producto") or p.get("Tela")
+        ]
+
         data_update = {
-            "ID": pedido_id,
-            "Año": año,
-            "Productos": json.dumps(st.session_state.productos_modificar),
+            "ID": int(pedido_id),
+            "Año": int(año),
+            "Productos": json.dumps(productos_limpios),
             "Cliente": convert_to_firestore_type(cliente),
             "Telefono": convert_to_firestore_type(telefono_limpio),
             "Club": convert_to_firestore_type(club),
@@ -255,14 +276,15 @@ def show_modify(df_pedidos, df_listas):
         }
 
         if not update_document_firestore("pedidos", doc_id, data_update):
-            st.error("❌ Error al actualizar.")
+            st.error("❌ Error al actualizar el pedido.")
             return
 
+        # limpiar estado
         st.session_state.pop("productos_modificar", None)
-        st.session_state.pop("pedido_actual", None)
+        st.session_state.pop("pedido_key", None)
         st.session_state.data["df_pedidos"] = None
 
-        st.success(f"✅ Pedido {pedido_id} / {año} actualizado")
+        st.success(f"✅ Pedido {pedido_id} / {año} actualizado correctamente")
         st.balloons()
         time.sleep(1)
         st.rerun()
