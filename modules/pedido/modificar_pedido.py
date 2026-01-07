@@ -10,28 +10,22 @@ from .helpers import convert_to_firestore_type, safe_select_index
 
 
 def safe_to_date(value):
-    """Convierte un valor a date de forma segura (incluye NaT)."""
     if value is None:
         return datetime.now().date()
-
     try:
         if pd.isna(value):
             return datetime.now().date()
     except Exception:
         pass
-
-    if isinstance(value, date):
-        return value
-
     if isinstance(value, datetime):
         return value.date()
-
-    if isinstance(value, str) and value.strip():
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
         try:
             return datetime.strptime(value[:10], "%Y-%m-%d").date()
         except Exception:
             return datetime.now().date()
-
     return datetime.now().date()
 
 
@@ -40,73 +34,51 @@ def show_modify(df_pedidos, df_listas):
     st.write("---")
 
     if df_pedidos is None or df_pedidos.empty:
-        st.info("📭 No hay pedidos registrados.")
+        st.info("📭 No hay pedidos.")
         return
 
-    # ---------- ASEGURAR COLUMNAS ----------
+    # ---------- AÑO ----------
     if "Año" not in df_pedidos.columns:
         df_pedidos["Año"] = datetime.now().year
 
-    df_pedidos["Año"] = (
-        pd.to_numeric(df_pedidos["Año"], errors="coerce")
-        .fillna(datetime.now().year)
-        .astype("int64")
-    )
+    df_pedidos["Año"] = pd.to_numeric(
+        df_pedidos["Año"], errors="coerce"
+    ).fillna(datetime.now().year).astype(int)
 
-    df_pedidos["ID"] = (
-        pd.to_numeric(df_pedidos["ID"], errors="coerce")
-        .fillna(0)
-        .astype("int64")
-    )
+    años = sorted(df_pedidos["Año"].unique(), reverse=True)
+    año = st.selectbox("📅 Año del pedido", años)
 
-    # ---------- SELECTOR AÑO ----------
-    años_disponibles = sorted(
-        df_pedidos["Año"].dropna().unique(),
-        reverse=True
-    )
-
-    año_seleccionado = st.selectbox(
-        "📅 Año del pedido",
-        años_disponibles,
-        key="modify_year_selector"
-    )
-
-    df_year = df_pedidos[df_pedidos["Año"] == año_seleccionado].copy()
-
-    if df_year.empty:
-        st.info(f"📭 No hay pedidos en {año_seleccionado}")
+    df_año = df_pedidos[df_pedidos["Año"] == año]
+    if df_año.empty:
+        st.info("No hay pedidos ese año.")
         return
 
-    # ---------- SELECTOR ID ----------
-    mod_id = st.number_input(
-        "🆔 ID del pedido",
-        min_value=1,
-        step=1,
-        key="modify_id_input"
-    )
+    pedido_id = st.number_input("🆔 ID del pedido", min_value=1, step=1)
 
-    pedido_df = df_year[df_year["ID"] == mod_id]
-
+    pedido_df = df_año[df_año["ID"] == pedido_id]
     if pedido_df.empty:
-        st.warning("⚠️ No existe un pedido con ese ID en este año.")
+        st.warning("No existe ese pedido.")
         return
 
     pedido = pedido_df.iloc[0]
 
-    # ---------- PRODUCTOS ----------
-    try:
-        productos = (
-            json.loads(pedido["Productos"])
-            if isinstance(pedido.get("Productos"), str) and pedido["Productos"].strip()
-            else pedido.get("Productos", [])
-        )
-    except Exception:
-        productos = []
+    # =====================================================
+    # 🧵 PRODUCTOS (ESTADO CORRECTO)
+    # =====================================================
+    if "productos_modificar" not in st.session_state:
+        try:
+            st.session_state.productos_modificar = (
+                json.loads(pedido["Productos"])
+                if isinstance(pedido.get("Productos"), str)
+                else pedido.get("Productos", [])
+            )
+        except Exception:
+            st.session_state.productos_modificar = []
 
-    if not productos:
-        productos = [{"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}]
-
-    st.markdown("### 🧵 Productos del pedido")
+    if not st.session_state.productos_modificar:
+        st.session_state.productos_modificar = [
+            {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
+        ]
 
     productos_lista = [""] + (
         df_listas["Producto"].dropna().unique().tolist()
@@ -117,9 +89,11 @@ def show_modify(df_pedidos, df_listas):
         if df_listas is not None and "Tela" in df_listas.columns else []
     )
 
-    total_productos = 0.0
+    st.markdown("### 🧵 Productos del pedido")
 
-    for i, p in enumerate(productos):
+    total = 0.0
+
+    for i, p in enumerate(st.session_state.productos_modificar):
         cols = st.columns([3, 3, 2, 2])
 
         with cols[0]:
@@ -127,7 +101,7 @@ def show_modify(df_pedidos, df_listas):
                 f"Producto {i+1}",
                 productos_lista,
                 index=safe_select_index(productos_lista, p.get("Producto", "")),
-                key=f"mod_producto_{i}"
+                key=f"mod_prod_{i}"
             )
 
         with cols[1]:
@@ -151,16 +125,33 @@ def show_modify(df_pedidos, df_listas):
                 "Cantidad",
                 min_value=1,
                 value=int(p.get("Cantidad", 1)),
-                key=f"mod_cantidad_{i}"
+                key=f"mod_cant_{i}"
             )
 
-        total_productos += p["PrecioUnitario"] * p["Cantidad"]
+        total += p["PrecioUnitario"] * p["Cantidad"]
 
-    st.markdown(f"**💰 Subtotal productos:** {total_productos:.2f} €")
+    st.markdown(f"**💰 Subtotal productos:** {total:.2f} €")
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        if st.button("➕ Añadir producto"):
+            st.session_state.productos_modificar.append(
+                {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
+            )
+            st.rerun()
+
+    with col_b:
+        if len(st.session_state.productos_modificar) > 1:
+            if st.button("➖ Quitar último producto"):
+                st.session_state.productos_modificar.pop()
+                st.rerun()
+
     st.write("---")
 
-    # ---------- FORMULARIO ----------
-    with st.form("modificar_pedido_form"):
+    # =====================================================
+    # 📋 DATOS GENERALES
+    # =====================================================
+    with st.form("form_modificar"):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -168,66 +159,53 @@ def show_modify(df_pedidos, df_listas):
             telefono = st.text_input("Teléfono*", value=pedido.get("Telefono", ""))
             club = st.text_input("Club*", value=pedido.get("Club", ""))
             descripcion = st.text_area(
-                "Descripción",
-                value=pedido.get("Breve Descripción", "")
+                "Descripción", value=pedido.get("Breve Descripción", "")
             )
 
         with col2:
             fecha_entrada = st.date_input(
-                "Fecha entrada",
-                value=safe_to_date(pedido.get("Fecha entrada"))
+                "Fecha entrada", safe_to_date(pedido.get("Fecha entrada"))
             )
             fecha_salida = st.date_input(
-                "Fecha salida",
-                value=safe_to_date(pedido.get("Fecha Salida"))
+                "Fecha salida", safe_to_date(pedido.get("Fecha Salida"))
             )
             precio = st.number_input(
-                "Precio total (€)",
-                min_value=0.0,
-                value=float(pedido.get("Precio", 0.0))
+                "Precio total (€)", min_value=0.0, value=float(pedido.get("Precio", 0.0))
             )
             precio_factura = st.number_input(
                 "Precio factura (€)",
                 min_value=0.0,
-                value=float(pedido.get("Precio Factura", 0.0))
+                value=float(pedido.get("Precio Factura", 0.0)),
             )
 
-        st.write("**Estado del pedido**")
+        st.write("Estado")
         c1, c2, c3, c4, c5 = st.columns(5)
-
-        with c1:
-            empezado = st.checkbox("Empezado", value=bool(pedido.get("Inicio Trabajo", False)))
-        with c2:
-            terminado = st.checkbox("Terminado", value=bool(pedido.get("Trabajo Terminado", False)))
-        with c3:
-            cobrado = st.checkbox("Cobrado", value=bool(pedido.get("Cobrado", False)))
-        with c4:
-            retirado = st.checkbox("Retirado", value=bool(pedido.get("Retirado", False)))
-        with c5:
-            pendiente = st.checkbox("Pendiente", value=bool(pedido.get("Pendiente", False)))
+        empezado = c1.checkbox("Empezado", bool(pedido.get("Inicio Trabajo", False)))
+        terminado = c2.checkbox("Terminado", bool(pedido.get("Trabajo Terminado", False)))
+        cobrado = c3.checkbox("Cobrado", bool(pedido.get("Cobrado", False)))
+        retirado = c4.checkbox("Retirado", bool(pedido.get("Retirado", False)))
+        pendiente = c5.checkbox("Pendiente", bool(pedido.get("Pendiente", False)))
 
         guardar = st.form_submit_button("💾 Guardar cambios", type="primary")
 
-    # ---------- GUARDAR (UPDATE REAL) ----------
+    # =====================================================
+    # 💾 GUARDAR
+    # =====================================================
     if guardar:
-        if not cliente or not telefono or not club:
-            st.error("❌ Cliente, Teléfono y Club son obligatorios.")
-            return
-
         telefono_limpio = limpiar_telefono(telefono)
-        if not telefono_limpio:
-            st.error("❌ Teléfono inválido.")
+        if not cliente or not telefono_limpio or not club:
+            st.error("Campos obligatorios incorrectos.")
             return
 
         doc_id = pedido.get("id_documento_firestore")
         if not doc_id:
-            st.error("❌ Pedido sin ID de Firestore.")
+            st.error("Pedido sin ID de Firestore.")
             return
 
-        updated_pedido = {
-            "ID": mod_id,
-            "Año": año_seleccionado,
-            "Productos": json.dumps(productos),
+        data_update = {
+            "ID": pedido_id,
+            "Año": año,
+            "Productos": json.dumps(st.session_state.productos_modificar),
             "Cliente": convert_to_firestore_type(cliente),
             "Telefono": convert_to_firestore_type(telefono_limpio),
             "Club": convert_to_firestore_type(club),
@@ -243,20 +221,13 @@ def show_modify(df_pedidos, df_listas):
             "Pendiente": convert_to_firestore_type(pendiente),
         }
 
-        if not update_document_firestore("pedidos", doc_id, updated_pedido):
-            st.error("❌ Error al actualizar el pedido.")
+        if not update_document_firestore("pedidos", doc_id, data_update):
+            st.error("❌ Error al actualizar.")
             return
 
-        idx = df_pedidos.index[
-            (df_pedidos["Año"] == año_seleccionado) &
-            (df_pedidos["ID"] == mod_id)
-        ].tolist()
-
-        if idx:
-            df_pedidos.loc[idx[0]] = {**updated_pedido, "id_documento_firestore": doc_id}
-
-        st.session_state.data["df_pedidos"] = df_pedidos
-        st.success(f"✅ Pedido {mod_id} / {año_seleccionado} actualizado correctamente")
+        st.session_state.data["df_pedidos"] = None
+        st.success(f"✅ Pedido {pedido_id} / {año} actualizado")
         st.balloons()
         time.sleep(1)
+        st.session_state.pop("productos_modificar", None)
         st.rerun()
