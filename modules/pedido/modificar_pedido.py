@@ -9,6 +9,7 @@ from utils.data_utils import limpiar_telefono
 from .helpers import convert_to_firestore_type, safe_select_index
 
 
+# ---------- FECHA SEGURA ----------
 def safe_to_date(value):
     if value is None:
         return datetime.now().date()
@@ -27,6 +28,30 @@ def safe_to_date(value):
         except Exception:
             return datetime.now().date()
     return datetime.now().date()
+
+
+# ---------- NORMALIZAR PRODUCTOS ----------
+def normalize_productos(raw):
+    """
+    Garantiza una lista de productos válida siempre.
+    """
+    if raw is None:
+        return []
+
+    # Si ya es lista
+    if isinstance(raw, list):
+        return raw
+
+    # Si es string JSON
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed
+        except Exception:
+            return []
+
+    return []
 
 
 def show_modify(df_pedidos, df_listas):
@@ -68,22 +93,18 @@ def show_modify(df_pedidos, df_listas):
     pedido = pedido_df.iloc[0]
 
     # =====================================================
-    # 🧵 PRODUCTOS (ESTADO)
+    # 🧵 PRODUCTOS — CARGA CORRECTA (CLAVE)
     # =====================================================
+    pedido_key = (año, pedido_id)
+
     if (
         "productos_modificar" not in st.session_state
-        or st.session_state.get("pedido_actual") != (año, pedido_id)
+        or st.session_state.get("pedido_actual") != pedido_key
     ):
-        try:
-            st.session_state.productos_modificar = (
-                json.loads(pedido["Productos"])
-                if isinstance(pedido.get("Productos"), str)
-                else pedido.get("Productos", [])
-            )
-        except Exception:
-            st.session_state.productos_modificar = []
-
-        st.session_state.pedido_actual = (año, pedido_id)
+        st.session_state.productos_modificar = normalize_productos(
+            pedido.get("Productos")
+        )
+        st.session_state.pedido_actual = pedido_key
 
     if not st.session_state.productos_modificar:
         st.session_state.productos_modificar = [
