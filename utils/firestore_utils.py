@@ -3,11 +3,11 @@ import streamlit as st
 import logging
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime
+from datetime import datetime, date
 
 logger = logging.getLogger(__name__)
 
-# ---------- COLECCIONES ----------
+# ================== COLECCIONES ==================
 COLLECTION_NAMES = {
     "pedidos": "pedidos",
     "gastos": "gastos",
@@ -17,7 +17,7 @@ COLLECTION_NAMES = {
     "posibles_clientes": "posibles_clientes",
 }
 
-# ---------- FIRESTORE CLIENT ----------
+# ================== FIRESTORE CLIENT ==================
 def get_firestore_client():
     if "firestore_client" not in st.session_state:
         try:
@@ -34,24 +34,41 @@ def get_firestore_client():
 
 db = get_firestore_client()
 
-# ---------- SANITIZAR ----------
+# ================== SANITIZADOR DEFINITIVO ==================
 def _sanitize_value_for_firestore(value):
+    """
+    Convierte cualquier valor pandas / numpy / date a tipo compatible Firestore.
+    """
+
+    # None / NaN / NaT
     try:
         if pd.isna(value):
             return None
     except Exception:
         pass
 
-    if isinstance(value, datetime):
-        return value
+    # numpy scalar → python nativo
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            pass
 
+    # pandas Timestamp → datetime
     if hasattr(value, "to_pydatetime"):
-        return value.to_pydatetime()
+        try:
+            return value.to_pydatetime()
+        except Exception:
+            pass
+
+    # date → datetime
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return datetime.combine(value, datetime.min.time())
 
     return value
 
 
-# ---------- LOAD ----------
+# ================== LOAD DATA ==================
 def load_dataframes_firestore():
     if db is None:
         return None
@@ -72,7 +89,7 @@ def load_dataframes_firestore():
     return data
 
 
-# ---------- SAVE (CREATE / REWRITE) ----------
+# ================== SAVE DATAFRAME (CREATE / REWRITE) ==================
 def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
     if db is None:
         return False
@@ -85,13 +102,14 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
         batch = db.batch()
         collection_ref = db.collection(collection_name)
 
-        # ⚠️ Para gastos y listas se rehace todo
+        # ⚠️ Para todo menos pedidos → se rehace completo
         if collection_key != "pedidos":
             for doc in collection_ref.stream():
                 batch.delete(doc.reference)
 
         for _, row in df.iterrows():
             record = {}
+
             for k, v in row.items():
                 if k == "id_documento_firestore":
                     continue
@@ -113,7 +131,7 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
         return False
 
 
-# ---------- UPDATE REAL (🔥 CLAVE 🔥) ----------
+# ================== UPDATE REAL (MODIFICAR SIN DUPLICAR) ==================
 def update_document_firestore(collection_key: str, doc_id: str, data: dict) -> bool:
     if db is None or not doc_id:
         return False
@@ -124,6 +142,7 @@ def update_document_firestore(collection_key: str, doc_id: str, data: dict) -> b
 
     try:
         clean_data = {}
+
         for k, v in data.items():
             if k == "id_documento_firestore":
                 continue
@@ -137,7 +156,7 @@ def update_document_firestore(collection_key: str, doc_id: str, data: dict) -> b
         return False
 
 
-# ---------- DELETE ----------
+# ================== DELETE ==================
 def delete_document_firestore(collection_key: str, doc_id: str) -> bool:
     if db is None:
         return False
@@ -154,7 +173,7 @@ def delete_document_firestore(collection_key: str, doc_id: str) -> bool:
         return False
 
 
-# ---------- ID POR AÑO (NECESARIO PARA CREAR) ----------
+# ================== ID POR AÑO (CREAR PEDIDO / GASTO) ==================
 def get_next_id_por_año(df, año, id_col="ID", año_col="Año"):
     """
     Devuelve el siguiente ID disponible SOLO para el año indicado.
