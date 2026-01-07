@@ -3,6 +3,7 @@ import streamlit as st
 import logging
 import firebase_admin
 from firebase_admin import credentials, firestore
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -33,13 +34,20 @@ def get_firestore_client():
 
 db = get_firestore_client()
 
-
 # ---------- SANITIZAR ----------
 def _sanitize_value_for_firestore(value):
-    if pd.isna(value):
-        return None
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+
+    if isinstance(value, datetime):
+        return value
+
     if hasattr(value, "to_pydatetime"):
         return value.to_pydatetime()
+
     return value
 
 
@@ -77,7 +85,7 @@ def save_dataframe_firestore(df: pd.DataFrame, collection_key: str) -> bool:
         batch = db.batch()
         collection_ref = db.collection(collection_name)
 
-        # 🔥 borrar colección (menos pedidos)
+        # ⚠️ Para gastos y listas se rehace todo
         if collection_key != "pedidos":
             for doc in collection_ref.stream():
                 batch.delete(doc.reference)
@@ -135,9 +143,36 @@ def delete_document_firestore(collection_key: str, doc_id: str) -> bool:
         return False
 
     collection_name = COLLECTION_NAMES.get(collection_key)
+    if not collection_name:
+        return False
+
     try:
         db.collection(collection_name).document(doc_id).delete()
         return True
     except Exception as e:
         st.error(f"Error eliminando documento: {e}")
         return False
+
+
+# ---------- ID POR AÑO (NECESARIO PARA CREAR) ----------
+def get_next_id_por_año(df, año, id_col="ID", año_col="Año"):
+    """
+    Devuelve el siguiente ID disponible SOLO para el año indicado.
+    """
+    if df is None or df.empty:
+        return 1
+
+    if año_col not in df.columns or id_col not in df.columns:
+        return 1
+
+    df_year = df[df[año_col] == año]
+
+    if df_year.empty:
+        return 1
+
+    ids = pd.to_numeric(df_year[id_col], errors="coerce").dropna()
+
+    if ids.empty:
+        return 1
+
+    return int(ids.max()) + 1
