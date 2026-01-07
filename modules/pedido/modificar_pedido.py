@@ -93,7 +93,7 @@ def show_modify(df_pedidos, df_listas):
     pedido = pedido_df.iloc[0]
 
     # =====================================================
-    # 🔒 CARGA ÚNICA Y SEGURA DE PRODUCTOS
+    # 🔒 CARGA ÚNICA DE PRODUCTOS
     # =====================================================
     pedido_key = f"{año}_{pedido_id}"
 
@@ -104,7 +104,6 @@ def show_modify(df_pedidos, df_listas):
                 {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
             ]
 
-        # 🔐 CLONAR LISTA (EVITA BUG DE STREAMLIT)
         st.session_state.productos_modificar = [dict(p) for p in productos]
         st.session_state.pedido_key = pedido_key
 
@@ -164,16 +163,25 @@ def show_modify(df_pedidos, df_listas):
 
     st.markdown(f"**💰 Subtotal productos:** {total:.2f} €")
 
+    # 🔐 BOTONES CON KEY ÚNICA (AQUÍ ESTABA EL ERROR)
     col_a, col_b = st.columns(2)
     with col_a:
-        if st.button("➕ Añadir producto"):
+        if st.button(
+            "➕ Añadir producto",
+            key=f"add_product_{pedido_key}"
+        ):
             productos.append(
                 {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
             )
             st.rerun()
 
     with col_b:
-        if len(productos) > 1 and st.button("➖ Quitar último producto"):
+        if (
+            len(productos) > 1 and st.button(
+                "➖ Quitar último producto",
+                key=f"remove_product_{pedido_key}"
+            )
+        ):
             productos.pop()
             st.rerun()
 
@@ -225,7 +233,7 @@ def show_modify(df_pedidos, df_listas):
         guardar = st.form_submit_button("💾 Guardar cambios", type="primary")
 
     # =====================================================
-    # GUARDAR CAMBIOS
+    # GUARDAR
     # =====================================================
     if guardar:
         telefono_limpio = limpiar_telefono(telefono)
@@ -270,11 +278,9 @@ def show_modify(df_pedidos, df_listas):
             st.error("❌ Error al actualizar el pedido.")
             return
 
-        # 🔄 FORZAR RECARGA COMPLETA DE DATOS
+        # 🔄 FORZAR RECARGA COMPLETA
         st.session_state.pop("data", None)
         st.session_state["data_loaded"] = False
-
-        # limpiar estado interno
         st.session_state.pop("productos_modificar", None)
         st.session_state.pop("pedido_key", None)
 
