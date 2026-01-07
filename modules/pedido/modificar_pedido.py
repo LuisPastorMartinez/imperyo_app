@@ -4,7 +4,7 @@ import json
 import time
 from datetime import datetime, date
 
-from utils.firestore_utils import save_dataframe_firestore
+from utils.firestore_utils import update_document_firestore
 from utils.data_utils import limpiar_telefono
 from .helpers import convert_to_firestore_type, safe_select_index
 
@@ -14,7 +14,6 @@ def safe_to_date(value):
     if value is None:
         return datetime.now().date()
 
-    # Manejar NaT de pandas
     try:
         if pd.isna(value):
             return datetime.now().date()
@@ -44,7 +43,7 @@ def show_modify(df_pedidos, df_listas):
         st.info("📭 No hay pedidos registrados.")
         return
 
-    # ---------- ASEGURAR COLUMNA AÑO ----------
+    # ---------- ASEGURAR COLUMNAS ----------
     if "Año" not in df_pedidos.columns:
         df_pedidos["Año"] = datetime.now().year
 
@@ -60,7 +59,7 @@ def show_modify(df_pedidos, df_listas):
         .astype("int64")
     )
 
-    # ---------- SELECTOR DE AÑO ----------
+    # ---------- SELECTOR AÑO ----------
     años_disponibles = sorted(
         df_pedidos["Año"].dropna().unique(),
         reverse=True
@@ -78,7 +77,7 @@ def show_modify(df_pedidos, df_listas):
         st.info(f"📭 No hay pedidos en {año_seleccionado}")
         return
 
-    # ---------- SELECTOR DE ID ----------
+    # ---------- SELECTOR ID ----------
     mod_id = st.number_input(
         "🆔 ID del pedido",
         min_value=1,
@@ -197,34 +196,19 @@ def show_modify(df_pedidos, df_listas):
         c1, c2, c3, c4, c5 = st.columns(5)
 
         with c1:
-            empezado = st.checkbox(
-                "Empezado",
-                value=bool(pedido.get("Inicio Trabajo", False))
-            )
+            empezado = st.checkbox("Empezado", value=bool(pedido.get("Inicio Trabajo", False)))
         with c2:
-            terminado = st.checkbox(
-                "Terminado",
-                value=bool(pedido.get("Trabajo Terminado", False))
-            )
+            terminado = st.checkbox("Terminado", value=bool(pedido.get("Trabajo Terminado", False)))
         with c3:
-            cobrado = st.checkbox(
-                "Cobrado",
-                value=bool(pedido.get("Cobrado", False))
-            )
+            cobrado = st.checkbox("Cobrado", value=bool(pedido.get("Cobrado", False)))
         with c4:
-            retirado = st.checkbox(
-                "Retirado",
-                value=bool(pedido.get("Retirado", False))
-            )
+            retirado = st.checkbox("Retirado", value=bool(pedido.get("Retirado", False)))
         with c5:
-            pendiente = st.checkbox(
-                "Pendiente",
-                value=bool(pedido.get("Pendiente", False))
-            )
+            pendiente = st.checkbox("Pendiente", value=bool(pedido.get("Pendiente", False)))
 
         guardar = st.form_submit_button("💾 Guardar cambios", type="primary")
 
-    # ---------- GUARDAR ----------
+    # ---------- GUARDAR (UPDATE REAL) ----------
     if guardar:
         if not cliente or not telefono or not club:
             st.error("❌ Cliente, Teléfono y Club son obligatorios.")
@@ -233,6 +217,11 @@ def show_modify(df_pedidos, df_listas):
         telefono_limpio = limpiar_telefono(telefono)
         if not telefono_limpio:
             st.error("❌ Teléfono inválido.")
+            return
+
+        doc_id = pedido.get("id_documento_firestore")
+        if not doc_id:
+            st.error("❌ Pedido sin ID de Firestore.")
             return
 
         updated_pedido = {
@@ -252,27 +241,22 @@ def show_modify(df_pedidos, df_listas):
             "Cobrado": convert_to_firestore_type(cobrado),
             "Retirado": convert_to_firestore_type(retirado),
             "Pendiente": convert_to_firestore_type(pendiente),
-            "id_documento_firestore": pedido["id_documento_firestore"]
         }
+
+        if not update_document_firestore("pedidos", doc_id, updated_pedido):
+            st.error("❌ Error al actualizar el pedido.")
+            return
 
         idx = df_pedidos.index[
             (df_pedidos["Año"] == año_seleccionado) &
             (df_pedidos["ID"] == mod_id)
         ].tolist()
 
-        if not idx:
-            st.error("❌ No se encontró el pedido para actualizar.")
-            return
+        if idx:
+            df_pedidos.loc[idx[0]] = {**updated_pedido, "id_documento_firestore": doc_id}
 
-        df_pedidos.loc[idx[0]] = updated_pedido
-
-        if not save_dataframe_firestore(df_pedidos, "pedidos"):
-            st.error("❌ Error al guardar cambios.")
-            return
-
+        st.session_state.data["df_pedidos"] = df_pedidos
         st.success(f"✅ Pedido {mod_id} / {año_seleccionado} actualizado correctamente")
         st.balloons()
         time.sleep(1)
-
-        st.session_state.data["df_pedidos"] = df_pedidos
         st.rerun()
