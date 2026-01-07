@@ -46,14 +46,19 @@ def show_modify(df_pedidos, df_listas):
     ).fillna(datetime.now().year).astype(int)
 
     años = sorted(df_pedidos["Año"].unique(), reverse=True)
-    año = st.selectbox("📅 Año del pedido", años)
+    año = st.selectbox("📅 Año del pedido", años, key="mod_year")
 
     df_año = df_pedidos[df_pedidos["Año"] == año]
     if df_año.empty:
         st.info("No hay pedidos ese año.")
         return
 
-    pedido_id = st.number_input("🆔 ID del pedido", min_value=1, step=1)
+    pedido_id = st.number_input(
+        "🆔 ID del pedido",
+        min_value=1,
+        step=1,
+        key="mod_id"
+    )
 
     pedido_df = df_año[df_año["ID"] == pedido_id]
     if pedido_df.empty:
@@ -63,9 +68,12 @@ def show_modify(df_pedidos, df_listas):
     pedido = pedido_df.iloc[0]
 
     # =====================================================
-    # 🧵 PRODUCTOS (ESTADO CORRECTO)
+    # 🧵 PRODUCTOS (ESTADO)
     # =====================================================
-    if "productos_modificar" not in st.session_state:
+    if (
+        "productos_modificar" not in st.session_state
+        or st.session_state.get("pedido_actual") != (año, pedido_id)
+    ):
         try:
             st.session_state.productos_modificar = (
                 json.loads(pedido["Productos"])
@@ -74,6 +82,8 @@ def show_modify(df_pedidos, df_listas):
             )
         except Exception:
             st.session_state.productos_modificar = []
+
+        st.session_state.pedido_actual = (año, pedido_id)
 
     if not st.session_state.productos_modificar:
         st.session_state.productos_modificar = [
@@ -134,17 +144,19 @@ def show_modify(df_pedidos, df_listas):
 
     col_a, col_b = st.columns(2)
     with col_a:
-        if st.button("➕ Añadir producto"):
+        if st.button("➕ Añadir producto", key="btn_add_producto"):
             st.session_state.productos_modificar.append(
                 {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
             )
             st.rerun()
 
     with col_b:
-        if len(st.session_state.productos_modificar) > 1:
-            if st.button("➖ Quitar último producto"):
-                st.session_state.productos_modificar.pop()
-                st.rerun()
+        if (
+            len(st.session_state.productos_modificar) > 1
+            and st.button("➖ Quitar último producto", key="btn_remove_producto")
+        ):
+            st.session_state.productos_modificar.pop()
+            st.rerun()
 
     st.write("---")
 
@@ -225,9 +237,11 @@ def show_modify(df_pedidos, df_listas):
             st.error("❌ Error al actualizar.")
             return
 
+        st.session_state.pop("productos_modificar", None)
+        st.session_state.pop("pedido_actual", None)
         st.session_state.data["df_pedidos"] = None
+
         st.success(f"✅ Pedido {pedido_id} / {año} actualizado")
         st.balloons()
         time.sleep(1)
-        st.session_state.pop("productos_modificar", None)
         st.rerun()
