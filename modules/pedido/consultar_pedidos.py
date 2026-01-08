@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime
-import io
 
 
 # =====================================================
@@ -22,10 +21,23 @@ def parse_productos(value):
 
 
 def safe_date(v):
-    if not v:
+    """
+    Convierte fechas a string seguro.
+    Soporta None, NaT, datetime y string.
+    """
+    if v is None:
         return ""
+
+    # NaT de pandas
+    try:
+        if pd.isna(v):
+            return ""
+    except Exception:
+        pass
+
     if isinstance(v, datetime):
         return v.strftime("%Y-%m-%d")
+
     return str(v)
 
 
@@ -41,6 +53,8 @@ def show_consult(df_pedidos, df_listas=None):
         return
 
     # ---------- NORMALIZAR ----------
+    df_pedidos = df_pedidos.copy()
+
     df_pedidos["Año"] = pd.to_numeric(
         df_pedidos["Año"], errors="coerce"
     ).fillna(datetime.now().year).astype(int)
@@ -84,8 +98,8 @@ def show_consult(df_pedidos, df_listas=None):
         "Cliente": pedido.get("Cliente", ""),
         "Teléfono": pedido.get("Telefono", ""),
         "Club": pedido.get("Club", ""),
-        "Precio (€)": float(pedido.get("Precio", 0)),
-        "Precio factura (€)": float(pedido.get("Precio Factura", 0)),
+        "Precio (€)": float(pedido.get("Precio", 0) or 0),
+        "Precio factura (€)": float(pedido.get("Precio Factura", 0) or 0),
     }])
 
     st.dataframe(datos_pedido, use_container_width=True, hide_index=True)
@@ -139,7 +153,7 @@ def show_consult(df_pedidos, df_listas=None):
     st.write("---")
 
     # =================================================
-    # BOTÓN IR A MODIFICAR
+    # IR A MODIFICAR
     # =================================================
     if st.button("✏️ Ir a modificar este pedido", type="primary"):
         st.session_state.mod_year = año
