@@ -50,7 +50,7 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
         )
 
     # =================================================
-    # AÑO ACTIVO (SIDEBAR)
+    # AÑO ACTIVO
     # =================================================
     años = sorted(df_pedidos["Año"].dropna().unique(), reverse=True)
     if not años:
@@ -64,50 +64,49 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
     )
 
     st.session_state.selected_year = año
-
     df_filtrado = df_pedidos[df_pedidos["Año"] == año].copy()
 
     st.header(f"📦 Pedidos — {año}")
     st.write("---")
 
     # =================================================
-    # TABS (FORMA CORRECTA)
+    # SECCIÓN ACTIVA (CONTROL REAL)
     # =================================================
-    tab_crear, tab_consultar, tab_modificar, tab_eliminar = st.tabs([
-        "➕ Crear Pedido",
-        "🔍 Consultar",
-        "✏️ Modificar",
-        "🗑️ Eliminar"
-    ])
+    if "pedido_section" not in st.session_state:
+        st.session_state.pedido_section = "➕ Crear Pedido"
+
+    # 👉 VIENE DESDE CONSULTAR
+    if st.session_state.get("go_to_modify"):
+        st.session_state.pedido_section = "✏️ Modificar"
+        st.session_state.pop("go_to_modify")
+
+    section = st.radio(
+        "Sección",
+        ["➕ Crear Pedido", "🔍 Consultar", "✏️ Modificar", "🗑️ Eliminar"],
+        key="pedido_section"
+    )
+
+    st.write("---")
 
     # =================================================
-    # CREAR
+    # RENDER SECCIÓN
     # =================================================
-    with tab_crear:
+    if section == "➕ Crear Pedido":
         show_create(df_filtrado, df_listas)
 
-    # =================================================
-    # CONSULTAR
-    # =================================================
-    with tab_consultar:
+    elif section == "🔍 Consultar":
         if df_filtrado.empty:
             st.info("📭 No hay pedidos para este año.")
         else:
             show_consult(df_filtrado, df_listas)
 
-    # =================================================
-    # MODIFICAR
-    # =================================================
-    with tab_modificar:
+    elif section == "✏️ Modificar":
         if df_pedidos.empty:
             st.info("📭 No hay pedidos para modificar.")
         else:
             show_modify(df_pedidos, df_listas)
 
-    # =================================================
-    # ELIMINAR
-    # =================================================
-    with tab_eliminar:
+    elif section == "🗑️ Eliminar":
         if df_pedidos.empty:
             st.info("📭 No hay pedidos para eliminar.")
         else:
