@@ -6,6 +6,8 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
+from streamlit_cookies_manager import EncryptedCookieManager
+
 # --- LOGGING ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,6 +24,15 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- COOKIES (LOGIN PERSISTENTE) ---
+cookies = EncryptedCookieManager(
+    prefix="imperyo_",
+    password=st.secrets["cookie_password"]
+)
+
+if not cookies.ready():
+    st.stop()
+
 # --- IMPORTS ---
 from utils.firestore_utils import load_dataframes_firestore
 from modules.pedidos_page import show_pedidos_page
@@ -30,7 +41,7 @@ from modules.resumen_page import show_resumen_page
 from modules.config_page import show_config_page
 from modules.analisis_productos_page import show_analisis_productos_page
 
-# --- HEADER APP (NEGRO, CORRECTO) ---
+# --- HEADER ---
 def render_header():
     st.markdown("""
     <div style="
@@ -39,18 +50,10 @@ def render_header():
         background:#0e1117;
         margin-bottom:20px;
     ">
-        <h1 style="
-            margin:0;
-            color:#ffffff;
-            font-weight:700;
-        ">
+        <h1 style="margin:0;color:#ffffff;font-weight:700;">
             Imperyo Sport
         </h1>
-        <p style="
-            margin:4px 0 0 0;
-            color:#b0b3b8;
-            font-size:14px;
-        ">
+        <p style="margin:4px 0 0 0;color:#b0b3b8;font-size:14px;">
             Gestión de pedidos y gastos
         </p>
     </div>
@@ -58,7 +61,9 @@ def render_header():
 
 render_header()
 
-# --- AUTENTICACIÓN ---
+# =====================================================
+# AUTENTICACIÓN (COOKIE + SESSION)
+# =====================================================
 def check_password():
     try:
         correct_username = st.secrets["auth"]["username"]
@@ -66,6 +71,11 @@ def check_password():
     except KeyError:
         st.error("Credenciales no configuradas.")
         st.stop()
+
+    # 🔁 Auto-login por cookie
+    if cookies.get("authenticated") == "true":
+        st.session_state.authenticated = True
+        return True
 
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
@@ -84,58 +94,49 @@ def check_password():
                 and hashed == correct_password_hash
             ):
                 st.session_state.authenticated = True
+                cookies["authenticated"] = "true"
+                cookies.save()
                 st.rerun()
             else:
                 st.error("Usuario o contraseña incorrectos")
+
         return False
 
     return True
 
-# --- INIT SESSION ---
+# =====================================================
+# INIT SESSION
+# =====================================================
 def init_session_state():
     defaults = {
         "data_loaded": False,
         "selected_year": None,
-        "current_summary_view": "Todos los Pedidos"
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
-# --- ESTADO PEDIDO ---
-def calcular_estado(row):
-    if row.get("Pendiente"):
-        return "Pendiente"
-    if row.get("Trabajo Terminado") and row.get("Cobrado") and row.get("Retirado"):
-        return "Completado"
-    if row.get("Trabajo Terminado"):
-        return "Terminado"
-    if row.get("Inicio Trabajo"):
-        return "Empezado"
-    return "Nuevo"
-
-# --- DATAFRAME VACÍO SEGURO ---
+# =====================================================
+# DATAFRAME VACÍO
+# =====================================================
 def empty_pedidos_df():
     return pd.DataFrame(columns=[
-        "ID",
-        "Año",
-        "Cliente",
-        "Telefono",
-        "Club",
-        "Precio",
-        "Productos",
-        "id_documento_firestore"
+        "ID", "Año", "Cliente", "Telefono", "Club",
+        "Precio", "Productos", "id_documento_firestore"
     ])
 
-# --- CONTADOR SEGURO ---
-def count_estado(df, estado):
-    if df is None or df.empty or "Estado" not in df.columns:
-        return 0
-    return len(df[df["Estado"] == estado])
-
-# --- MAIN ---
+# =====================================================
+# MAIN
+# =====================================================
 if check_password():
     init_session_state()
+
+    # --- BOTÓN CERRAR SESIÓN ---
+    if st.sidebar.button("🚪 Cerrar sesión"):
+        cookies["authenticated"] = ""
+        cookies.save()
+        st.session_state.clear()
+        st.rerun()
 
     if not st.session_state.data_loaded:
         with st.spinner("Cargando datos..."):
@@ -146,7 +147,7 @@ if check_password():
 
             df_pedidos = data.get("df_pedidos")
 
-            if df_pedidos is None or df_pedidos.empty or "Año" not in df_pedidos.columns:
+            if df_pedidos is None or df_pedidos.empty:
                 df_pedidos = empty_pedidos_df()
                 años = [datetime.now().year]
             else:
@@ -169,15 +170,11 @@ if check_password():
         ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"]
     )
 
-    # --- DATA ---
     df_pedidos = st.session_state.data.get("df_pedidos", empty_pedidos_df())
     df_gastos = st.session_state.data.get("df_gastos")
 
-    # --- PÁGINAS ---
     if page == "Inicio":
         st.header("📊 Resumen General")
-        st.write("---")
-        # (resto del código igual que antes)
         st.info("Inicio cargado correctamente")
 
     elif page == "Pedidos":

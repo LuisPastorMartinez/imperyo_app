@@ -5,3 +5,4 @@ firebase-admin
 dropbox
 schedule
 apscheduler
+streamlit-cookies-manager
