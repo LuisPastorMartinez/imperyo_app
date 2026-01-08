@@ -5,6 +5,35 @@ from datetime import datetime
 import io
 
 
+# =====================================================
+# UTILIDADES
+# =====================================================
+def preparar_df_para_excel(df: pd.DataFrame) -> pd.DataFrame:
+    df_export = df.copy()
+
+    for col in df_export.columns:
+        if pd.api.types.is_datetime64tz_dtype(df_export[col]):
+            df_export[col] = df_export[col].dt.tz_convert(None)
+
+    for col in df_export.columns:
+        def clean_value(v):
+            try:
+                if pd.isna(v):
+                    return None
+            except Exception:
+                pass
+
+            if isinstance(v, (list, dict)):
+                return str(v)
+            if isinstance(v, datetime):
+                return v.replace(tzinfo=None)
+            return v
+
+        df_export[col] = df_export[col].apply(clean_value)
+
+    return df_export
+
+
 def parse_productos(value):
     if not value:
         return []
@@ -18,6 +47,9 @@ def parse_productos(value):
     return []
 
 
+# =====================================================
+# CONSULTAR PEDIDO
+# =====================================================
 def show_consult(df_pedidos, df_listas=None):
     st.subheader("🔍 Consultar Pedido por ID")
     st.write("---")
@@ -26,6 +58,7 @@ def show_consult(df_pedidos, df_listas=None):
         st.info("📭 No hay pedidos.")
         return
 
+    # ---------- TIPOS ----------
     df_pedidos["Año"] = pd.to_numeric(
         df_pedidos["Año"], errors="coerce"
     ).fillna(datetime.now().year).astype(int)
@@ -34,6 +67,7 @@ def show_consult(df_pedidos, df_listas=None):
         df_pedidos["ID"], errors="coerce"
     ).fillna(0).astype(int)
 
+    # ---------- SELECTORES ----------
     años = sorted(df_pedidos["Año"].unique(), reverse=True)
 
     col_a, col_b = st.columns(2)
@@ -63,14 +97,71 @@ def show_consult(df_pedidos, df_listas=None):
 
     pedido = pedido_df.iloc[0]
 
+    # =================================================
+    # DATOS DEL PEDIDO (HORIZONTAL)
+    # =================================================
     st.markdown("### 📄 Datos del pedido")
-    st.write(f"**Cliente:** {pedido.get('Cliente','')}")
-    st.write(f"**Club:** {pedido.get('Club','')}")
-    st.write(f"**Precio:** {float(pedido.get('Precio',0)):.2f} €")
 
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Pedido", f"{pedido_id} / {año}")
+    c2.metric("Cliente", pedido.get("Cliente", ""))
+    c3.metric("Teléfono", pedido.get("Telefono", ""))
+
+    c4, c5, c6 = st.columns(3)
+    c4.metric("Club", pedido.get("Club", ""))
+    c5.metric("Precio", f"{float(pedido.get('Precio', 0)):.2f} €")
+    c6.metric("Precio factura", f"{float(pedido.get('Precio Factura', 0)):.2f} €")
+
+    if pedido.get("Breve Descripción"):
+        st.caption(f"📝 {pedido.get('Breve Descripción')}")
+
+    st.write("---")
+
+    # =================================================
+    # PRODUCTOS
+    # =================================================
     st.markdown("### 🧵 Productos")
+
     productos = parse_productos(pedido.get("Productos"))
+
     if productos:
-        st.dataframe(pd.DataFrame(productos), use_container_width=True, hide_index=True)
+        df_prod = pd.DataFrame(productos)
+        df_prod["Total"] = (
+            df_prod["PrecioUnitario"].astype(float) *
+            df_prod["Cantidad"].astype(int)
+        )
+        st.dataframe(df_prod, use_container_width=True, hide_index=True)
     else:
-        st.info("No hay productos.")
+        st.info("No hay productos en este pedido.")
+
+    st.write("---")
+
+    # =================================================
+    # ESTADOS
+    # =================================================
+    st.markdown("### 🚦 Estado del pedido")
+
+    e1, e2, e3, e4, e5 = st.columns(5)
+    e1.metric("Empezado", "Sí" if pedido.get("Inicio Trabajo") else "No")
+    e2.metric("Terminado", "Sí" if pedido.get("Trabajo Terminado") else "No")
+    e3.metric("Cobrado", "Sí" if pedido.get("Cobrado") else "No")
+    e4.metric("Retirado", "Sí" if pedido.get("Retirado") else "No")
+    e5.metric("Pendiente", "Sí" if pedido.get("Pendiente") else "No")
+
+    st.write("---")
+
+    # =================================================
+    # EXPORTAR ESTE PEDIDO
+    # =================================================
+    buffer = io.BytesIO()
+    df_export = preparar_df_para_excel(pedido_df)
+
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df_export.to_excel(writer, index=False, sheet_name="Pedido")
+
+    st.download_button(
+        "📥 Descargar este pedido (Excel)",
+        buffer.getvalue(),
+        f"pedido_{pedido_id}_{año}.xlsx",
+        "application/vnd.openxmlformats-officedsheetml.sheet"
+    )
