@@ -6,34 +6,53 @@ from pathlib import Path
 from datetime import datetime
 import logging
 
-from streamlit_cookies_manager import EncryptedCookieManager
-
-# --- LOGGING ---
+# ===============================
+# LOGGING
+# ===============================
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- PATH ---
+# ===============================
+# PATH
+# ===============================
 sys_path = str(Path(__file__).parent)
 if sys_path not in os.sys.path:
     os.sys.path.append(sys_path)
 
-# --- CONFIG PÁGINA ---
+# ===============================
+# CONFIG PÁGINA
+# ===============================
 st.set_page_config(
     page_title="Imperyo Sport",
     page_icon="🧵",
     layout="wide"
 )
 
-# --- COOKIES (LOGIN PERSISTENTE) ---
-cookies = EncryptedCookieManager(
-    prefix="imperyo_",
-    password=st.secrets["cookie_password"]
-)
+# ===============================
+# COOKIES (SEGURO, NO BLOQUEANTE)
+# ===============================
+cookies = None
+cookie_password = st.secrets.get("cookie_password")
 
-if not cookies.ready():
-    st.stop()
+if cookie_password:
+    try:
+        from streamlit_cookies_manager import EncryptedCookieManager
 
-# --- IMPORTS ---
+        cookies = EncryptedCookieManager(
+            prefix="imperyo_",
+            password=cookie_password
+        )
+
+        if not cookies.ready():
+            st.stop()
+
+    except Exception as e:
+        cookies = None
+        st.warning("⚠️ Cookies desactivadas (configuración)")
+
+# ===============================
+# IMPORTS APP
+# ===============================
 from utils.firestore_utils import load_dataframes_firestore
 from modules.pedidos_page import show_pedidos_page
 from modules.gastos_page import show_gastos_page
@@ -41,7 +60,9 @@ from modules.resumen_page import show_resumen_page
 from modules.config_page import show_config_page
 from modules.analisis_productos_page import show_analisis_productos_page
 
-# --- HEADER ---
+# ===============================
+# HEADER
+# ===============================
 def render_header():
     st.markdown("""
     <div style="
@@ -61,19 +82,19 @@ def render_header():
 
 render_header()
 
-# =====================================================
-# AUTENTICACIÓN (COOKIE + SESSION)
-# =====================================================
+# ===============================
+# AUTENTICACIÓN
+# ===============================
 def check_password():
     try:
         correct_username = st.secrets["auth"]["username"]
         correct_password_hash = st.secrets["auth"]["password_hash"]
     except KeyError:
-        st.error("Credenciales no configuradas.")
+        st.error("❌ Credenciales no configuradas en secrets")
         st.stop()
 
     # 🔁 Auto-login por cookie
-    if cookies.get("authenticated") == "true":
+    if cookies and cookies.get("authenticated") == "true":
         st.session_state.authenticated = True
         return True
 
@@ -94,8 +115,11 @@ def check_password():
                 and hashed == correct_password_hash
             ):
                 st.session_state.authenticated = True
-                cookies["authenticated"] = "true"
-                cookies.save()
+
+                if cookies:
+                    cookies["authenticated"] = "true"
+                    cookies.save()
+
                 st.rerun()
             else:
                 st.error("Usuario o contraseña incorrectos")
@@ -104,9 +128,9 @@ def check_password():
 
     return True
 
-# =====================================================
+# ===============================
 # INIT SESSION
-# =====================================================
+# ===============================
 def init_session_state():
     defaults = {
         "data_loaded": False,
@@ -116,25 +140,26 @@ def init_session_state():
         if k not in st.session_state:
             st.session_state[k] = v
 
-# =====================================================
+# ===============================
 # DATAFRAME VACÍO
-# =====================================================
+# ===============================
 def empty_pedidos_df():
     return pd.DataFrame(columns=[
         "ID", "Año", "Cliente", "Telefono", "Club",
         "Precio", "Productos", "id_documento_firestore"
     ])
 
-# =====================================================
+# ===============================
 # MAIN
-# =====================================================
+# ===============================
 if check_password():
     init_session_state()
 
-    # --- BOTÓN CERRAR SESIÓN ---
+    # 🔓 CERRAR SESIÓN
     if st.sidebar.button("🚪 Cerrar sesión"):
-        cookies["authenticated"] = ""
-        cookies.save()
+        if cookies:
+            cookies["authenticated"] = ""
+            cookies.save()
         st.session_state.clear()
         st.rerun()
 
@@ -163,7 +188,9 @@ if check_password():
             st.session_state.data["df_pedidos"] = df_pedidos
             st.session_state.data_loaded = True
 
-    # --- SIDEBAR ---
+    # ===============================
+    # SIDEBAR
+    # ===============================
     st.sidebar.title("🧭 Navegación")
     page = st.sidebar.radio(
         "Secciones",
