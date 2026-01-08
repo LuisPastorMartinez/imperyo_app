@@ -187,7 +187,7 @@ if check_password():
         show_gastos_page(df_gastos)
 
     elif page == "Resumen":
-        show_resumen_page(df_pedidos, st.session_state.current_summary_view)
+        show_resumen_page(df_pedidos)
 
     elif page == "Ver Datos":
         show_analisis_productos_page(df_pedidos)
