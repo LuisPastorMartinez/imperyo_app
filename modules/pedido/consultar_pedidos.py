@@ -98,19 +98,33 @@ def show_consult(df_pedidos, df_listas=None):
     pedido = pedido_df.iloc[0]
 
     # =================================================
-    # DATOS DEL PEDIDO (HORIZONTAL)
+    # DATOS DEL PEDIDO (TABLA 1 FILA)
     # =================================================
     st.markdown("### 📄 Datos del pedido")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Pedido", f"{pedido_id} / {año}")
-    c2.metric("Cliente", pedido.get("Cliente", ""))
-    c3.metric("Teléfono", pedido.get("Telefono", ""))
+    datos_pedido = pd.DataFrame([{
+        "Pedido": f"{pedido_id} / {año}",
+        "Cliente": pedido.get("Cliente", ""),
+        "Teléfono": pedido.get("Telefono", ""),
+        "Club": pedido.get("Club", ""),
+        "Precio (€)": float(pedido.get("Precio", 0)),
+        "Precio factura (€)": float(pedido.get("Precio Factura", 0)),
+    }])
 
-    c4, c5, c6 = st.columns(3)
-    c4.metric("Club", pedido.get("Club", ""))
-    c5.metric("Precio", f"{float(pedido.get('Precio', 0)):.2f} €")
-    c6.metric("Precio factura", f"{float(pedido.get('Precio Factura', 0)):.2f} €")
+    st.dataframe(
+        datos_pedido,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # =================================================
+    # BOTÓN IR A MODIFICAR
+    # =================================================
+    if st.button("✏️ Ir a modificar este pedido", type="primary"):
+        st.session_state["mod_year"] = año
+        st.session_state["mod_id"] = pedido_id
+        st.session_state["go_to_modify"] = True
+        st.rerun()
 
     if pedido.get("Breve Descripción"):
         st.caption(f"📝 {pedido.get('Breve Descripción')}")
@@ -126,7 +140,7 @@ def show_consult(df_pedidos, df_listas=None):
 
     if productos:
         df_prod = pd.DataFrame(productos)
-        df_prod["Total"] = (
+        df_prod["Total (€)"] = (
             df_prod["PrecioUnitario"].astype(float) *
             df_prod["Cantidad"].astype(int)
         )
@@ -141,12 +155,19 @@ def show_consult(df_pedidos, df_listas=None):
     # =================================================
     st.markdown("### 🚦 Estado del pedido")
 
-    e1, e2, e3, e4, e5 = st.columns(5)
-    e1.metric("Empezado", "Sí" if pedido.get("Inicio Trabajo") else "No")
-    e2.metric("Terminado", "Sí" if pedido.get("Trabajo Terminado") else "No")
-    e3.metric("Cobrado", "Sí" if pedido.get("Cobrado") else "No")
-    e4.metric("Retirado", "Sí" if pedido.get("Retirado") else "No")
-    e5.metric("Pendiente", "Sí" if pedido.get("Pendiente") else "No")
+    estados_df = pd.DataFrame([{
+        "Empezado": "Sí" if pedido.get("Inicio Trabajo") else "No",
+        "Terminado": "Sí" if pedido.get("Trabajo Terminado") else "No",
+        "Cobrado": "Sí" if pedido.get("Cobrado") else "No",
+        "Retirado": "Sí" if pedido.get("Retirado") else "No",
+        "Pendiente": "Sí" if pedido.get("Pendiente") else "No",
+    }])
+
+    st.dataframe(
+        estados_df,
+        use_container_width=True,
+        hide_index=True
+    )
 
     st.write("---")
 
@@ -163,5 +184,5 @@ def show_consult(df_pedidos, df_listas=None):
         "📥 Descargar este pedido (Excel)",
         buffer.getvalue(),
         f"pedido_{pedido_id}_{año}.xlsx",
-        "application/vnd.openxmlformats-officedsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )

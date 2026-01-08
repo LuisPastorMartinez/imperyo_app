@@ -11,10 +11,6 @@ from modules.pedido import (
 
 
 def _empty_pedidos_df():
-    """
-    DataFrame vacío con la estructura mínima necesaria
-    para evitar errores cuando no hay pedidos.
-    """
     return pd.DataFrame(columns=[
         "ID",
         "Año",
@@ -29,7 +25,20 @@ def _empty_pedidos_df():
 
 def show_pedidos_page(df_pedidos=None, df_listas=None):
 
-    # ---------- CARGA DESDE SESSION SI VIENEN VACÍOS ----------
+    # =================================================
+    # SESSION INIT
+    # =================================================
+    if "active_tab" not in st.session_state:
+        st.session_state.active_tab = 0  # Crear
+
+    # 👉 VIENE DESDE CONSULTAR
+    if st.session_state.get("go_to_modify"):
+        st.session_state.active_tab = 2  # Modificar
+        st.session_state.pop("go_to_modify")
+
+    # =================================================
+    # CARGA DATOS
+    # =================================================
     if df_pedidos is None or df_listas is None:
         data = st.session_state.get("data", {})
         df_pedidos = data.get("df_pedidos")
@@ -39,11 +48,9 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
         st.error("No se pudieron cargar las listas.")
         return
 
-    # ---------- ASEGURAR DATAFRAME PEDIDOS ----------
     if df_pedidos is None or df_pedidos.empty:
         df_pedidos = _empty_pedidos_df()
     else:
-        # Asegurar columna Año
         if "Año" not in df_pedidos.columns:
             df_pedidos["Año"] = datetime.now().year
 
@@ -53,12 +60,10 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
             .astype("int64")
         )
 
-    # ---------- AÑOS DISPONIBLES (mayor → menor) ----------
-    años = sorted(
-        df_pedidos["Año"].dropna().unique(),
-        reverse=True
-    )
-
+    # =================================================
+    # AÑO ACTIVO
+    # =================================================
+    años = sorted(df_pedidos["Año"].dropna().unique(), reverse=True)
     if not años:
         años = [datetime.now().year]
 
@@ -71,41 +76,54 @@ def show_pedidos_page(df_pedidos=None, df_listas=None):
 
     st.session_state.selected_year = año
 
-    # ---------- FILTRAR POR AÑO ----------
     df_filtrado = df_pedidos[df_pedidos["Año"] == año].copy()
 
     st.header(f"📦 Pedidos — {año}")
     st.write("---")
 
-    # ---------- TABS ----------
-    tab1, tab2, tab3, tab4 = st.tabs([
+    # =================================================
+    # TABS (CONTROLADAS)
+    # =================================================
+    tab_labels = [
         "➕ Crear Pedido",
         "🔍 Consultar",
         "✏️ Modificar",
         "🗑️ Eliminar"
-    ])
+    ]
 
-    # ---------- CREAR ----------
-    with tab1:
-        show_create(df_filtrado, df_listas)
+    tabs = st.tabs(tab_labels)
 
-    # ---------- CONSULTAR ----------
-    with tab2:
-        if df_filtrado.empty:
-            st.info("📭 No hay pedidos para este año.")
-        else:
-            show_consult(df_filtrado, df_listas)
+    # =================================================
+    # RENDER TAB ACTIVA
+    # =================================================
+    with tabs[0]:
+        if st.session_state.active_tab == 0:
+            show_create(df_filtrado, df_listas)
 
-    # ---------- MODIFICAR ----------
-    with tab3:
-        if df_pedidos.empty:
-            st.info("📭 No hay pedidos para modificar.")
-        else:
-            show_modify(df_pedidos, df_listas)
+    with tabs[1]:
+        if st.session_state.active_tab == 1:
+            if df_filtrado.empty:
+                st.info("📭 No hay pedidos para este año.")
+            else:
+                show_consult(df_filtrado, df_listas)
 
-    # ---------- ELIMINAR ----------
-    with tab4:
-        if df_pedidos.empty:
-            st.info("📭 No hay pedidos para eliminar.")
-        else:
-            show_delete(df_pedidos, df_listas)
+    with tabs[2]:
+        if st.session_state.active_tab == 2:
+            if df_pedidos.empty:
+                st.info("📭 No hay pedidos para modificar.")
+            else:
+                show_modify(df_pedidos, df_listas)
+
+    with tabs[3]:
+        if st.session_state.active_tab == 3:
+            if df_pedidos.empty:
+                st.info("📭 No hay pedidos para eliminar.")
+            else:
+                show_delete(df_pedidos, df_listas)
+
+    # =================================================
+    # ACTUALIZAR TAB ACTIVA (CUANDO EL USUARIO CAMBIA)
+    # =================================================
+    for i, tab in enumerate(tabs):
+        if tab:
+            st.session_state.active_tab = i
