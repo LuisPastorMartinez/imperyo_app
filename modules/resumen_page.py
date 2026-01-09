@@ -47,7 +47,7 @@ def show_resumen_page(df_pedidos):
         return
 
     # =================================================
-    # 🔒 NORMALIZAR (MISMO QUE consultar_pedidos.py)
+    # 🔒 NORMALIZAR (IGUAL QUE consultar_pedidos.py)
     # =================================================
     df_pedidos = df_pedidos.copy()
 
@@ -58,6 +58,18 @@ def show_resumen_page(df_pedidos):
     df_pedidos["ID"] = pd.to_numeric(
         df_pedidos["ID"], errors="coerce"
     ).fillna(0).astype(int)
+
+    # =================================================
+    # 🔥 ELIMINAR DUPLICADOS (SOLO VISTA)
+    # =================================================
+    if "id_documento_firestore" in df_pedidos.columns:
+        df_pedidos = df_pedidos.drop_duplicates(
+            subset=["Año", "ID", "id_documento_firestore"]
+        )
+    else:
+        df_pedidos = df_pedidos.drop_duplicates(
+            subset=["Año", "ID"]
+        )
 
     # =================================================
     # SELECTORES (SIDEBAR)
@@ -148,7 +160,11 @@ def show_resumen_page(df_pedidos):
     with c2:
         st.metric(
             "✔️ Completados",
-            len(df[(df["Trabajo Terminado"]) & (df["Cobrado"]) & (df["Retirado"])])
+            len(df[
+                (df["Trabajo Terminado"]) &
+                (df["Cobrado"]) &
+                (df["Retirado"])
+            ])
         )
     with c3:
         st.metric("📌 Pendientes", len(df[df["Pendiente"]]))
