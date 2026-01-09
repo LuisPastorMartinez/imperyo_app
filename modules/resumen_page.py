@@ -47,10 +47,23 @@ def show_resumen_page(df_pedidos):
         return
 
     # =================================================
+    # 🔒 NORMALIZAR (MISMO QUE consultar_pedidos.py)
+    # =================================================
+    df_pedidos = df_pedidos.copy()
+
+    df_pedidos["Año"] = pd.to_numeric(
+        df_pedidos["Año"], errors="coerce"
+    ).fillna(datetime.now().year).astype(int)
+
+    df_pedidos["ID"] = pd.to_numeric(
+        df_pedidos["ID"], errors="coerce"
+    ).fillna(0).astype(int)
+
+    # =================================================
     # SELECTORES (SIDEBAR)
     # =================================================
     años_disponibles = sorted(
-        df_pedidos["Año"].dropna().unique(),
+        df_pedidos["Año"].unique(),
         reverse=True
     )
 
