@@ -31,9 +31,9 @@ def show_create(df_pedidos, df_listas):
     año_actual = datetime.now().year
     st.info(f"📅 Año del pedido: {año_actual}")
 
-    # ==========================================================
+    # ==================================================
     # 📋 COPIAR DATOS DE OTRO PEDIDO
-    # ==========================================================
+    # ==================================================
     with st.expander("📋 Copiar datos de un pedido anterior (opcional)"):
         col_c1, col_c2 = st.columns(2)
 
@@ -74,7 +74,9 @@ def show_create(df_pedidos, df_listas):
 
                 st.success("✅ Datos copiados. Revisa y crea el pedido.")
 
-    # -------- PRODUCTOS --------
+    # ==================================================
+    # PRODUCTOS
+    # ==================================================
     if "productos_crear" not in st.session_state:
         st.session_state.productos_crear = [
             {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
@@ -148,13 +150,17 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    # -------- ID (INICIAL) --------
+    # ==================================================
+    # ID DEL PEDIDO
+    # ==================================================
     df_año = df_pedidos[df_pedidos["Año"] == año_actual].copy()
     next_id = get_next_id_por_año(df_año, año_actual)
 
     st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
-    # -------- FORMULARIO --------
+    # ==================================================
+    # FORMULARIO
+    # ==================================================
     with st.form("crear_pedido_form"):
         col1, col2 = st.columns(2)
 
@@ -181,20 +187,36 @@ def show_create(df_pedidos, df_listas):
             precio = st.number_input("Precio total (€)", min_value=0.0)
             precio_factura = st.number_input("Precio factura (€)", min_value=0.0)
 
+        st.markdown("### 🚦 Estado del pedido")
+        e1, e2, e3, e4, e5 = st.columns(5)
+
+        empezado = e1.checkbox("Empezado", value=False)
+        terminado = e2.checkbox("Terminado", value=False)
+        cobrado = e3.checkbox("Cobrado", value=False)
+        retirado = e4.checkbox("Retirado", value=False)
+        pendiente = e5.checkbox("Pendiente", value=False)
+
         crear = st.form_submit_button("✅ Crear Pedido", type="primary")
 
-    # -------- CREAR PEDIDO --------
+    # ==================================================
+    # CREAR PEDIDO (VALIDACIONES)
+    # ==================================================
     if crear:
         if not cliente or not telefono or not club:
-            st.error("Cliente, Teléfono y Club son obligatorios.")
+            st.error("❌ Cliente, Teléfono y Club son obligatorios.")
+            return
+
+        # ❌ EMPEZADO Y TERMINADO JUNTOS
+        if empezado and terminado:
+            st.error("❌ Un pedido no puede estar 'Empezado' y 'Terminado' a la vez.")
             return
 
         telefono_limpio = limpiar_telefono(telefono)
         if not telefono_limpio:
-            st.error("Teléfono inválido.")
+            st.error("❌ Teléfono inválido.")
             return
 
-        # 🔒 PARCHE DEFINITIVO CONTRA IDs DUPLICADOS
+        # 🔒 EVITAR IDs DUPLICADOS
         df_actual = st.session_state.data.get("df_pedidos", df_pedidos)
         df_actual_año = df_actual[df_actual["Año"] == año_actual]
 
@@ -220,11 +242,11 @@ def show_create(df_pedidos, df_listas):
             "Fecha Salida": None,
             "Precio": convert_to_firestore_type(precio),
             "Precio Factura": convert_to_firestore_type(precio_factura),
-            "Inicio Trabajo": False,
-            "Trabajo Terminado": False,
-            "Cobrado": False,
-            "Retirado": False,
-            "Pendiente": False,
+            "Inicio Trabajo": empezado,
+            "Trabajo Terminado": terminado,
+            "Cobrado": cobrado,
+            "Retirado": retirado,
+            "Pendiente": pendiente,
             "id_documento_firestore": None
         }
 
