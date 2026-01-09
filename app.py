@@ -61,7 +61,7 @@ def render_header():
 render_header()
 
 # =====================================================
-# AUTENTICACIÓN (SESSION_STATE)
+# AUTENTICACIÓN
 # =====================================================
 def check_password():
     try:
@@ -103,6 +103,7 @@ def init_session_state():
     defaults = {
         "data_loaded": False,
         "selected_year": None,
+        "current_page": "Inicio",  # 🔑 CONTROL DE NAVEGACIÓN
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -114,7 +115,10 @@ def init_session_state():
 def empty_pedidos_df():
     return pd.DataFrame(columns=[
         "ID", "Año", "Cliente", "Telefono", "Club",
-        "Precio", "Productos", "id_documento_firestore"
+        "Precio", "Precio Factura",
+        "Inicio Trabajo", "Trabajo Terminado",
+        "Pendiente", "Retirado", "Cobrado",
+        "Productos", "id_documento_firestore"
     ])
 
 # =====================================================
@@ -128,12 +132,13 @@ if check_password():
     # =================================================
     st.sidebar.title("🧭 Navegación")
 
-    # 🔄 BOTÓN CORRECTO PARA RECARGAR
+    # 🔄 RECARGAR BIEN (VUELVE A INICIO)
     if st.sidebar.button("🔄 Recargar aplicación"):
         st.session_state.data_loaded = False
+        st.session_state.current_page = "Inicio"
         st.rerun()
 
-    # 🚪 CERRAR SESIÓN (OPCIONAL)
+    # 🚪 CERRAR SESIÓN
     if st.sidebar.button("🚪 Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
@@ -149,37 +154,63 @@ if check_password():
                 st.stop()
 
             df_pedidos = data.get("df_pedidos")
-
             if df_pedidos is None or df_pedidos.empty:
                 df_pedidos = empty_pedidos_df()
-                años = [datetime.now().year]
             else:
                 df_pedidos["Año"] = (
                     pd.to_numeric(df_pedidos["Año"], errors="coerce")
                     .fillna(datetime.now().year)
                     .astype("int64")
                 )
-                años = sorted(df_pedidos["Año"].unique(), reverse=True)
 
-            st.session_state.selected_year = años[0]
             st.session_state.data = data
             st.session_state.data["df_pedidos"] = df_pedidos
             st.session_state.data_loaded = True
 
     # =================================================
-    # MENÚ
+    # MENÚ CONTROLADO
     # =================================================
     page = st.sidebar.radio(
         "Secciones",
-        ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"]
+        ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"],
+        key="current_page"
     )
 
     df_pedidos = st.session_state.data.get("df_pedidos", empty_pedidos_df())
     df_gastos = st.session_state.data.get("df_gastos")
 
+    # =================================================
+    # PÁGINAS
+    # =================================================
     if page == "Inicio":
-        st.header("📊 Resumen General")
-        st.info("Aplicación cargada correctamente")
+        st.header("🏠 Pedidos nuevos")
+
+        if df_pedidos.empty:
+            st.info("No hay pedidos.")
+        else:
+            # 🔍 PEDIDOS NUEVOS
+            nuevos = df_pedidos[
+                (~df_pedidos.get("Inicio Trabajo", False)) &
+                (~df_pedidos.get("Trabajo Terminado", False)) &
+                (~df_pedidos.get("Pendiente", False)) &
+                (~df_pedidos.get("Retirado", False))
+            ].copy()
+
+            if nuevos.empty:
+                st.success("🎉 No hay pedidos nuevos pendientes")
+            else:
+                nuevos = nuevos.sort_values(["Año", "ID"], ascending=[False, False])
+
+                tabla = nuevos[[
+                    "ID", "Año", "Cliente", "Club", "Telefono",
+                    "Precio", "Cobrado"
+                ]]
+
+                st.dataframe(
+                    tabla,
+                    use_container_width=True,
+                    hide_index=True
+                )
 
     elif page == "Pedidos":
         show_pedidos_page(df_pedidos, st.session_state.data.get("df_listas"))
