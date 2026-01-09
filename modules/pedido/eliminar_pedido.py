@@ -14,6 +14,9 @@ def show_delete(df_pedidos, df_listas=None):
         st.info("📭 No hay pedidos.")
         return
 
+    # ---------- NORMALIZAR ----------
+    df_pedidos = df_pedidos.copy()
+
     df_pedidos["Año"] = pd.to_numeric(
         df_pedidos["Año"], errors="coerce"
     ).fillna(datetime.now().year).astype(int)
@@ -22,6 +25,7 @@ def show_delete(df_pedidos, df_listas=None):
         df_pedidos["ID"], errors="coerce"
     ).fillna(0).astype(int)
 
+    # ---------- SELECTORES ----------
     años = sorted(df_pedidos["Año"].unique(), reverse=True)
     año = st.selectbox("📅 Año del pedido", años, key="delete_year")
 
@@ -47,8 +51,29 @@ def show_delete(df_pedidos, df_listas=None):
 
     pedido = pedido_df.iloc[0]
 
+    # =================================================
+    # TABLA INFO DEL PEDIDO (HORIZONTAL)
+    # =================================================
+    st.markdown("### 📄 Pedido seleccionado")
+
+    info_df = pd.DataFrame([{
+        "ID": pedido_id,
+        "Cliente": pedido.get("Cliente", ""),
+        "Club": pedido.get("Club", ""),
+        "Teléfono": pedido.get("Telefono", ""),
+    }])
+
+    st.dataframe(
+        info_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
     st.warning(f"⚠️ Vas a eliminar el pedido **{pedido_id} / {año}**")
 
+    # =================================================
+    # ELIMINAR
+    # =================================================
     if st.button("🗑️ ELIMINAR DEFINITIVAMENTE", type="primary"):
         doc_id = pedido.get("id_documento_firestore")
         if not doc_id:
