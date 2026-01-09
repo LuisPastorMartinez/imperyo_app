@@ -3,7 +3,7 @@ import pandas as pd
 import time
 from datetime import datetime
 
-from utils.firestore_utils import delete_document_firestore, save_dataframe_firestore
+from utils.firestore_utils import delete_document_firestore
 
 
 def show_delete(df_pedidos, df_listas=None):
@@ -36,10 +36,12 @@ def show_delete(df_pedidos, df_listas=None):
 
     max_id = int(df_año["ID"].max())
 
+    if "delete_id" not in st.session_state:
+        st.session_state.delete_id = max_id
+
     pedido_id = st.number_input(
         "🆔 ID del pedido",
         min_value=1,
-        value=max_id,
         step=1,
         key="delete_id"
     )
@@ -52,7 +54,7 @@ def show_delete(df_pedidos, df_listas=None):
     pedido = pedido_df.iloc[0]
 
     # =================================================
-    # TABLA INFO DEL PEDIDO (HORIZONTAL)
+    # TABLA INFO DEL PEDIDO
     # =================================================
     st.markdown("### 📄 Pedido seleccionado")
 
@@ -63,13 +65,9 @@ def show_delete(df_pedidos, df_listas=None):
         "Teléfono": pedido.get("Telefono", ""),
     }])
 
-    st.dataframe(
-        info_df,
-        use_container_width=True,
-        hide_index=True
-    )
+    st.dataframe(info_df, use_container_width=True, hide_index=True)
 
-    st.warning(f"⚠️ Vas a eliminar el pedido **{pedido_id} / {año}**")
+    st.error(f"⚠️ Esta acción es irreversible")
 
     # =================================================
     # ELIMINAR
@@ -80,18 +78,15 @@ def show_delete(df_pedidos, df_listas=None):
             st.error("❌ Pedido sin ID de Firestore.")
             return
 
-        if not delete_document_firestore("pedidos", doc_id):
+        ok = delete_document_firestore("pedidos", doc_id)
+        if not ok:
             st.error("❌ Error eliminando el pedido.")
             return
 
-        df_pedidos = df_pedidos[
-            ~((df_pedidos["Año"] == año) & (df_pedidos["ID"] == pedido_id))
-        ]
+        # 🔄 Forzar recarga de datos
+        st.session_state.pop("data", None)
+        st.session_state["data_loaded"] = False
 
-        if not save_dataframe_firestore(df_pedidos, "pedidos"):
-            st.error("❌ Error guardando cambios.")
-            return
-
-        st.success("✅ Pedido eliminado correctamente.")
+        st.success("✅ Pedido eliminado correctamente")
         time.sleep(1)
         st.rerun()
