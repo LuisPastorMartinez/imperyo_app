@@ -3,7 +3,10 @@ import pandas as pd
 import time
 from datetime import datetime
 
-from utils.firestore_utils import delete_document_firestore
+from utils.firestore_utils import (
+    delete_document_firestore,
+    update_document_firestore
+)
 
 
 def show_delete(df_pedidos, df_listas=None):
@@ -14,7 +17,9 @@ def show_delete(df_pedidos, df_listas=None):
         st.info("📭 No hay pedidos.")
         return
 
-    # ---------- NORMALIZAR ----------
+    # =================================================
+    # NORMALIZAR
+    # =================================================
     df_pedidos = df_pedidos.copy()
 
     df_pedidos["Año"] = pd.to_numeric(
@@ -25,11 +30,13 @@ def show_delete(df_pedidos, df_listas=None):
         df_pedidos["ID"], errors="coerce"
     ).fillna(0).astype(int)
 
-    # ---------- SELECTORES ----------
+    # =================================================
+    # SELECTORES
+    # =================================================
     años = sorted(df_pedidos["Año"].unique(), reverse=True)
     año = st.selectbox("📅 Año del pedido", años, key="delete_year")
 
-    df_año = df_pedidos[df_pedidos["Año"] == año]
+    df_año = df_pedidos[df_pedidos["Año"] == año].sort_values("ID")
     if df_año.empty:
         st.info(f"📭 No hay pedidos en {año}.")
         return
@@ -54,7 +61,7 @@ def show_delete(df_pedidos, df_listas=None):
     pedido = pedido_df.iloc[0]
 
     # =================================================
-    # TABLA INFO DEL PEDIDO
+    # INFO DEL PEDIDO (TABLA)
     # =================================================
     st.markdown("### 📄 Pedido seleccionado")
 
@@ -67,26 +74,51 @@ def show_delete(df_pedidos, df_listas=None):
 
     st.dataframe(info_df, use_container_width=True, hide_index=True)
 
-    st.error(f"⚠️ Esta acción es irreversible")
+    # =================================================
+    # CONFIRMACIÓN
+    # =================================================
+    st.warning(
+        f"⚠️ ¿Quiere usted borrar el pedido "
+        f"**ID {pedido_id}** del cliente "
+        f"**{pedido.get('Cliente', '')}** "
+        f"({pedido.get('Club', '')})?"
+    )
+
+    confirmar = st.checkbox(
+        "Sí, confirmo que quiero eliminar este pedido definitivamente"
+    )
 
     # =================================================
-    # ELIMINAR
+    # ELIMINAR + RENUMERAR
     # =================================================
-    if st.button("🗑️ ELIMINAR DEFINITIVAMENTE", type="primary"):
+    if confirmar and st.button("🗑️ BORRAR DEFINITIVAMENTE", type="primary"):
         doc_id = pedido.get("id_documento_firestore")
         if not doc_id:
             st.error("❌ Pedido sin ID de Firestore.")
             return
 
-        ok = delete_document_firestore("pedidos", doc_id)
-        if not ok:
+        # 1️⃣ BORRAR
+        if not delete_document_firestore("pedidos", doc_id):
             st.error("❌ Error eliminando el pedido.")
             return
 
-        # 🔄 Forzar recarga de datos
+        # 2️⃣ RENUMERAR IDS DEL AÑO
+        restantes = df_año[df_año["ID"] != pedido_id].sort_values("ID")
+
+        for new_id, (_, row) in enumerate(restantes.iterrows(), start=1):
+            if row["ID"] != new_id:
+                update_document_firestore(
+                    "pedidos",
+                    row["id_documento_firestore"],
+                    {"ID": new_id}
+                )
+
+        # 3️⃣ RECARGA
         st.session_state.pop("data", None)
         st.session_state["data_loaded"] = False
 
-        st.success("✅ Pedido eliminado correctamente")
-        time.sleep(1)
+        st.balloons()
+        st.success("✅ Pedido eliminado y IDs reordenados correctamente")
+
+        time.sleep(1.2)
         st.rerun()
