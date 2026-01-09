@@ -70,7 +70,7 @@ def show_gastos_page(df_gastos):
 
     df_año = df_gastos[df_gastos["Año"] == año_seleccionado].copy()
 
-    # ---------- RESUMEN (SI HAY GASTOS) ----------
+    # ---------- RESUMEN ----------
     if not df_año.empty:
         total = df_año["Importe"].sum()
         fijos = df_año[df_año["Tipo"] == "Fijo"]["Importe"].sum()
@@ -97,11 +97,19 @@ def show_gastos_page(df_gastos):
             hide_index=True
         )
 
-        # ---------- EXPORTAR ----------
+        # ---------- EXPORTAR EXCEL (FIX TIMEZONE) ----------
+        st.write("---")
+        st.subheader("📥 Exportar gastos")
+
+        df_excel = df_año.copy()
+        df_excel["Fecha"] = pd.to_datetime(
+            df_excel["Fecha"], errors="coerce"
+        ).dt.strftime("%Y-%m-%d")
+
         buffer = io.BytesIO()
         try:
             with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-                df_año.to_excel(writer, index=False, sheet_name="Gastos")
+                df_excel.to_excel(writer, index=False, sheet_name="Gastos")
 
             st.download_button(
                 "📥 Descargar Excel",
@@ -113,9 +121,8 @@ def show_gastos_page(df_gastos):
         except Exception as e:
             st.error(f"❌ Error al generar el Excel: {e}")
 
-        st.write("---")
-
         # ---------- ELIMINAR ----------
+        st.write("---")
         st.subheader("🗑️ Eliminar Gasto")
 
         delete_id = st.number_input("🆔 ID del gasto", min_value=1, step=1)
@@ -144,7 +151,7 @@ def show_gastos_page(df_gastos):
                         st.balloons()
                         st.rerun()
 
-    # ---------- CREAR GASTO (SIEMPRE VISIBLE) ----------
+    # ---------- CREAR GASTO ----------
     st.write("---")
     _form_crear_gasto(df_gastos, año_seleccionado)
 
