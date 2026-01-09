@@ -57,6 +57,7 @@ def show_modify(df_pedidos, df_listas):
         return
 
     # ---------- AÑOS ----------
+    df_pedidos = df_pedidos.copy()
     df_pedidos["Año"] = pd.to_numeric(
         df_pedidos["Año"], errors="coerce"
     ).fillna(datetime.now().year).astype(int)
@@ -73,7 +74,7 @@ def show_modify(df_pedidos, df_listas):
         st.info("📭 No hay pedidos ese año.")
         return
 
-    # ---------- ID (ÚLTIMO POR DEFECTO) ----------
+    # ---------- ID ----------
     df_año["ID"] = pd.to_numeric(df_año["ID"], errors="coerce").fillna(0).astype(int)
     max_id = int(df_año["ID"].max())
 
@@ -157,27 +158,41 @@ def show_modify(df_pedidos, df_listas):
 
     # ---------- FORMULARIO ----------
     with st.form("form_modificar"):
-        cliente = st.text_input("Cliente", pedido.get("Cliente", ""))
-        telefono = st.text_input("Teléfono", pedido.get("Telefono", ""))
-        club = st.text_input("Club", pedido.get("Club", ""))
+        col1, col2 = st.columns(2)
 
-        precio = st.number_input(
-            "Precio total (€)",
-            min_value=0.0,
-            value=float(pedido.get("Precio", 0.0))
-        )
-        precio_factura = st.number_input(
-            "Precio factura (€)",
-            min_value=0.0,
-            value=float(pedido.get("Precio Factura", 0.0))
-        )
+        with col1:
+            cliente = st.text_input("Cliente", pedido.get("Cliente", ""))
+            telefono = st.text_input("Teléfono", pedido.get("Telefono", ""))
+            club = st.text_input("Club", pedido.get("Club", ""))
+
+        with col2:
+            precio = st.number_input(
+                "Precio total (€)",
+                min_value=0.0,
+                value=float(pedido.get("Precio", 0.0))
+            )
+            precio_factura = st.number_input(
+                "Precio factura (€)",
+                min_value=0.0,
+                value=float(pedido.get("Precio Factura", 0.0))
+            )
+
+        st.markdown("### 🚦 Estado del pedido")
+        e1, e2, e3, e4, e5 = st.columns(5)
+
+        empezado = e1.checkbox("Empezado", bool(pedido.get("Inicio Trabajo", False)))
+        terminado = e2.checkbox("Terminado", bool(pedido.get("Trabajo Terminado", False)))
+        cobrado = e3.checkbox("Cobrado", bool(pedido.get("Cobrado", False)))
+        retirado = e4.checkbox("Retirado", bool(pedido.get("Retirado", False)))
+        pendiente = e5.checkbox("Pendiente", bool(pedido.get("Pendiente", False)))
 
         guardar = st.form_submit_button("💾 Guardar cambios", type="primary")
 
+    # ---------- GUARDAR ----------
     if guardar:
         doc_id = pedido.get("id_documento_firestore")
         if not doc_id:
-            st.error("Pedido sin ID de Firestore.")
+            st.error("❌ Pedido sin ID de Firestore.")
             return
 
         data_update = {
@@ -186,11 +201,17 @@ def show_modify(df_pedidos, df_listas):
             "Club": convert_to_firestore_type(club),
             "Precio": precio,
             "Precio Factura": precio_factura,
+            "Inicio Trabajo": empezado,
+            "Trabajo Terminado": terminado,
+            "Cobrado": cobrado,
+            "Retirado": retirado,
+            "Pendiente": pendiente,
             "Productos": json.dumps(productos)
         }
 
         if update_document_firestore("pedidos", doc_id, data_update):
-            st.success("✅ Pedido actualizado")
+            st.success("✅ Pedido actualizado correctamente")
             st.session_state.data_loaded = False
+            st.session_state.pop("pedido_key", None)
             time.sleep(1)
             st.rerun()
