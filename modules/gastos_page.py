@@ -66,100 +66,87 @@ def show_gastos_page(df_gastos):
         else [datetime.now().year]
     )
 
-    año_seleccionado = st.selectbox(
-        "📅 Año",
-        años_disponibles,
-        index=0
-    )
+    año_seleccionado = st.selectbox("📅 Año", años_disponibles, index=0)
 
     df_año = df_gastos[df_gastos["Año"] == año_seleccionado].copy()
 
-    # ---------- SI NO HAY GASTOS ----------
-    if df_año.empty:
-        st.info(f"📭 No hay gastos registrados en {año_seleccionado}")
+    # ---------- RESUMEN (SI HAY GASTOS) ----------
+    if not df_año.empty:
+        total = df_año["Importe"].sum()
+        fijos = df_año[df_año["Tipo"] == "Fijo"]["Importe"].sum()
+        variables = df_año[df_año["Tipo"] == "Variable"]["Importe"].sum()
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("📊 Total", f"{total:.2f} €")
+        c2.metric("📌 Fijos", f"{fijos:.2f} €")
+        c3.metric("📈 Variables", f"{variables:.2f} €")
+
         st.write("---")
-        _form_crear_gasto(df_gastos, año_seleccionado)
-        return
 
-    # ---------- RESUMEN ----------
-    total = df_año["Importe"].sum()
-    fijos = df_año[df_año["Tipo"] == "Fijo"]["Importe"].sum()
-    variables = df_año[df_año["Tipo"] == "Variable"]["Importe"].sum()
+        # ---------- MOSTRAR ----------
+        st.subheader(f"📋 Gastos registrados ({len(df_año)})")
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric("📊 Total", f"{total:.2f} €")
-    with c2:
-        st.metric("📌 Fijos", f"{fijos:.2f} €")
-    with c3:
-        st.metric("📈 Variables", f"{variables:.2f} €")
+        df_show = df_año.copy()
+        df_show["Fecha"] = pd.to_datetime(
+            df_show["Fecha"], errors="coerce"
+        ).dt.strftime("%Y-%m-%d")
 
-    st.write("---")
-
-    # ---------- MOSTRAR ----------
-    st.subheader(f"📋 Gastos registrados ({len(df_año)})")
-
-    df_show = df_año.copy()
-    df_show["Fecha"] = pd.to_datetime(
-        df_show["Fecha"], errors="coerce"
-    ).dt.strftime("%Y-%m-%d")
-
-    st.dataframe(
-        df_show.sort_values("ID", ascending=False),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # ---------- EXPORTAR ----------
-    buffer = io.BytesIO()
-    try:
-        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            df_año.to_excel(writer, index=False, sheet_name="Gastos")
-
-        st.download_button(
-            "📥 Descargar Excel",
-            buffer.getvalue(),
-            file_name=f"gastos_{año_seleccionado}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            type="primary"
+        st.dataframe(
+            df_show.sort_values("ID", ascending=False),
+            use_container_width=True,
+            hide_index=True
         )
-    except Exception as e:
-        st.error(f"❌ Error al generar el Excel: {e}")
 
+        # ---------- EXPORTAR ----------
+        buffer = io.BytesIO()
+        try:
+            with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                df_año.to_excel(writer, index=False, sheet_name="Gastos")
+
+            st.download_button(
+                "📥 Descargar Excel",
+                buffer.getvalue(),
+                file_name=f"gastos_{año_seleccionado}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary"
+            )
+        except Exception as e:
+            st.error(f"❌ Error al generar el Excel: {e}")
+
+        st.write("---")
+
+        # ---------- ELIMINAR ----------
+        st.subheader("🗑️ Eliminar Gasto")
+
+        delete_id = st.number_input("🆔 ID del gasto", min_value=1, step=1)
+
+        gasto = df_año[df_año["ID"] == delete_id]
+        if not gasto.empty:
+            gasto = gasto.iloc[0]
+            st.warning(f"⚠️ Vas a eliminar el gasto {delete_id} / {año_seleccionado}")
+
+            if st.button("🗑️ ELIMINAR DEFINITIVAMENTE", type="primary"):
+                doc_id = gasto.get("id_documento_firestore")
+                if not doc_id:
+                    st.error("❌ Gasto sin ID de Firestore.")
+                    return
+
+                if delete_document_firestore("gastos", doc_id):
+                    df_gastos = df_gastos[
+                        ~((df_gastos["ID"] == delete_id) & (df_gastos["Año"] == año_seleccionado))
+                    ]
+
+                    df_gastos = reindexar_gastos_por_año(df_gastos, año_seleccionado)
+
+                    if save_dataframe_firestore(df_gastos, "gastos"):
+                        st.session_state.data["df_gastos"] = df_gastos
+                        st.success("✅ Gasto eliminado")
+                        st.balloons()
+                        st.rerun()
+
+    # ---------- CREAR GASTO (SIEMPRE VISIBLE) ----------
     st.write("---")
-
-    # ---------- ELIMINAR ----------
-    st.subheader("🗑️ Eliminar Gasto")
-
-    delete_id = st.number_input(
-        "🆔 ID del gasto",
-        min_value=1,
-        step=1
-    )
-
-    gasto = df_año[df_año["ID"] == delete_id]
-    if not gasto.empty:
-        gasto = gasto.iloc[0]
-        st.warning(f"⚠️ Vas a eliminar el gasto {delete_id} / {año_seleccionado}")
-
-        if st.button("🗑️ ELIMINAR DEFINITIVAMENTE", type="primary"):
-            doc_id = gasto.get("id_documento_firestore")
-            if not doc_id:
-                st.error("❌ Gasto sin ID de Firestore.")
-                return
-
-            if delete_document_firestore("gastos", doc_id):
-                df_gastos = df_gastos[
-                    ~((df_gastos["ID"] == delete_id) & (df_gastos["Año"] == año_seleccionado))
-                ]
-
-                df_gastos = reindexar_gastos_por_año(df_gastos, año_seleccionado)
-
-                if save_dataframe_firestore(df_gastos, "gastos"):
-                    st.session_state.data["df_gastos"] = df_gastos
-                    st.success("✅ Gasto eliminado")
-                    st.balloons()
-                    st.rerun()
+    _form_crear_gasto(df_gastos, año_seleccionado)
 
 
 # ---------- FORM CREAR GASTO ----------
@@ -192,7 +179,6 @@ def _form_crear_gasto(df_gastos, año_seleccionado):
 
         next_id = get_next_gasto_id_por_año(df_gastos, año_seleccionado)
 
-        # 🔥 AQUÍ ESTÁ LA CORRECCIÓN IMPORTANTE 🔥
         new_gasto = {
             "ID": next_id,
             "Año": año_seleccionado,
