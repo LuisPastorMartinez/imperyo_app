@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def show_config_page():
-    st.header(⚙️ Configuración del Sistema")
+    st.header("⚙️ Configuración del Sistema")
     st.write("---")
 
     tab_backup, tab_restore = st.tabs(["🔐 Backup local", "📥 Restaurar"])
