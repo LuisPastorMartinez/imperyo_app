@@ -4,8 +4,6 @@ import os
 import hashlib
 from pathlib import Path
 from datetime import datetime
-from modules.posibles_clientes_page import show_posibles_clientes_page
-
 import logging
 
 # =====================================================
@@ -39,6 +37,7 @@ from modules.gastos_page import show_gastos_page
 from modules.resumen_page import show_resumen_page
 from modules.config_page import show_config_page
 from modules.analisis_productos_page import show_analisis_productos_page
+from modules.posibles_clientes_page import show_posibles_clientes_page
 
 # =====================================================
 # HEADER
@@ -105,7 +104,7 @@ def init_session_state():
     defaults = {
         "data_loaded": False,
         "selected_year": None,
-        "current_page": "Inicio",  # 🔑 CONTROL DE NAVEGACIÓN
+        "current_page": "Inicio",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -134,13 +133,11 @@ if check_password():
     # =================================================
     st.sidebar.title("🧭 Navegación")
 
-    # 🔄 RECARGAR BIEN (VUELVE A INICIO)
     if st.sidebar.button("🔄 Recargar aplicación"):
         st.session_state.data_loaded = False
         st.session_state.current_page = "Inicio"
         st.rerun()
 
-    # 🚪 CERRAR SESIÓN
     if st.sidebar.button("🚪 Cerrar sesión"):
         st.session_state.clear()
         st.rerun()
@@ -170,11 +167,19 @@ if check_password():
             st.session_state.data_loaded = True
 
     # =================================================
-    # MENÚ CONTROLADO
+    # MENÚ
     # =================================================
     page = st.sidebar.radio(
         "Secciones",
-        ["Inicio", "Pedidos", "Gastos", "Resumen", "Ver Datos", "Configuración"],
+        [
+            "Inicio",
+            "Pedidos",
+            "Posibles clientes",   # 👈 AÑADIDO
+            "Gastos",
+            "Resumen",
+            "Ver Datos",
+            "Configuración",
+        ],
         key="current_page"
     )
 
@@ -190,7 +195,6 @@ if check_password():
         if df_pedidos.empty:
             st.info("No hay pedidos.")
         else:
-            # 🔍 PEDIDOS NUEVOS
             nuevos = df_pedidos[
                 (~df_pedidos.get("Inicio Trabajo", False)) &
                 (~df_pedidos.get("Trabajo Terminado", False)) &
