@@ -1,45 +1,39 @@
 import streamlit as st
-import pandas as pd
 from datetime import datetime
-import os
-import logging
 
-from utils.excel_utils import crear_backup_local
+from utils.excel_utils import crear_backup_en_memoria
 from utils.firestore_utils import load_dataframes_firestore
-
-logger = logging.getLogger(__name__)
 
 
 def show_config_page():
     st.header("⚙️ Configuración del Sistema")
     st.write("---")
 
-    tab_backup, tab_restore = st.tabs(["🔐 Backup local", "📥 Restaurar"])
+    st.subheader("🔐 Backup de seguridad")
 
-    # ===============================
-    # BACKUP LOCAL
-    # ===============================
-    with tab_backup:
-        st.subheader("📦 Backup de seguridad")
+    st.markdown(
+        """
+        Este backup se genera **al momento** y se descarga en tu ordenador.
+        
+        Recomendado:
+        - Antes de hacer cambios importantes
+        - Antes de cerrar una sesión de trabajo
+        """
+    )
 
-        st.markdown(
-            "El backup se guarda **localmente en tu PC**, dentro del proyecto.\n\n"
-            "Recomendado antes de hacer cambios importantes."
+    if st.button("📦 Generar backup"):
+        with st.spinner("Generando backup..."):
+            data = load_dataframes_firestore()
+            buffer = crear_backup_en_memoria(data)
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"backup_imperyo_{timestamp}.xlsx"
+
+        st.success("✅ Backup listo para descargar")
+
+        st.download_button(
+            label="⬇️ Descargar backup",
+            data=buffer,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-
-        if st.button("🚀 Crear backup ahora", type="primary"):
-            with st.spinner("Creando backup..."):
-                data = load_dataframes_firestore()
-                ok, result = crear_backup_local(data)
-
-            if ok:
-                st.success("✅ Backup creado correctamente")
-                st.code(result)
-            else:
-                st.error(f"❌ Error creando backup: {result}")
-
-    # ===============================
-    # RESTAURAR (DESACTIVADO POR AHORA)
-    # ===============================
-    with tab_restore:
-        st.info("🔒 Restaurar estará disponible más adelante.")
