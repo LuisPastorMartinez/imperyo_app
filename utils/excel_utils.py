@@ -26,6 +26,10 @@ def crear_backup_local(data: dict):
     """
     Crea un archivo Excel de backup en la carpeta /backups del proyecto.
     """
+    print(">>> BACKUP DEBUG <<<")
+    print("BACKUP_DIR =", BACKUP_DIR)
+    print("CWD =", os.getcwd())
+
     os.makedirs(BACKUP_DIR, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
