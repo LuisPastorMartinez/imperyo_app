@@ -9,6 +9,18 @@ from utils.data_utils import limpiar_telefono
 from .helpers import convert_to_firestore_type
 
 
+# ==================================================
+# 🔗 DATOS DESDE POSIBLE CLIENTE (PASO 2)
+# ==================================================
+if "pedido_desde_cliente" in st.session_state:
+    datos = st.session_state.pop("pedido_desde_cliente")
+
+    st.session_state["crear_cliente"] = datos.get("Cliente", "")
+    st.session_state["crear_telefono"] = datos.get("Telefono", "")
+    st.session_state["crear_club"] = datos.get("Club", "")
+    st.session_state["crear_descripcion"] = ""
+
+
 def show_create(df_pedidos, df_listas):
     st.subheader("➕ Crear Pedido")
     st.write("---")
@@ -199,36 +211,17 @@ def show_create(df_pedidos, df_listas):
         crear = st.form_submit_button("✅ Crear Pedido", type="primary")
 
     # ==================================================
-    # CREAR PEDIDO (VALIDACIONES)
+    # CREAR PEDIDO
     # ==================================================
     if crear:
         if not cliente or not telefono or not club:
             st.error("❌ Cliente, Teléfono y Club son obligatorios.")
             return
 
-        # ❌ EMPEZADO Y TERMINADO JUNTOS
-        if empezado and terminado:
-            st.error("❌ Un pedido no puede estar 'Empezado' y 'Terminado' a la vez.")
-            return
-
         telefono_limpio = limpiar_telefono(telefono)
         if not telefono_limpio:
             st.error("❌ Teléfono inválido.")
             return
-
-        # 🔒 EVITAR IDs DUPLICADOS
-        df_actual = st.session_state.data.get("df_pedidos", df_pedidos)
-        df_actual_año = df_actual[df_actual["Año"] == año_actual]
-
-        ids_existentes = (
-            pd.to_numeric(df_actual_año["ID"], errors="coerce")
-            .dropna()
-            .astype(int)
-            .tolist()
-        )
-
-        while next_id in ids_existentes:
-            next_id += 1
 
         nuevo_pedido = {
             "ID": next_id,
