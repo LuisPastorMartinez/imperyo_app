@@ -4,6 +4,8 @@ import os
 import hashlib
 from pathlib import Path
 from datetime import datetime
+from modules.posibles_clientes_page import show_posibles_clientes_page
+
 import logging
 
 # =====================================================
@@ -214,6 +216,9 @@ if check_password():
 
     elif page == "Pedidos":
         show_pedidos_page(df_pedidos, st.session_state.data.get("df_listas"))
+
+    elif page == "Posibles clientes":
+        show_posibles_clientes_page()
 
     elif page == "Gastos":
         show_gastos_page(df_gastos)
