@@ -7,8 +7,9 @@ from openpyxl import load_workbook
 # =====================================================
 # CONFIGURACIÓN
 # =====================================================
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+# BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+# BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+BACKUP_DIR = r"F:\ImperYo Sport Casa\ImperYo 1\Programa de gestion Imperyo sport\Imperyo_app_9-7 - 2\backups"
 
 SHEET_NAMES = {
     "df_pedidos": "pedidos",
