@@ -1,6 +1,5 @@
-# utils/restore_from_excel.py
-import streamlit as st
 import pandas as pd
+import streamlit as st
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime
@@ -8,50 +7,78 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def restore_data_from_excel(excel_path, collection_mapping):
+# =====================================================
+# CONFIGURACIÓN
+# =====================================================
+COLLECTION_MAPPING = {
+    "pedidos": "pedidos",
+    "gastos": "gastos",
+    "totales": "totales",
+    "listas": "listas",
+}
+
+
+# =====================================================
+# FIRESTORE CLIENT
+# =====================================================
+def _get_firestore_client():
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(dict(st.secrets["firestore"]))
+        firebase_admin.initialize_app(cred)
+    return firestore.client()
+
+
+# =====================================================
+# RESTORE DESDE EXCEL (STREAMLIT CLOUD)
+# =====================================================
+def restore_from_excel(uploaded_file):
     """
-    Restaura datos desde un archivo Excel a Firestore.
-    
-    Args:
-        excel_path: Ruta al archivo Excel.
-        collection_mapping: Diccionario {'sheet_name': 'collection_name'}
+    Restaura datos desde un Excel subido por Streamlit.
+    BORRA las colecciones actuales y carga las del Excel.
     """
     try:
-        # Inicializar Firestore si no está activo
-        if not firebase_admin._apps:
-            cred_dict = dict(st.secrets["firestore"])
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred)
-        db = firestore.client()
+        db = _get_firestore_client()
+        xls = pd.ExcelFile(uploaded_file)
 
-        xls = pd.ExcelFile(excel_path)
-        
-        for sheet_name, collection_name in collection_mapping.items():
-            if sheet_name in xls.sheet_names:
-                df = pd.read_excel(xls, sheet_name=sheet_name)
-                collection_ref = db.collection(collection_name)
-                
-                # Limpiar colección existente
-                docs = collection_ref.stream()
+        for sheet_name, collection_name in COLLECTION_MAPPING.items():
+            if sheet_name not in xls.sheet_names:
+                logger.warning(f"Hoja '{sheet_name}' no encontrada")
+                continue
+
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            col_ref = db.collection(collection_name)
+
+            # =====================================
+            # BORRAR COLECCIÓN ACTUAL (BATCH)
+            # =====================================
+            docs = list(col_ref.stream())
+            if docs:
+                batch = db.batch()
                 for doc in docs:
-                    doc.reference.delete()
-                
-                # Subir nuevos documentos
-                for _, row in df.iterrows():
-                    doc_data = row.to_dict()
-                    # Eliminar zona horaria de fechas
-                    for key, value in doc_data.items():
-                        if isinstance(value, pd.Timestamp):
-                            doc_data[key] = value.tz_localize(None)
-                    collection_ref.add(doc_data)
-                
-                st.success(f"✅ Colección '{collection_name}' restaurada desde hoja '{sheet_name}'.")
-                logger.info(f"Colección '{collection_name}' restaurada con {len(df)} documentos.")
-            else:
-                st.warning(f"⚠️ Hoja '{sheet_name}' no encontrada en el Excel.")
-        
-        return True
+                    batch.delete(doc.reference)
+                batch.commit()
+
+            # =====================================
+            # SUBIR DATOS NUEVOS
+            # =====================================
+            for _, row in df.iterrows():
+                data = row.to_dict()
+
+                # Limpiar fechas
+                for k, v in data.items():
+                    if isinstance(v, pd.Timestamp):
+                        data[k] = v.to_pydatetime()
+                    elif isinstance(v, datetime):
+                        data[k] = v
+
+                col_ref.add(data)
+
+            logger.info(
+                f"Colección '{collection_name}' restaurada con {len(df)} documentos."
+            )
+
+        return True, "Datos restaurados correctamente"
+
     except Exception as e:
-        st.error(f"❌ Error al restaurar datos: {e}")
         logger.error(f"Error al restaurar datos: {e}")
-        return False
+        return False, str(e)
