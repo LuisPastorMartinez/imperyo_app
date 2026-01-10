@@ -50,9 +50,9 @@ def show_posibles_clientes_page():
 
     df = df.copy()
 
-    # ============================
-    # SELECCIÓN
-    # ============================
+    # =================================================
+    # CREAR / EDITAR
+    # =================================================
     st.subheader("✏️ Crear / Editar posible cliente")
 
     opciones = ["➕ Nuevo cliente"]
@@ -62,7 +62,8 @@ def show_posibles_clientes_page():
             for _, row in df.iterrows()
         ]
 
-    seleccion = st.selectbox("Seleccionar", opciones)
+    seleccion = st.selectbox("Seleccionar cliente", opciones)
+
     editar = seleccion != "➕ Nuevo cliente"
 
     if editar:
@@ -71,9 +72,6 @@ def show_posibles_clientes_page():
     else:
         cliente = {}
 
-    # ============================
-    # FORMULARIO
-    # ============================
     nombre = st.text_input("Nombre *", value=cliente.get("Nombre", ""))
     telefono = st.text_input("Teléfono *", value=cliente.get("Telefono", ""))
     club = st.text_input("Club", value=cliente.get("Club", ""))
@@ -98,9 +96,6 @@ def show_posibles_clientes_page():
         height=150
     )
 
-    # ============================
-    # GUARDAR
-    # ============================
     if st.button("💾 Guardar", type="primary"):
         if not nombre or not telefono:
             st.error("❌ Nombre y teléfono son obligatorios")
@@ -136,33 +131,47 @@ def show_posibles_clientes_page():
 
         st.rerun()
 
-    # ============================
-    # CONVERTIR EN PEDIDO (PASO 2)
-    # ============================
+    # =================================================
+    # 👉 CREAR PEDIDO (FORMA CLARA)
+    # =================================================
     st.write("---")
-    st.subheader("➡️ Convertir en pedido")
+    st.subheader("➡️ Crear pedido desde posible cliente")
 
-    if not editar:
-        st.info("Selecciona un posible cliente guardado para poder crear un pedido.")
+    if df.empty:
+        st.info("No hay posibles clientes todavía.")
     else:
-        if st.button("📄 Crear pedido con este cliente", type="primary"):
-            st.session_state["pedido_desde_cliente"] = {
-                "Cliente": cliente.get("Nombre", ""),
-                "Telefono": cliente.get("Telefono", ""),
-                "Club": cliente.get("Club", ""),
-            }
-            st.session_state.current_page = "Pedidos"
-            st.success("➡️ Datos enviados a creación de pedido")
-            st.rerun()
+        opciones_crear = [
+            f"{row['Nombre']} ({row['Telefono']})"
+            for _, row in df.iterrows()
+        ]
 
-    # ============================
+        cliente_sel = st.selectbox(
+            "Selecciona cliente para crear pedido",
+            ["—"] + opciones_crear,
+            key="crear_pedido_desde_cliente"
+        )
+
+        if cliente_sel != "—":
+            idx = opciones_crear.index(cliente_sel)
+            cliente = df.iloc[idx]
+
+            if st.button("📄 Crear pedido", type="primary"):
+                st.session_state["pedido_desde_cliente"] = {
+                    "Cliente": cliente.get("Nombre", ""),
+                    "Telefono": cliente.get("Telefono", ""),
+                    "Club": cliente.get("Club", ""),
+                }
+                st.session_state.current_page = "Pedidos"
+                st.success("➡️ Datos enviados a creación de pedido")
+                st.rerun()
+
+    # =================================================
     # LISTA
-    # ============================
+    # =================================================
     st.write("---")
     st.subheader("📊 Lista de seguimiento")
 
     if df.empty:
-        st.info("No hay posibles clientes todavía.")
         return
 
     df_show = df.copy()
@@ -185,19 +194,20 @@ def show_posibles_clientes_page():
         hide_index=True
     )
 
-    # ============================
+    # =================================================
     # BORRAR
-    # ============================
+    # =================================================
     st.write("---")
     st.subheader("🗑️ Borrar cliente")
 
     borrar = st.selectbox(
         "Selecciona cliente a borrar",
-        ["—"] + opciones[1:]
+        ["—"] + opciones_crear,
+        key="borrar_cliente"
     )
 
     if borrar != "—" and st.button("🗑️ Borrar definitivamente"):
-        idx = opciones.index(borrar) - 1
+        idx = opciones_crear.index(borrar)
         doc_id = df.iloc[idx]["id_documento_firestore"]
         delete_document_firestore("posibles_clientes", doc_id)
         st.success("🗑️ Cliente eliminado")
