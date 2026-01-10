@@ -6,6 +6,7 @@ from utils.firestore_utils import (
     load_dataframes_firestore,
     update_document_firestore,
     delete_document_firestore,
+    add_document_firestore,
 )
 from utils.helpers import convert_to_firestore_type
 from utils.data_utils import limpiar_telefono
@@ -47,18 +48,10 @@ def show_posibles_clientes_page():
             "id_documento_firestore",
         ])
 
-    # ============================
-    # NORMALIZAR
-    # ============================
     df = df.copy()
 
-    if "Ultima_actualizacion" in df.columns:
-        df["Ultima_actualizacion"] = pd.to_datetime(
-            df["Ultima_actualizacion"], errors="coerce"
-        )
-
     # ============================
-    # SELECCIÓN PARA EDITAR
+    # SELECCIÓN
     # ============================
     st.subheader("✏️ Crear / Editar posible cliente")
 
@@ -70,7 +63,6 @@ def show_posibles_clientes_page():
         ]
 
     seleccion = st.selectbox("Seleccionar", opciones)
-
     editar = seleccion != "➕ Nuevo cliente"
 
     if editar:
@@ -82,20 +74,9 @@ def show_posibles_clientes_page():
     # ============================
     # FORMULARIO
     # ============================
-    nombre = st.text_input(
-        "Nombre *",
-        value=cliente.get("Nombre", "")
-    )
-
-    telefono = st.text_input(
-        "Teléfono *",
-        value=cliente.get("Telefono", "")
-    )
-
-    club = st.text_input(
-        "Club",
-        value=cliente.get("Club", "")
-    )
+    nombre = st.text_input("Nombre *", value=cliente.get("Nombre", ""))
+    telefono = st.text_input("Teléfono *", value=cliente.get("Telefono", ""))
+    club = st.text_input("Club", value=cliente.get("Club", ""))
 
     interes = st.selectbox(
         "Interés",
@@ -123,39 +104,37 @@ def show_posibles_clientes_page():
     if st.button("💾 Guardar", type="primary"):
         if not nombre or not telefono:
             st.error("❌ Nombre y teléfono son obligatorios")
+            return
+
+        telefono_limpio = limpiar_telefono(telefono)
+        now = datetime.now()
+
+        data_save = {
+            "Nombre": nombre,
+            "Telefono": telefono_limpio or telefono,
+            "Club": club,
+            "Interes": interes,
+            "Estado": estado,
+            "Notas": notas,
+            "Ultima_actualizacion": now,
+        }
+
+        if editar:
+            update_document_firestore(
+                "posibles_clientes",
+                cliente["id_documento_firestore"],
+                {k: convert_to_firestore_type(v) for k, v in data_save.items()}
+            )
+            st.success("✅ Cliente actualizado")
         else:
-            telefono_limpio = limpiar_telefono(telefono)
+            data_save["Fecha_creacion"] = now
+            add_document_firestore(
+                "posibles_clientes",
+                {k: convert_to_firestore_type(v) for k, v in data_save.items()}
+            )
+            st.success("✅ Cliente creado")
 
-            now = datetime.now()
-
-            data_save = {
-                "Nombre": nombre,
-                "Telefono": telefono_limpio or telefono,
-                "Club": club,
-                "Interes": interes,
-                "Estado": estado,
-                "Notas": notas,
-                "Ultima_actualizacion": now,
-            }
-
-            if editar:
-                doc_id = cliente["id_documento_firestore"]
-                update_document_firestore(
-                    "posibles_clientes",
-                    doc_id,
-                    {k: convert_to_firestore_type(v) for k, v in data_save.items()}
-                )
-                st.success("✅ Cliente actualizado")
-            else:
-                data_save["Fecha_creacion"] = now
-                update_document_firestore(
-                    "posibles_clientes",
-                    None,
-                    {k: convert_to_firestore_type(v) for k, v in data_save.items()}
-                )
-                st.success("✅ Cliente creado")
-
-            st.rerun()
+        st.rerun()
 
     # ============================
     # LISTA
@@ -168,9 +147,9 @@ def show_posibles_clientes_page():
         return
 
     df_show = df.copy()
-    df_show["Ultima actualización"] = df_show["Ultima_actualizacion"].dt.strftime(
-        "%Y-%m-%d"
-    )
+    df_show["Última actualización"] = pd.to_datetime(
+        df_show["Ultima_actualizacion"], errors="coerce"
+    ).dt.strftime("%Y-%m-%d")
 
     columnas = [
         "Nombre",
@@ -178,7 +157,7 @@ def show_posibles_clientes_page():
         "Club",
         "Interes",
         "Estado",
-        "Ultima actualización",
+        "Última actualización",
     ]
 
     st.dataframe(

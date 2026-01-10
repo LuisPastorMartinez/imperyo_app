@@ -1,4 +1,3 @@
-# utils/firestore_utils.py
 import pandas as pd
 import streamlit as st
 import firebase_admin
@@ -30,7 +29,7 @@ def get_firestore_client():
 
 
 # =====================================
-# CARGA DE DATOS
+# CARGA DE DATAFRAMES
 # =====================================
 def load_dataframes_firestore():
     db = get_firestore_client()
@@ -77,9 +76,23 @@ def save_dataframe_firestore(df, collection_key):
 
 
 # =====================================
-# UPDATE DOCUMENTO
+# AÑADIR DOCUMENTO NUEVO (CORRECCIÓN)
+# =====================================
+def add_document_firestore(collection_key, data):
+    db = get_firestore_client()
+    collection = COLLECTIONS[collection_key]
+    clean = {k: _sanitize(v) for k, v in data.items()}
+    db.collection(collection).add(clean)
+    return True
+
+
+# =====================================
+# ACTUALIZAR DOCUMENTO EXISTENTE
 # =====================================
 def update_document_firestore(collection_key, doc_id, data):
+    if not doc_id:
+        raise ValueError("doc_id es obligatorio para update_document_firestore")
+
     db = get_firestore_client()
     collection = COLLECTIONS[collection_key]
     clean = {k: _sanitize(v) for k, v in data.items()}
@@ -88,7 +101,7 @@ def update_document_firestore(collection_key, doc_id, data):
 
 
 # =====================================
-# DELETE DOCUMENTO
+# BORRAR DOCUMENTO
 # =====================================
 def delete_document_firestore(collection_key, doc_id):
     db = get_firestore_client()
@@ -98,7 +111,7 @@ def delete_document_firestore(collection_key, doc_id):
 
 
 # =====================================
-# NEXT ID POR AÑO
+# NEXT ID POR AÑO (NO TOCAR)
 # =====================================
 def get_next_id_por_año(df, año):
     if df is None or df.empty:
