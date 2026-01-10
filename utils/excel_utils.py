@@ -17,7 +17,7 @@ def crear_backup_en_memoria(data: dict):
         "df_gastos": "gastos",
         "df_totales": "totales",
         "df_listas": "listas",
-        "df_trabajos": "trabajos",
+        # "df_trabajos": "trabajos",
     }
 
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
