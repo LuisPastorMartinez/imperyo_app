@@ -137,17 +137,23 @@ def show_posibles_clientes_page():
         st.rerun()
 
     # ============================
-    # CREAR PEDIDO DESDE CLIENTE
+    # CONVERTIR EN PEDIDO (PASO 2)
     # ============================
-    if editar and st.button("📄 Crear pedido con este cliente"):
-        st.session_state["pedido_desde_cliente"] = {
-            "Cliente": cliente.get("Nombre", ""),
-            "Telefono": cliente.get("Telefono", ""),
-            "Club": cliente.get("Club", ""),
-        }
-        st.session_state.current_page = "Pedidos"
-        st.success("➡️ Datos enviados a creación de pedido")
-        st.rerun()
+    st.write("---")
+    st.subheader("➡️ Convertir en pedido")
+
+    if not editar:
+        st.info("Selecciona un posible cliente guardado para poder crear un pedido.")
+    else:
+        if st.button("📄 Crear pedido con este cliente", type="primary"):
+            st.session_state["pedido_desde_cliente"] = {
+                "Cliente": cliente.get("Nombre", ""),
+                "Telefono": cliente.get("Telefono", ""),
+                "Club": cliente.get("Club", ""),
+            }
+            st.session_state.current_page = "Pedidos"
+            st.success("➡️ Datos enviados a creación de pedido")
+            st.rerun()
 
     # ============================
     # LISTA
