@@ -174,7 +174,7 @@ if check_password():
         [
             "Inicio",
             "Pedidos",
-            "Posibles clientes",   # 👈 AÑADIDO
+            "Posibles clientes",
             "Gastos",
             "Resumen",
             "Ver Datos",
@@ -195,11 +195,24 @@ if check_password():
         if df_pedidos.empty:
             st.info("No hay pedidos.")
         else:
+            # ---- NORMALIZAR ESTADOS ----
+            estado_cols = [
+                "Inicio Trabajo",
+                "Trabajo Terminado",
+                "Pendiente",
+                "Retirado",
+            ]
+
+            for col in estado_cols:
+                if col not in df_pedidos.columns:
+                    df_pedidos[col] = False
+                df_pedidos[col] = df_pedidos[col].fillna(False).astype(bool)
+
             nuevos = df_pedidos[
-                (~df_pedidos.get("Inicio Trabajo", False)) &
-                (~df_pedidos.get("Trabajo Terminado", False)) &
-                (~df_pedidos.get("Pendiente", False)) &
-                (~df_pedidos.get("Retirado", False))
+                (~df_pedidos["Inicio Trabajo"]) &
+                (~df_pedidos["Trabajo Terminado"]) &
+                (~df_pedidos["Pendiente"]) &
+                (~df_pedidos["Retirado"])
             ].copy()
 
             if nuevos.empty:
