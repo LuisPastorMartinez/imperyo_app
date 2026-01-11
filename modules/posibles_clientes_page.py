@@ -132,7 +132,7 @@ def show_posibles_clientes_page():
         st.rerun()
 
     # =================================================
-    # 👉 CREAR PEDIDO (FORMA CLARA)
+    # 👉 CREAR PEDIDO DESDE POSIBLE CLIENTE (CORREGIDO)
     # =================================================
     st.write("---")
     st.subheader("➡️ Crear pedido desde posible cliente")
@@ -161,9 +161,9 @@ def show_posibles_clientes_page():
                     "Telefono": cliente.get("Telefono", ""),
                     "Club": cliente.get("Club", ""),
                 }
-                st.session_state.current_page = "Pedidos"
-                st.success("➡️ Datos enviados a creación de pedido")
-                st.rerun()
+                st.success(
+                    "➡️ Datos preparados. Entra en la sección 'Pedidos' para crear el pedido."
+                )
 
     # =================================================
     # LISTA
