@@ -24,7 +24,7 @@ if BASE_PATH not in os.sys.path:
 # =====================================================
 st.set_page_config(
     page_title="Imperyo Sport",
-    page_icon="🧵",
+    page_icon="icon.png",
     layout="wide"
 )
 
