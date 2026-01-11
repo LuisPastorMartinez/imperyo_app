@@ -1,10 +1,19 @@
 import streamlit as st
 import pandas as pd
 
-from .crear_pedido import show_create
-from .consultar_pedidos import show_consult
-from .modificar_pedido import show_modify
-from .eliminar_pedido import show_delete
+# =========================================
+# IMPORTS ROBUSTOS (Cloud + Local)
+# =========================================
+try:
+    from .crear_pedido import show_create
+    from .consultar_pedidos import show_consult
+    from .modificar_pedido import show_modify
+    from .eliminar_pedido import show_delete
+except ImportError:
+    from modules.crear_pedido import show_create
+    from modules.consultar_pedidos import show_consult
+    from modules.modificar_pedido import show_modify
+    from modules.eliminar_pedido import show_delete
 
 
 def show_pedidos_page(df_pedidos, df_listas):
