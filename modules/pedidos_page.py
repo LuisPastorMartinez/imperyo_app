@@ -2,12 +2,10 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-from modules.pedido import (
-    show_create,
-    show_consult,
-    show_modify,
-    show_delete
-)
+from modules.crear_pedido import show_create
+from modules.consultar_pedidos import show_consult
+from modules.modificar_pedido import show_modify
+from modules.eliminar_pedido import show_delete
 
 
 def show_pedidos_page(df_pedidos, df_listas):
