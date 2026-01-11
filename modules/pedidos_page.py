@@ -1,32 +1,18 @@
 import streamlit as st
-import pandas as pd
 
 # =========================================
-# IMPORTS ROBUSTOS (Cloud + Local)
+# IMPORTS CORRECTOS (ruta real)
 # =========================================
-try:
-    from .crear_pedido import show_create
-    from .consultar_pedidos import show_consult
-    from .modificar_pedido import show_modify
-    from .eliminar_pedido import show_delete
-except ImportError:
-    from modules.crear_pedido import show_create
-    from modules.consultar_pedidos import show_consult
-    from modules.modificar_pedido import show_modify
-    from modules.eliminar_pedido import show_delete
+from modules.pedido.crear_pedido import show_create
+from modules.pedido.consultar_pedidos import show_consult
+from modules.pedido.modificar_pedido import show_modify
+from modules.pedido.eliminar_pedido import show_delete
 
 
 def show_pedidos_page(df_pedidos, df_listas):
 
     st.header("📦 Pedidos")
     st.write("---")
-
-    if "pedido_section" not in st.session_state:
-        st.session_state.pedido_section = "➕ Crear"
-
-    if st.session_state.get("go_to_modify"):
-        st.session_state.pedido_section = "✏️ Modificar"
-        st.session_state.pop("go_to_modify")
 
     section = st.radio(
         "Sección",
