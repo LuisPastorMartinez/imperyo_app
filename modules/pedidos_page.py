@@ -11,44 +11,60 @@ def show_pedidos_page(df_pedidos, df_listas):
     st.header("📦 Pedidos")
     st.write("---")
 
-    section = st.session_state.get("pedido_section")
+    # =================================================
+    # ESTADO DE NAVEGACIÓN REAL (NO WIDGET)
+    # =================================================
+    if "pedido_view" not in st.session_state:
+        st.session_state.pedido_view = "menu"
+
+    view = st.session_state.pedido_view
 
     # =================================================
-    # SI ESTAMOS DENTRO DE UNA ACCIÓN → NO MENÚ
+    # VISTAS INTERNAS (SIN MENÚ)
     # =================================================
-    if section == "➕ Crear":
+    if view == "crear":
         show_create(df_pedidos, df_listas)
         return
 
-    if section == "🔍 Consultar":
+    if view == "consultar":
         show_consult(df_pedidos, df_listas)
         return
 
-    if section == "✏️ Modificar":
+    if view == "modificar":
         show_modify(df_pedidos, df_listas)
         return
 
-    if section == "🗑️ Eliminar":
+    if view == "eliminar":
         show_delete(df_pedidos, df_listas)
         return
 
     # =================================================
-    # MENÚ PRINCIPAL
+    # MENÚ (SOLO AQUÍ)
     # =================================================
-    opciones = [
-        "— Selecciona una opción —",
-        "➕ Crear",
-        "🔍 Consultar",
-        "✏️ Modificar",
-        "🗑️ Eliminar",
-    ]
-
-    st.radio(
+    opcion = st.radio(
         "¿Qué quieres hacer?",
-        opciones,
-        index=0,
-        key="pedido_section",
+        [
+            "➕ Crear",
+            "🔍 Consultar",
+            "✏️ Modificar",
+            "🗑️ Eliminar",
+        ],
+        key="pedido_menu_radio",
         horizontal=True
     )
 
-    st.info("👆 Selecciona una opción para continuar.")
+    if opcion == "➕ Crear":
+        st.session_state.pedido_view = "crear"
+        st.rerun()
+
+    if opcion == "🔍 Consultar":
+        st.session_state.pedido_view = "consultar"
+        st.rerun()
+
+    if opcion == "✏️ Modificar":
+        st.session_state.pedido_view = "modificar"
+        st.rerun()
+
+    if opcion == "🗑️ Eliminar":
+        st.session_state.pedido_view = "eliminar"
+        st.rerun()
