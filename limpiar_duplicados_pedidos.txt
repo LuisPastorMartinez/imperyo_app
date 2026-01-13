@@ -1,0 +1,42 @@
+import pandas as pd
+from utils.firestore_utils import load_dataframes_firestore, delete_document_firestore
+
+def limpiar_duplicados_pedidos():
+    data = load_dataframes_firestore()
+    df = data.get("df_pedidos")
+
+    if df is None or df.empty:
+        print("No hay pedidos.")
+        return
+
+    if "id_documento_firestore" not in df.columns:
+        print("No existe id_documento_firestore. Abortando.")
+        return
+
+    # Asegurar tipos
+    df = df.copy()
+    df["Año"] = df["Año"].astype(int)
+    df["ID"] = df["ID"].astype(int)
+
+    # Ordenar para quedarnos con el último
+    df = df.sort_values("id_documento_firestore")
+
+    duplicados = df[df.duplicated(subset=["Año", "ID"], keep="last")]
+
+    if duplicados.empty:
+        print("No hay duplicados que limpiar.")
+        return
+
+    print(f"Se van a borrar {len(duplicados)} pedidos duplicados")
+
+    for _, row in duplicados.iterrows():
+        doc_id = row["id_documento_firestore"]
+        año = row["Año"]
+        pid = row["ID"]
+        print(f"Borrando pedido duplicado {pid}/{año} → {doc_id}")
+        delete_document_firestore("pedidos", doc_id)
+
+    print("✅ Limpieza terminada")
+
+if __name__ == "__main__":
+    limpiar_duplicados_pedidos()

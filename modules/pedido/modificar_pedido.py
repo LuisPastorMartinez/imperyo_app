@@ -14,12 +14,13 @@ from .helpers import convert_to_firestore_type, safe_select_index
 # =========================
 def safe_to_date(value):
     if value is None:
-        return datetime.now().date()
+        return None
     try:
         if pd.isna(value):
-            return datetime.now().date()
+            return None
     except Exception:
         pass
+
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
@@ -28,8 +29,8 @@ def safe_to_date(value):
         try:
             return datetime.strptime(value[:10], "%Y-%m-%d").date()
         except Exception:
-            return datetime.now().date()
-    return datetime.now().date()
+            return None
+    return None
 
 
 def parse_productos(value):
@@ -177,6 +178,13 @@ def show_modify(df_pedidos, df_listas):
                 value=float(pedido.get("Precio Factura", 0.0))
             )
 
+            # ✅ FECHA SALIDA (NUEVO)
+            fecha_salida = st.date_input(
+                "📦 Fecha salida",
+                value=safe_to_date(pedido.get("Fecha salida")),
+                key="fecha_salida_mod"
+            )
+
         st.markdown("### 🚦 Estado del pedido")
         e1, e2, e3, e4, e5 = st.columns(5)
 
@@ -201,6 +209,7 @@ def show_modify(df_pedidos, df_listas):
             "Club": convert_to_firestore_type(club),
             "Precio": precio,
             "Precio Factura": precio_factura,
+            "Fecha salida": convert_to_firestore_type(fecha_salida),
             "Inicio Trabajo": empezado,
             "Trabajo Terminado": terminado,
             "Cobrado": cobrado,
