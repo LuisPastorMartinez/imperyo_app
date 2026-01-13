@@ -9,7 +9,21 @@ from .helpers import convert_to_firestore_type
 
 
 def show_create(df_pedidos, df_listas):
-    st.subheader("➕ Crear Pedido")
+
+    # =================================================
+    # BOTÓN SALIR SIN GUARDAR
+    # =================================================
+    col1, col2 = st.columns([1, 6])
+
+    with col1:
+        if st.button("⬅️ Salir sin guardar"):
+            st.session_state.pop("pedido_section", None)
+            st.session_state.pop("productos_crear", None)
+            st.rerun()
+
+    with col2:
+        st.subheader("➕ Crear Pedido")
+
     st.write("---")
 
     if df_pedidos is None:
@@ -24,12 +38,6 @@ def show_create(df_pedidos, df_listas):
 
     st.info(f"📅 Fecha de entrada: **{fecha_entrada.strftime('%d/%m/%Y')}**")
     st.info(f"📅 Año del pedido: **{año_actual}**")
-
-    # ===============================
-    # PRODUCTOS (si los usas)
-    # ===============================
-    if "productos_crear" not in st.session_state:
-        st.session_state.productos_crear = []
 
     # ===============================
     # ID
@@ -54,7 +62,6 @@ def show_create(df_pedidos, df_listas):
             precio = st.number_input("Precio total (€)", min_value=0.0)
             precio_factura = st.number_input("Precio factura (€)", min_value=0.0)
 
-        # 📝 NOTAS / OBSERVACIONES
         notas = st.text_area(
             "📝 Notas / Observaciones",
             placeholder="Ej: Llamar en 15 días, colores pendientes, espera confirmación del club..."
@@ -104,7 +111,6 @@ def show_create(df_pedidos, df_listas):
 
         st.success(f"✅ Pedido {next_id}/{año_actual} creado correctamente")
 
-        # Volver al menú Pedidos
         st.session_state.data_loaded = False
         st.session_state.pop("pedido_section", None)
         time.sleep(1)

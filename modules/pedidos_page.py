@@ -12,7 +12,16 @@ def show_pedidos_page(df_pedidos, df_listas):
     st.write("---")
 
     # =================================================
-    # MENÚ SIEMPRE VISIBLE (SIN SELECCIÓN POR DEFECTO)
+    # SI ESTAMOS EN CREAR → NO MOSTRAR MENÚ
+    # =================================================
+    section = st.session_state.get("pedido_section")
+
+    if section == "➕ Crear":
+        show_create(df_pedidos, df_listas)
+        return
+
+    # =================================================
+    # MENÚ PRINCIPAL (SIN SELECCIÓN POR DEFECTO)
     # =================================================
     opciones = [
         "— Selecciona una opción —",
@@ -33,7 +42,7 @@ def show_pedidos_page(df_pedidos, df_listas):
     st.write("---")
 
     # =================================================
-    # MOSTRAR SECCIÓN SOLO SI SE ELIGE UNA OPCIÓN
+    # MOSTRAR SECCIÓN SEGÚN ELECCIÓN
     # =================================================
     if section == "➕ Crear":
         show_create(df_pedidos, df_listas)
