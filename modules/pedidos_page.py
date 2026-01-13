@@ -1,8 +1,5 @@
 import streamlit as st
 
-# =========================================
-# IMPORTS CORRECTOS (ruta real)
-# =========================================
 from modules.pedido.crear_pedido import show_create
 from modules.pedido.consultar_pedidos import show_consult
 from modules.pedido.modificar_pedido import show_modify
@@ -14,9 +11,13 @@ def show_pedidos_page(df_pedidos, df_listas):
     st.header("📦 Pedidos")
     st.write("---")
 
+    if "pedido_section" not in st.session_state:
+        st.session_state.pedido_section = None
+
     section = st.radio(
-        "Sección",
+        "¿Qué quieres hacer?",
         ["➕ Crear", "🔍 Consultar", "✏️ Modificar", "🗑️ Eliminar"],
+        index=None,
         key="pedido_section"
     )
 

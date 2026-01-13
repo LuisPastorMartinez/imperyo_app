@@ -175,5 +175,6 @@ def show_create(df_pedidos, df_listas):
         reset_crear_pedido()
 
         st.session_state.data_loaded = False
+        st.session_state.pedido_section = None
         time.sleep(1)
         st.rerun()
