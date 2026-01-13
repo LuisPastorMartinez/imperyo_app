@@ -12,21 +12,19 @@ from utils.firestore_utils import (
 def show_delete(df_pedidos, df_listas=None):
 
     # =================================================
-    # HEADER + BOTÓN VOLVER
+    # HEADER + VOLVER
     # =================================================
     col1, col2 = st.columns([1, 6])
 
     with col1:
-        volver = st.button("⬅️ Volver")
+        if st.button("⬅️ Volver"):
+            st.session_state.pop("pedido_section", None)
+            st.rerun()
 
     with col2:
         st.subheader("🗑️ Eliminar Pedido")
 
     st.write("---")
-
-    if volver:
-        st.session_state.pop("pedido_section", None)
-        st.rerun()
 
     if df_pedidos is None or df_pedidos.empty:
         st.info("📭 No hay pedidos.")
@@ -56,16 +54,10 @@ def show_delete(df_pedidos, df_listas=None):
         st.info(f"📭 No hay pedidos en {año}.")
         return
 
-    max_id = int(df_año["ID"].max())
-
-    if "delete_id" not in st.session_state:
-        st.session_state.delete_id = max_id
-
     pedido_id = st.number_input(
         "🆔 ID del pedido",
         min_value=1,
-        step=1,
-        key="delete_id"
+        step=1
     )
 
     pedido_df = df_año[df_año["ID"] == pedido_id]
@@ -76,62 +68,65 @@ def show_delete(df_pedidos, df_listas=None):
     pedido = pedido_df.iloc[0]
 
     # =================================================
-    # INFO DEL PEDIDO
+    # INFO
     # =================================================
     st.markdown("### 📄 Pedido seleccionado")
 
-    info_df = pd.DataFrame([{
+    st.dataframe(pd.DataFrame([{
         "ID": pedido_id,
         "Cliente": pedido.get("Cliente", ""),
         "Club": pedido.get("Club", ""),
         "Teléfono": pedido.get("Telefono", ""),
-    }])
+    }]), use_container_width=True, hide_index=True)
 
-    st.dataframe(info_df, use_container_width=True, hide_index=True)
-
-    # =================================================
-    # CONFIRMACIÓN
-    # =================================================
     st.warning(
-        f"⚠️ Vas a eliminar el pedido "
-        f"**ID {pedido_id}** del cliente "
-        f"**{pedido.get('Cliente', '')}** "
-        f"({pedido.get('Club', '')})"
-    )
-
-    confirmar = st.checkbox(
-        "Sí, confirmo que quiero eliminar este pedido definitivamente"
+        f"⚠️ Vas a eliminar el pedido **{pedido_id}/{año}** "
+        f"del cliente **{pedido.get('Cliente', '')}**"
     )
 
     # =================================================
-    # ELIMINAR + RENUMERAR
+    # FORMULARIO DE CONFIRMACIÓN (CLAVE)
     # =================================================
-    if confirmar:
-        if st.button("🗑️ BORRAR DEFINITIVAMENTE", type="primary"):
-            doc_id = pedido.get("id_documento_firestore")
-            if not doc_id:
-                st.error("❌ Pedido sin ID de Firestore.")
-                return
+    with st.form("form_delete"):
+        confirmar = st.checkbox(
+            "Confirmo que quiero eliminar este pedido definitivamente"
+        )
 
-            if not delete_document_firestore("pedidos", doc_id):
-                st.error("❌ Error eliminando el pedido.")
-                return
+        eliminar = st.form_submit_button(
+            "🗑️ BORRAR DEFINITIVAMENTE",
+            type="primary"
+        )
 
-            restantes = df_año[df_año["ID"] != pedido_id].sort_values("ID")
+    # =================================================
+    # ELIMINAR
+    # =================================================
+    if eliminar:
+        if not confirmar:
+            st.error("❌ Debes confirmar antes de eliminar")
+            return
 
-            for new_id, (_, row) in enumerate(restantes.iterrows(), start=1):
-                if row["ID"] != new_id:
-                    update_document_firestore(
-                        "pedidos",
-                        row["id_documento_firestore"],
-                        {"ID": new_id}
-                    )
+        doc_id = pedido.get("id_documento_firestore")
+        if not doc_id:
+            st.error("❌ Pedido sin ID de Firestore")
+            return
 
-            st.session_state.pop("data", None)
-            st.session_state["data_loaded"] = False
-            st.session_state.pop("pedido_section", None)
+        delete_document_firestore("pedidos", doc_id)
 
-            st.balloons()
-            st.success("✅ Pedido eliminado correctamente")
-            time.sleep(1.2)
-            st.rerun()
+        # RENUMERAR IDS
+        restantes = df_año[df_año["ID"] != pedido_id].sort_values("ID")
+
+        for new_id, (_, row) in enumerate(restantes.iterrows(), start=1):
+            update_document_firestore(
+                "pedidos",
+                row["id_documento_firestore"],
+                {"ID": new_id}
+            )
+
+        st.session_state.pop("data", None)
+        st.session_state["data_loaded"] = False
+        st.session_state.pop("pedido_section", None)
+
+        st.balloons()
+        st.success("✅ Pedido eliminado correctamente")
+        time.sleep(1)
+        st.rerun()
