@@ -11,15 +11,22 @@ from utils.firestore_utils import (
 
 def show_delete(df_pedidos, df_listas=None):
 
-    # ===============================
-    # SALIR
-    # ===============================
-    if st.button("⬅️ Volver a Pedidos"):
+    # =================================================
+    # HEADER + BOTÓN VOLVER
+    # =================================================
+    col1, col2 = st.columns([1, 6])
+
+    with col1:
+        volver = st.button("⬅️ Volver")
+
+    with col2:
+        st.subheader("🗑️ Eliminar Pedido")
+
+    st.write("---")
+
+    if volver:
         st.session_state.pop("pedido_section", None)
         st.rerun()
-
-    st.subheader("🗑️ Eliminar Pedido")
-    st.write("---")
 
     if df_pedidos is None or df_pedidos.empty:
         st.info("📭 No hay pedidos.")
@@ -99,31 +106,32 @@ def show_delete(df_pedidos, df_listas=None):
     # =================================================
     # ELIMINAR + RENUMERAR
     # =================================================
-    if confirmar and st.button("🗑️ BORRAR DEFINITIVAMENTE", type="primary"):
-        doc_id = pedido.get("id_documento_firestore")
-        if not doc_id:
-            st.error("❌ Pedido sin ID de Firestore.")
-            return
+    if confirmar:
+        if st.button("🗑️ BORRAR DEFINITIVAMENTE", type="primary"):
+            doc_id = pedido.get("id_documento_firestore")
+            if not doc_id:
+                st.error("❌ Pedido sin ID de Firestore.")
+                return
 
-        if not delete_document_firestore("pedidos", doc_id):
-            st.error("❌ Error eliminando el pedido.")
-            return
+            if not delete_document_firestore("pedidos", doc_id):
+                st.error("❌ Error eliminando el pedido.")
+                return
 
-        restantes = df_año[df_año["ID"] != pedido_id].sort_values("ID")
+            restantes = df_año[df_año["ID"] != pedido_id].sort_values("ID")
 
-        for new_id, (_, row) in enumerate(restantes.iterrows(), start=1):
-            if row["ID"] != new_id:
-                update_document_firestore(
-                    "pedidos",
-                    row["id_documento_firestore"],
-                    {"ID": new_id}
-                )
+            for new_id, (_, row) in enumerate(restantes.iterrows(), start=1):
+                if row["ID"] != new_id:
+                    update_document_firestore(
+                        "pedidos",
+                        row["id_documento_firestore"],
+                        {"ID": new_id}
+                    )
 
-        st.session_state.pop("data", None)
-        st.session_state["data_loaded"] = False
-        st.session_state.pop("pedido_section", None)
+            st.session_state.pop("data", None)
+            st.session_state["data_loaded"] = False
+            st.session_state.pop("pedido_section", None)
 
-        st.balloons()
-        st.success("✅ Pedido eliminado y IDs reordenados correctamente")
-        time.sleep(1.2)
-        st.rerun()
+            st.balloons()
+            st.success("✅ Pedido eliminado correctamente")
+            time.sleep(1.2)
+            st.rerun()
