@@ -10,6 +10,14 @@ from utils.firestore_utils import (
 
 
 def show_delete(df_pedidos, df_listas=None):
+
+    # ===============================
+    # SALIR
+    # ===============================
+    if st.button("⬅️ Volver a Pedidos"):
+        st.session_state.pop("pedido_section", None)
+        st.rerun()
+
     st.subheader("🗑️ Eliminar Pedido")
     st.write("---")
 
@@ -34,7 +42,7 @@ def show_delete(df_pedidos, df_listas=None):
     # SELECTORES
     # =================================================
     años = sorted(df_pedidos["Año"].unique(), reverse=True)
-    año = st.selectbox("📅 Año del pedido", años, key="delete_year")
+    año = st.selectbox("📅 Año del pedido", años)
 
     df_año = df_pedidos[df_pedidos["Año"] == año].sort_values("ID")
     if df_año.empty:
@@ -61,7 +69,7 @@ def show_delete(df_pedidos, df_listas=None):
     pedido = pedido_df.iloc[0]
 
     # =================================================
-    # INFO DEL PEDIDO (TABLA)
+    # INFO DEL PEDIDO
     # =================================================
     st.markdown("### 📄 Pedido seleccionado")
 
@@ -78,10 +86,10 @@ def show_delete(df_pedidos, df_listas=None):
     # CONFIRMACIÓN
     # =================================================
     st.warning(
-        f"⚠️ ¿Quiere usted borrar el pedido "
+        f"⚠️ Vas a eliminar el pedido "
         f"**ID {pedido_id}** del cliente "
         f"**{pedido.get('Cliente', '')}** "
-        f"({pedido.get('Club', '')})?"
+        f"({pedido.get('Club', '')})"
     )
 
     confirmar = st.checkbox(
@@ -97,12 +105,10 @@ def show_delete(df_pedidos, df_listas=None):
             st.error("❌ Pedido sin ID de Firestore.")
             return
 
-        # 1️⃣ BORRAR
         if not delete_document_firestore("pedidos", doc_id):
             st.error("❌ Error eliminando el pedido.")
             return
 
-        # 2️⃣ RENUMERAR IDS DEL AÑO
         restantes = df_año[df_año["ID"] != pedido_id].sort_values("ID")
 
         for new_id, (_, row) in enumerate(restantes.iterrows(), start=1):
@@ -113,12 +119,11 @@ def show_delete(df_pedidos, df_listas=None):
                     {"ID": new_id}
                 )
 
-        # 3️⃣ RECARGA
         st.session_state.pop("data", None)
         st.session_state["data_loaded"] = False
+        st.session_state.pop("pedido_section", None)
 
         st.balloons()
         st.success("✅ Pedido eliminado y IDs reordenados correctamente")
-        st.session_state.pop("pedido_section", None)
         time.sleep(1.2)
         st.rerun()

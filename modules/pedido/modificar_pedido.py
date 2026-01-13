@@ -50,7 +50,21 @@ def parse_productos(value):
 # MODIFICAR PEDIDO
 # =========================
 def show_modify(df_pedidos, df_listas):
-    st.subheader("✏️ Modificar Pedido")
+
+    # ===============================
+    # SALIR SIN GUARDAR
+    # ===============================
+    col1, col2 = st.columns([1, 6])
+
+    with col1:
+        if st.button("⬅️ Salir sin guardar"):
+            st.session_state.pop("pedido_section", None)
+            st.session_state.pop("pedido_key", None)
+            st.rerun()
+
+    with col2:
+        st.subheader("✏️ Modificar Pedido")
+
     st.write("---")
 
     if df_pedidos is None or df_pedidos.empty:
@@ -76,7 +90,10 @@ def show_modify(df_pedidos, df_listas):
         return
 
     # ---------- ID ----------
-    df_año["ID"] = pd.to_numeric(df_año["ID"], errors="coerce").fillna(0).astype(int)
+    df_año["ID"] = pd.to_numeric(
+        df_año["ID"], errors="coerce"
+    ).fillna(0).astype(int)
+
     max_id = int(df_año["ID"].max())
 
     if "mod_id" not in st.session_state:
@@ -116,6 +133,7 @@ def show_modify(df_pedidos, df_listas):
         df_listas["Producto"].dropna().unique().tolist()
         if df_listas is not None and "Producto" in df_listas.columns else []
     )
+
     telas_lista = [""] + (
         df_listas["Tela"].dropna().unique().tolist()
         if df_listas is not None and "Tela" in df_listas.columns else []
@@ -126,18 +144,21 @@ def show_modify(df_pedidos, df_listas):
     total = 0.0
     for i, p in enumerate(productos):
         c1, c2, c3, c4 = st.columns([3, 3, 2, 2])
+
         p["Producto"] = c1.selectbox(
             f"Producto {i+1}",
             productos_lista,
             index=safe_select_index(productos_lista, p.get("Producto", "")),
             key=f"mod_prod_{pedido_key}_{i}"
         )
+
         p["Tela"] = c2.selectbox(
             f"Tela {i+1}",
             telas_lista,
             index=safe_select_index(telas_lista, p.get("Tela", "")),
             key=f"mod_tela_{pedido_key}_{i}"
         )
+
         p["PrecioUnitario"] = c3.number_input(
             "Precio €",
             min_value=0.0,
@@ -145,6 +166,7 @@ def show_modify(df_pedidos, df_listas):
             value=float(p.get("PrecioUnitario", 0.0)),
             key=f"mod_precio_{pedido_key}_{i}"
         )
+
         p["Cantidad"] = c4.number_input(
             "Cantidad",
             min_value=1,
@@ -152,6 +174,7 @@ def show_modify(df_pedidos, df_listas):
             value=int(p.get("Cantidad", 1)),
             key=f"mod_cantidad_{pedido_key}_{i}"
         )
+
         total += p["PrecioUnitario"] * p["Cantidad"]
 
     st.markdown(f"**💰 Total productos:** {total:.2f} €")
@@ -172,6 +195,7 @@ def show_modify(df_pedidos, df_listas):
                 min_value=0.0,
                 value=float(pedido.get("Precio", 0.0))
             )
+
             precio_factura = st.number_input(
                 "Precio factura (€)",
                 min_value=0.0,
@@ -184,7 +208,6 @@ def show_modify(df_pedidos, df_listas):
                 key="fecha_salida_mod"
             )
 
-        # 📝 NOTAS / OBSERVACIONES
         notas = st.text_area(
             "📝 Notas / Observaciones",
             value=pedido.get("Notas", ""),

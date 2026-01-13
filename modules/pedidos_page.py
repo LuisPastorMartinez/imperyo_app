@@ -11,17 +11,29 @@ def show_pedidos_page(df_pedidos, df_listas):
     st.header("📦 Pedidos")
     st.write("---")
 
-    # =================================================
-    # SI ESTAMOS EN CREAR → NO MOSTRAR MENÚ
-    # =================================================
     section = st.session_state.get("pedido_section")
 
+    # =================================================
+    # SI ESTAMOS DENTRO DE UNA ACCIÓN → NO MENÚ
+    # =================================================
     if section == "➕ Crear":
         show_create(df_pedidos, df_listas)
         return
 
+    if section == "🔍 Consultar":
+        show_consult(df_pedidos, df_listas)
+        return
+
+    if section == "✏️ Modificar":
+        show_modify(df_pedidos, df_listas)
+        return
+
+    if section == "🗑️ Eliminar":
+        show_delete(df_pedidos, df_listas)
+        return
+
     # =================================================
-    # MENÚ PRINCIPAL (SIN SELECCIÓN POR DEFECTO)
+    # MENÚ PRINCIPAL
     # =================================================
     opciones = [
         "— Selecciona una opción —",
@@ -31,7 +43,7 @@ def show_pedidos_page(df_pedidos, df_listas):
         "🗑️ Eliminar",
     ]
 
-    section = st.radio(
+    st.radio(
         "¿Qué quieres hacer?",
         opciones,
         index=0,
@@ -39,22 +51,4 @@ def show_pedidos_page(df_pedidos, df_listas):
         horizontal=True
     )
 
-    st.write("---")
-
-    # =================================================
-    # MOSTRAR SECCIÓN SEGÚN ELECCIÓN
-    # =================================================
-    if section == "➕ Crear":
-        show_create(df_pedidos, df_listas)
-
-    elif section == "🔍 Consultar":
-        show_consult(df_pedidos, df_listas)
-
-    elif section == "✏️ Modificar":
-        show_modify(df_pedidos, df_listas)
-
-    elif section == "🗑️ Eliminar":
-        show_delete(df_pedidos, df_listas)
-
-    else:
-        st.info("👆 Selecciona una opción del menú para empezar.")
+    st.info("👆 Selecciona una opción para continuar.")
