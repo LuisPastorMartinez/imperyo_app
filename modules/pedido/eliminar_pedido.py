@@ -119,6 +119,6 @@ def show_delete(df_pedidos, df_listas=None):
 
         st.balloons()
         st.success("✅ Pedido eliminado y IDs reordenados correctamente")
-
+        st.session_state.pop("pedido_section", None)
         time.sleep(1.2)
         st.rerun()
