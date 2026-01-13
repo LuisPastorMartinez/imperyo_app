@@ -9,6 +9,28 @@ from utils.data_utils import limpiar_telefono
 from .helpers import convert_to_firestore_type
 
 
+# ===============================
+# RESET FORM
+# ===============================
+def reset_crear_pedido():
+    keys = [
+        "crear_cliente",
+        "crear_telefono",
+        "crear_club",
+        "crear_precio",
+        "crear_precio_factura",
+        "crear_empezado",
+        "crear_terminado",
+        "crear_cobrado",
+        "crear_retirado",
+        "crear_pendiente",
+        "productos_crear",
+    ]
+
+    for k in keys:
+        st.session_state.pop(k, None)
+
+
 def show_create(df_pedidos, df_listas):
     st.subheader("➕ Crear Pedido")
     st.write("---")
@@ -91,25 +113,33 @@ def show_create(df_pedidos, df_listas):
         col1, col2 = st.columns(2)
 
         with col1:
-            cliente = st.text_input("Cliente*")
-            telefono = st.text_input("Teléfono*")
-            club = st.text_input("Club*")
+            cliente = st.text_input("Cliente*", key="crear_cliente")
+            telefono = st.text_input("Teléfono*", key="crear_telefono")
+            club = st.text_input("Club*", key="crear_club")
 
         with col2:
-            precio = st.number_input("Precio total (€)", min_value=0.0)
-            precio_factura = st.number_input("Precio factura (€)", min_value=0.0)
+            precio = st.number_input(
+                "Precio total (€)",
+                min_value=0.0,
+                key="crear_precio"
+            )
+            precio_factura = st.number_input(
+                "Precio factura (€)",
+                min_value=0.0,
+                key="crear_precio_factura"
+            )
 
         e1, e2, e3, e4, e5 = st.columns(5)
-        empezado = e1.checkbox("Empezado")
-        terminado = e2.checkbox("Terminado")
-        cobrado = e3.checkbox("Cobrado")
-        retirado = e4.checkbox("Retirado")
-        pendiente = e5.checkbox("Pendiente")
+        empezado = e1.checkbox("Empezado", key="crear_empezado")
+        terminado = e2.checkbox("Terminado", key="crear_terminado")
+        cobrado = e3.checkbox("Cobrado", key="crear_cobrado")
+        retirado = e4.checkbox("Retirado", key="crear_retirado")
+        pendiente = e5.checkbox("Pendiente", key="crear_pendiente")
 
         crear = st.form_submit_button("✅ Crear Pedido", type="primary")
 
     # ===============================
-    # GUARDAR (CORRECTO)
+    # GUARDAR
     # ===============================
     if crear:
         if not cliente or not telefono or not club:
@@ -140,7 +170,10 @@ def show_create(df_pedidos, df_listas):
         add_document_firestore("pedidos", nuevo_pedido)
 
         st.success(f"✅ Pedido {next_id} / {año_actual} creado correctamente")
-        time.sleep(1)
-        st.session_state.pop("productos_crear", None)
+
+        # 🔥 LIMPIAR FORMULARIO
+        reset_crear_pedido()
+
         st.session_state.data_loaded = False
+        time.sleep(1)
         st.rerun()
