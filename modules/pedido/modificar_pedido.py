@@ -222,6 +222,6 @@ def show_modify(df_pedidos, df_listas):
             st.success("✅ Pedido actualizado correctamente")
             st.session_state.data_loaded = False
             st.session_state.pop("pedido_key", None)
-            st.session_state.pedido_section = None
+            st.session_state.pop("pedido_section", None)
             time.sleep(1)
             st.rerun()
