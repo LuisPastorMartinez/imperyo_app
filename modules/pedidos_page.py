@@ -11,21 +11,30 @@ def show_pedidos_page(df_pedidos, df_listas):
     st.header("📦 Pedidos")
     st.write("---")
 
-    # ===============================
-    # SI NO HAY SECCIÓN → MOSTRAR MENÚ
-    # ===============================
-    if "pedido_section" not in st.session_state:
-        section = st.radio(
-            "¿Qué quieres hacer?",
-            ["➕ Crear", "🔍 Consultar", "✏️ Modificar", "🗑️ Eliminar"],
-            key="pedido_section"
-        )
-    else:
-        section = st.session_state.pedido_section
+    # =================================================
+    # MENÚ SIEMPRE VISIBLE (SIN SELECCIÓN POR DEFECTO)
+    # =================================================
+    opciones = [
+        "— Selecciona una opción —",
+        "➕ Crear",
+        "🔍 Consultar",
+        "✏️ Modificar",
+        "🗑️ Eliminar",
+    ]
 
-    # ===============================
-    # MOSTRAR SOLO LA SECCIÓN ELEGIDA
-    # ===============================
+    section = st.radio(
+        "¿Qué quieres hacer?",
+        opciones,
+        index=0,
+        key="pedido_section",
+        horizontal=True
+    )
+
+    st.write("---")
+
+    # =================================================
+    # MOSTRAR SECCIÓN SOLO SI SE ELIGE UNA OPCIÓN
+    # =================================================
     if section == "➕ Crear":
         show_create(df_pedidos, df_listas)
 
@@ -37,3 +46,6 @@ def show_pedidos_page(df_pedidos, df_listas):
 
     elif section == "🗑️ Eliminar":
         show_delete(df_pedidos, df_listas)
+
+    else:
+        st.info("👆 Selecciona una opción del menú para empezar.")
