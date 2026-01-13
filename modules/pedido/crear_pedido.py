@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 import json
 import time
 from datetime import datetime
@@ -7,28 +6,6 @@ from datetime import datetime
 from utils.firestore_utils import add_document_firestore, get_next_id_por_año
 from utils.data_utils import limpiar_telefono
 from .helpers import convert_to_firestore_type
-
-
-# ===============================
-# RESET FORM
-# ===============================
-def reset_crear_pedido():
-    keys = [
-        "crear_cliente",
-        "crear_telefono",
-        "crear_club",
-        "crear_precio",
-        "crear_precio_factura",
-        "crear_empezado",
-        "crear_terminado",
-        "crear_cobrado",
-        "crear_retirado",
-        "crear_pendiente",
-        "productos_crear",
-    ]
-
-    for k in keys:
-        st.session_state.pop(k, None)
 
 
 def show_create(df_pedidos, df_listas):
@@ -39,64 +16,20 @@ def show_create(df_pedidos, df_listas):
         st.error("No hay datos de pedidos.")
         return
 
-    año_actual = datetime.now().year
-    st.info(f"📅 Año del pedido: {año_actual}")
+    # ===============================
+    # FECHA ENTRADA (AUTOMÁTICA)
+    # ===============================
+    fecha_entrada = datetime.now().date()
+    año_actual = fecha_entrada.year
+
+    st.info(f"📅 Fecha de entrada: **{fecha_entrada.strftime('%d/%m/%Y')}**")
+    st.info(f"📅 Año del pedido: **{año_actual}**")
 
     # ===============================
-    # PRODUCTOS
+    # PRODUCTOS (si los usas)
     # ===============================
     if "productos_crear" not in st.session_state:
-        st.session_state.productos_crear = [
-            {"Producto": "", "Tela": "", "PrecioUnitario": 0.0, "Cantidad": 1}
-        ]
-
-    productos_lista = [""] + (
-        df_listas["Producto"].dropna().unique().tolist()
-        if df_listas is not None and "Producto" in df_listas.columns else []
-    )
-    telas_lista = [""] + (
-        df_listas["Tela"].dropna().unique().tolist()
-        if df_listas is not None and "Tela" in df_listas.columns else []
-    )
-
-    total_productos = 0.0
-
-    for i, p in enumerate(st.session_state.productos_crear):
-        c1, c2, c3, c4 = st.columns([3, 3, 2, 2])
-
-        p["Producto"] = c1.selectbox(
-            f"Producto {i+1}",
-            productos_lista,
-            index=productos_lista.index(p["Producto"])
-            if p["Producto"] in productos_lista else 0,
-            key=f"create_producto_{i}"
-        )
-
-        p["Tela"] = c2.selectbox(
-            f"Tela {i+1}",
-            telas_lista,
-            index=telas_lista.index(p["Tela"])
-            if p["Tela"] in telas_lista else 0,
-            key=f"create_tela_{i}"
-        )
-
-        p["PrecioUnitario"] = c3.number_input(
-            "Precio €",
-            min_value=0.0,
-            value=float(p["PrecioUnitario"]),
-            key=f"create_precio_{i}"
-        )
-
-        p["Cantidad"] = c4.number_input(
-            "Cantidad",
-            min_value=1,
-            value=int(p["Cantidad"]),
-            key=f"create_cantidad_{i}"
-        )
-
-        total_productos += p["PrecioUnitario"] * p["Cantidad"]
-
-    st.markdown(f"**💰 Subtotal productos:** {total_productos:.2f} €")
+        st.session_state.productos_crear = []
 
     # ===============================
     # ID
@@ -113,28 +46,27 @@ def show_create(df_pedidos, df_listas):
         col1, col2 = st.columns(2)
 
         with col1:
-            cliente = st.text_input("Cliente*", key="crear_cliente")
-            telefono = st.text_input("Teléfono*", key="crear_telefono")
-            club = st.text_input("Club*", key="crear_club")
+            cliente = st.text_input("Cliente*")
+            telefono = st.text_input("Teléfono*")
+            club = st.text_input("Club*")
 
         with col2:
-            precio = st.number_input(
-                "Precio total (€)",
-                min_value=0.0,
-                key="crear_precio"
-            )
-            precio_factura = st.number_input(
-                "Precio factura (€)",
-                min_value=0.0,
-                key="crear_precio_factura"
-            )
+            precio = st.number_input("Precio total (€)", min_value=0.0)
+            precio_factura = st.number_input("Precio factura (€)", min_value=0.0)
 
+        # 📝 NOTAS / OBSERVACIONES
+        notas = st.text_area(
+            "📝 Notas / Observaciones",
+            placeholder="Ej: Llamar en 15 días, colores pendientes, espera confirmación del club..."
+        )
+
+        st.markdown("### 🚦 Estado del pedido")
         e1, e2, e3, e4, e5 = st.columns(5)
-        empezado = e1.checkbox("Empezado", key="crear_empezado")
-        terminado = e2.checkbox("Terminado", key="crear_terminado")
-        cobrado = e3.checkbox("Cobrado", key="crear_cobrado")
-        retirado = e4.checkbox("Retirado", key="crear_retirado")
-        pendiente = e5.checkbox("Pendiente", key="crear_pendiente")
+        empezado = e1.checkbox("Empezado")
+        terminado = e2.checkbox("Terminado")
+        cobrado = e3.checkbox("Cobrado")
+        retirado = e4.checkbox("Retirado")
+        pendiente = e5.checkbox("Pendiente")
 
         crear = st.form_submit_button("✅ Crear Pedido", type="primary")
 
@@ -154,12 +86,13 @@ def show_create(df_pedidos, df_listas):
         nuevo_pedido = {
             "ID": next_id,
             "Año": año_actual,
-            "Productos": json.dumps(st.session_state.productos_crear),
+            "Fecha entrada": convert_to_firestore_type(fecha_entrada),
             "Cliente": convert_to_firestore_type(cliente),
             "Telefono": convert_to_firestore_type(telefono_limpio),
             "Club": convert_to_firestore_type(club),
             "Precio": precio,
             "Precio Factura": precio_factura,
+            "Notas": convert_to_firestore_type(notas),
             "Inicio Trabajo": empezado,
             "Trabajo Terminado": terminado,
             "Cobrado": cobrado,
@@ -169,11 +102,9 @@ def show_create(df_pedidos, df_listas):
 
         add_document_firestore("pedidos", nuevo_pedido)
 
-        st.success(f"✅ Pedido {next_id} / {año_actual} creado correctamente")
+        st.success(f"✅ Pedido {next_id}/{año_actual} creado correctamente")
 
-        # 🔥 LIMPIAR FORMULARIO
-        reset_crear_pedido()
-
+        # Volver al menú Pedidos
         st.session_state.data_loaded = False
         st.session_state.pop("pedido_section", None)
         time.sleep(1)

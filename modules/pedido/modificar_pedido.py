@@ -178,12 +178,18 @@ def show_modify(df_pedidos, df_listas):
                 value=float(pedido.get("Precio Factura", 0.0))
             )
 
-            # ✅ FECHA SALIDA (NUEVO)
             fecha_salida = st.date_input(
                 "📦 Fecha salida",
                 value=safe_to_date(pedido.get("Fecha salida")),
                 key="fecha_salida_mod"
             )
+
+        # 📝 NOTAS / OBSERVACIONES
+        notas = st.text_area(
+            "📝 Notas / Observaciones",
+            value=pedido.get("Notas", ""),
+            height=120
+        )
 
         st.markdown("### 🚦 Estado del pedido")
         e1, e2, e3, e4, e5 = st.columns(5)
@@ -210,6 +216,7 @@ def show_modify(df_pedidos, df_listas):
             "Precio": precio,
             "Precio Factura": precio_factura,
             "Fecha salida": convert_to_firestore_type(fecha_salida),
+            "Notas": convert_to_firestore_type(notas),
             "Inicio Trabajo": empezado,
             "Trabajo Terminado": terminado,
             "Cobrado": cobrado,
