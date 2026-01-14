@@ -28,9 +28,9 @@ def show_pedidos_page(df_pedidos, df_listas):
         show_modify(df_pedidos, df_listas)
         return
 
-    if section == "🗑️ Eliminar":
-        show_delete(df_pedidos, df_listas)
-        return
+    #if section == "🗑️ Eliminar":
+        #show_delete(df_pedidos, df_listas)
+       # return
 
     # =================================================
     # MENÚ PRINCIPAL
