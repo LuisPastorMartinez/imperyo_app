@@ -12,48 +12,55 @@ def show_pedidos_page(df_pedidos, df_listas):
     st.write("---")
 
     # =================================================
-    # INICIALIZAR ESTADO SOLO UNA VEZ
+    # ESTADOS
     # =================================================
     if "pedido_section" not in st.session_state:
-        st.session_state.pedido_section = "— Selecciona una opción —"
+        st.session_state.pedido_section = None
 
-    section = st.session_state.pedido_section
+    if "pedido_modo" not in st.session_state:
+        st.session_state.pedido_modo = "menu"
 
     # =================================================
-    # SI ESTAMOS DENTRO DE UNA ACCIÓN → NO MOSTRAR MENÚ
+    # MODO ACCIÓN
     # =================================================
-    if section == "➕ Crear":
-        show_create(df_pedidos, df_listas)
-        return
+    if st.session_state.pedido_modo == "accion":
 
-    if section == "🔍 Consultar":
-        show_consult(df_pedidos, df_listas)
-        return
+        section = st.session_state.pedido_section
 
-    if section == "✏️ Modificar":
-        show_modify(df_pedidos, df_listas)
-        return
+        if section == "➕ Crear":
+            show_create(df_pedidos, df_listas)
+            return
 
-    if section == "🗑️ Eliminar":
-        show_delete(df_pedidos, df_listas)
-        return
+        if section == "🔍 Consultar":
+            show_consult(df_pedidos, df_listas)
+            return
+
+        if section == "✏️ Modificar":
+            show_modify(df_pedidos, df_listas)
+            return
+
+        if section == "🗑️ Eliminar":
+            show_delete(df_pedidos, df_listas)
+            return
 
     # =================================================
     # MENÚ PRINCIPAL
     # =================================================
     opciones = [
-        "— Selecciona una opción —",
         "➕ Crear",
         "🔍 Consultar",
         "✏️ Modificar",
         "🗑️ Eliminar",
     ]
 
-    st.radio(
+    seleccion = st.radio(
         "¿Qué quieres hacer?",
         opciones,
-        key="pedido_section",
+        key="pedido_radio",
         horizontal=True
     )
 
-    st.info("👆 Selecciona una opción para continuar.")
+    if seleccion:
+        st.session_state.pedido_section = seleccion
+        st.session_state.pedido_modo = "accion"
+        st.rerun()

@@ -1,5 +1,4 @@
 import streamlit as st
-import json
 import time
 from datetime import datetime
 
@@ -10,15 +9,11 @@ from .helpers import convert_to_firestore_type
 
 def show_create(df_pedidos, df_listas):
 
-    # =================================================
-    # BOTÓN SALIR SIN GUARDAR
-    # =================================================
     col1, col2 = st.columns([1, 6])
 
     with col1:
         if st.button("⬅️ Salir sin guardar"):
-            st.session_state.pop("pedido_section", None)
-            st.session_state.pop("productos_crear", None)
+            st.session_state.pedido_modo = "menu"
             st.rerun()
 
     with col2:
@@ -26,30 +21,17 @@ def show_create(df_pedidos, df_listas):
 
     st.write("---")
 
-    if df_pedidos is None:
-        st.error("No hay datos de pedidos.")
-        return
-
-    # ===============================
-    # FECHA ENTRADA (AUTOMÁTICA)
-    # ===============================
     fecha_entrada = datetime.now().date()
     año_actual = fecha_entrada.year
 
-    st.info(f"📅 Fecha de entrada: **{fecha_entrada.strftime('%d/%m/%Y')}**")
-    st.info(f"📅 Año del pedido: **{año_actual}**")
+    st.info(f"📅 Fecha de entrada: {fecha_entrada.strftime('%d/%m/%Y')}")
+    st.info(f"📅 Año del pedido: {año_actual}")
 
-    # ===============================
-    # ID
-    # ===============================
     df_año = df_pedidos[df_pedidos["Año"] == año_actual].copy()
     next_id = get_next_id_por_año(df_año, año_actual)
 
     st.markdown(f"### 🆔 ID del pedido: **{next_id}**")
 
-    # ===============================
-    # FORMULARIO
-    # ===============================
     with st.form("crear_pedido_form"):
         col1, col2 = st.columns(2)
 
@@ -62,10 +44,7 @@ def show_create(df_pedidos, df_listas):
             precio = st.number_input("Precio total (€)", min_value=0.0)
             precio_factura = st.number_input("Precio factura (€)", min_value=0.0)
 
-        notas = st.text_area(
-            "📝 Notas / Observaciones",
-            placeholder="Ej: Llamar en 15 días, colores pendientes, espera confirmación del club..."
-        )
+        notas = st.text_area("📝 Notas / Observaciones")
 
         st.markdown("### 🚦 Estado del pedido")
         e1, e2, e3, e4, e5 = st.columns(5)
@@ -77,9 +56,6 @@ def show_create(df_pedidos, df_listas):
 
         crear = st.form_submit_button("✅ Crear Pedido", type="primary")
 
-    # ===============================
-    # GUARDAR
-    # ===============================
     if crear:
         if not cliente or not telefono or not club:
             st.error("❌ Cliente, Teléfono y Club obligatorios")
@@ -109,9 +85,9 @@ def show_create(df_pedidos, df_listas):
 
         add_document_firestore("pedidos", nuevo_pedido)
 
-        st.success(f"✅ Pedido {next_id}/{año_actual} creado correctamente")
+        st.success("✅ Pedido creado correctamente")
+        time.sleep(1)
 
         st.session_state.data_loaded = False
-        st.session_state.pop("pedido_section", None)
-        time.sleep(1)
+        st.session_state.pedido_modo = "menu"
         st.rerun()
